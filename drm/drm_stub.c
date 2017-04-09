@@ -31,6 +31,11 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#ifdef __linux__
+#include <linux/module.h>
+#include <linux/moduleparam.h>
+#include <linux/slab.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_core.h>
 
@@ -80,6 +85,50 @@ static struct cdevsw drm_cdevsw = {
 	.d_flags =	D_TRACKCLOSE
 };
 
+#ifdef __linux__
+struct idr drm_minors_idr;
+
+struct class *drm_class;
+struct proc_dir_entry *drm_proc_root;
+struct dentry *drm_debugfs_root;
+
+int drm_err(const char *func, const char *format, ...)
+{
+	struct va_format vaf;
+	va_list args;
+	int r;
+
+	va_start(args, format);
+
+	vaf.fmt = format;
+	vaf.va = &args;
+
+	r = printk(KERN_ERR "[" DRM_NAME ":%s] *ERROR* %pV", func, &vaf);
+
+	va_end(args);
+
+	return r;
+}
+EXPORT_SYMBOL(drm_err);
+
+void drm_ut_debug_printk(unsigned int request_level,
+			 const char *prefix,
+			 const char *function_name,
+			 const char *format, ...)
+{
+	va_list args;
+
+	if (drm_debug & request_level) {
+		if (function_name)
+			printk(KERN_DEBUG "[%s:%s], ", prefix, function_name);
+		va_start(args, format);
+		vprintk(format, args);
+		va_end(args);
+	}
+}
+EXPORT_SYMBOL(drm_ut_debug_printk);
+#endif /* __linux__ */
+
 static int drm_minor_get_id(struct drm_device *dev, int type)
 {
 	int new_id;
@@ -102,14 +151,24 @@ struct drm_master *drm_master_create(struct drm_minor *minor)
 {
 	struct drm_master *master;
 
+#ifdef FREEBSD_NOTYET
+	master = kzalloc(sizeof(*master), GFP_KERNEL);
+#else
 	master = malloc(sizeof(*master), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 	if (!master)
 		return NULL;
 
+#ifdef FREEBSD_NOTYET
+	kref_init(&master->refcount);
+	spin_lock_init(&master->lock.spinlock);
+	init_waitqueue_head(&master->lock.lock_queue);
+#else
 	refcount_init(&master->refcount, 1);
 	mtx_init(&master->lock.spinlock, "drm_master__lock__spinlock",
 	    NULL, MTX_DEF);
 	DRM_INIT_WAITQUEUE(&master->lock.lock_queue);
+#endif
 	drm_ht_create(&master->magiclist, DRM_MAGIC_HASH_ORDER);
 	INIT_LIST_HEAD(&master->magicfree);
 	master->minor = minor;
@@ -121,13 +180,23 @@ struct drm_master *drm_master_create(struct drm_minor *minor)
 
 struct drm_master *drm_master_get(struct drm_master *master)
 {
+#ifdef FREEBSD_NOTYET
+	kref_get(&master->refcount);
+#else
 	refcount_acquire(&master->refcount);
+#endif
 	return master;
 }
 EXPORT_SYMBOL(drm_master_get);
 
-static void drm_master_destroy(struct drm_master *master)
+#ifdef FREEBSD_NOTYET
+static void drm_master_destroy(struct kref *kref)
 {
+	struct drm_master *master = container_of(kref, struct drm_master, refcount);
+#else
+	static void drm_master_destroy(struct drm_master *master)
+{
+#endif
 	struct drm_magic_entry *pt, *next;
 	struct drm_device *dev = master->minor->dev;
 	struct drm_map_list *r_list, *list_temp;
@@ -145,26 +214,47 @@ static void drm_master_destroy(struct drm_master *master)
 	}
 
 	if (master->unique) {
+#ifdef FREEBSD_NOTYET
+		kfree(master->unique);
+#else
 		free(master->unique, DRM_MEM_DRIVER);
+#endif
 		master->unique = NULL;
 		master->unique_len = 0;
 	}
 
+#ifdef FREEBSD_NOTYET
+	kfree(dev->devname);
+	dev->devname = NULL;
+#endif
+
 	list_for_each_entry_safe(pt, next, &master->magicfree, head) {
 		list_del(&pt->head);
 		drm_ht_remove_item(&master->magiclist, &pt->hash_item);
+#ifdef FREEBSD_NOTYET
+		kfree(pt);
+#else
 		free(pt, DRM_MEM_MAGIC);
+#endif
 	}
 
 	drm_ht_remove(&master->magiclist);
 
+#ifdef FREEBSD_NOTYET
+	kfree(master);
+#else
 	free(master, DRM_MEM_KMS);
+#endif
 }
 
 void drm_master_put(struct drm_master **master)
 {
+#ifdef FREEBSD_NOTYET
+	kref_put(&(*master)->refcount, drm_master_destroy);
+#else
 	if (refcount_release(&(*master)->refcount))
 		drm_master_destroy(*master);
+#endif
 	*master = NULL;
 }
 EXPORT_SYMBOL(drm_master_put);
@@ -186,7 +276,11 @@ int drm_setmaster_ioctl(struct drm_device *dev, void *data,
 	if (file_priv->minor->master)
 		return -EINVAL;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	file_priv->minor->master = drm_master_get(file_priv->master);
 	file_priv->is_master = 1;
 	if (dev->driver->master_set) {
@@ -196,7 +290,11 @@ int drm_setmaster_ioctl(struct drm_device *dev, void *data,
 			drm_master_put(&file_priv->minor->master);
 		}
 	}
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	return 0;
 }
@@ -210,12 +308,20 @@ int drm_dropmaster_ioctl(struct drm_device *dev, void *data,
 	if (!file_priv->minor->master)
 		return -EINVAL;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	if (dev->driver->master_drop)
 		dev->driver->master_drop(dev, file_priv, false);
 	drm_master_put(&file_priv->minor->master);
 	file_priv->is_master = 0;
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 	return 0;
 }
 
@@ -229,12 +335,19 @@ int drm_fill_in_dev(struct drm_device *dev,
 	INIT_LIST_HEAD(&dev->maplist);
 	INIT_LIST_HEAD(&dev->vblank_event_list);
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_init(&dev->count_lock);
+	spin_lock_init(&dev->event_lock);
+	mutex_init(&dev->struct_mutex);
+	mutex_init(&dev->ctxlist_mutex);
+#else
 	mtx_init(&dev->irq_lock, "drmirq", NULL, MTX_DEF);
 	mtx_init(&dev->count_lock, "drmcount", NULL, MTX_DEF);
 	mtx_init(&dev->event_lock, "drmev", NULL, MTX_DEF);
 	sx_init(&dev->dev_struct_lock, "drmslk");
 	mtx_init(&dev->ctxlist_mutex, "drmctxlist", NULL, MTX_DEF);
 	mtx_init(&dev->pcir_lock, "drmpcir", NULL, MTX_DEF);
+#endif
 
 	if (drm_ht_create(&dev->map_hash, 12)) {
 		return -ENOMEM;
@@ -278,11 +391,13 @@ int drm_fill_in_dev(struct drm_device *dev,
 		}
 	}
 
+#ifdef __FreeBSD__
 	retcode = drm_sysctl_init(dev);
 	if (retcode != 0) {
 		DRM_ERROR("Failed to create hw.dri sysctl entry: %d\n",
 		    retcode);
 	}
+#endif
 
 	return 0;
 
@@ -349,8 +464,12 @@ int drm_get_minor(struct drm_device *dev, struct drm_minor **minor, int type)
 	if (minor_id < 0)
 		return minor_id;
 
+#ifdef FREEBSD_NOTYET
+	new_minor = kzalloc(sizeof(struct drm_minor), GFP_KERNEL);
+#else
 	new_minor = malloc(sizeof(struct drm_minor), DRM_MEM_MINOR,
 	    M_NOWAIT | M_ZERO);
+#endif
 	if (!new_minor) {
 		ret = -ENOMEM;
 		goto err_idr;
@@ -390,7 +509,11 @@ int drm_get_minor(struct drm_device *dev, struct drm_minor **minor, int type)
 
 
 err_mem:
+#ifdef FREEBSD_NOTYET
+	kfree(new_minor);
+#else
 	free(new_minor, DRM_MEM_MINOR);
+#endif
 err_idr:
 	*minor = NULL;
 	return ret;
@@ -417,7 +540,11 @@ int drm_put_minor(struct drm_minor **minor_p)
 
 	destroy_dev(minor->device);
 
+#ifdef FREEBSD_NOTYET
+	kfree(minor);
+#else
 	free(minor, DRM_MEM_MINOR);
+#endif
 	*minor_p = NULL;
 	return 0;
 }
