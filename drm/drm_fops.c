@@ -35,6 +35,15 @@
  */
 
 #include <drm/drmP.h>
+#ifdef __linux__
+#include <linux/poll.h>
+#include <linux/slab.h>
+#include <linux/module.h>
+
+/* from BKL pushdown: note that nothing else serializes idr_find() */
+DEFINE_MUTEX(drm_global_mutex);
+EXPORT_SYMBOL(drm_global_mutex);
+#endif
 
 static int drm_open_helper(struct cdev *kdev, int flags, int fmt,
 			   DRM_STRUCTPROC *p, struct drm_device *dev);
@@ -80,7 +89,11 @@ static int drm_setup(struct drm_device * dev)
 	dev->last_context = 0;
 	dev->last_switch = 0;
 	dev->last_checked = 0;
+#ifdef FREEBSD_NOTYET
+	init_waitqueue_head(&dev->context_wait);
+#else
 	DRM_INIT_WAITQUEUE(&dev->context_wait);
+#endif
 	dev->if_version = 0;
 
 #ifdef FREEBSD_NOTYET
@@ -88,8 +101,8 @@ static int drm_setup(struct drm_device * dev)
 	dev->lck_start = 0;
 
 	dev->buf_async = NULL;
-	DRM_INIT_WAITQUEUE(&dev->buf_readers);
-	DRM_INIT_WAITQUEUE(&dev->buf_writers);
+	init_waitqueue_head(&dev->buf_readers);
+	init_waitqueue_head(&dev->buf_writers);
 #endif /* FREEBSD_NOTYET */
 
 	DRM_DEBUG("\n");
@@ -130,7 +143,10 @@ int drm_open(struct cdev *kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 	if (!(dev = minor->dev))
 		return ENODEV;
 
-	sx_xlock(&drm_global_mutex);
+#ifdef __linux__
+	if (drm_device_is_unplugged(dev))
+		return -ENODEV;
+#endif
 
 	/*
 	 * FIXME Linux<->FreeBSD: On Linux, counter updated outside
@@ -138,12 +154,31 @@ int drm_open(struct cdev *kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 	 */
 	if (!dev->open_count++)
 		need_setup = 1;
+	sx_xlock(&drm_global_mutex);
+#ifdef __linux__
+	mutex_lock(&dev->struct_mutex);
+	old_imapping = inode->i_mapping;
+	old_mapping = dev->dev_mapping;
+	if (old_mapping == NULL)
+		dev->dev_mapping = &inode->i_data;
+	/* ihold ensures nobody can remove inode with our i_data */
+	ihold(container_of(dev->dev_mapping, struct inode, i_data));
+	inode->i_mapping = dev->dev_mapping;
+	filp->f_mapping = dev->dev_mapping;
+	mutex_unlock(&dev->struct_mutex);
+#endif
 
+#ifdef __linux__
+	retcode = drm_open_helper(inode, filp, dev);
+	if (retcode)
+		goto err_undo;
+#elif __FreeBSD__
 	retcode = drm_open_helper(kdev, flags, fmt, p, dev);
 	if (retcode) {
 		sx_xunlock(&drm_global_mutex);
 		return (-retcode);
 	}
+#endif
 	atomic_inc(&dev->counts[_DRM_STAT_OPENS]);
 	if (need_setup) {
 		retcode = drm_setup(dev);
@@ -154,14 +189,91 @@ int drm_open(struct cdev *kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 	return 0;
 
 err_undo:
+#ifdef __linux__
+	mutex_lock(&dev->struct_mutex);
+	filp->f_mapping = old_imapping;
+	inode->i_mapping = old_imapping;
+	iput(container_of(dev->dev_mapping, struct inode, i_data));
+	dev->dev_mapping = old_mapping;
+	mutex_unlock(&dev->struct_mutex);
+	dev->open_count--;
+	return retcode;
+#elif __FreeBSD__
 	mtx_lock(&Giant); /* FIXME: Giant required? */
 	device_unbusy(dev->dev);
 	mtx_unlock(&Giant);
 	dev->open_count--;
 	sx_xunlock(&drm_global_mutex);
 	return -retcode;
+#endif
 }
 EXPORT_SYMBOL(drm_open);
+
+#ifdef __linux__
+/**
+ * File \c open operation.
+ *
+ * \param inode device inode.
+ * \param filp file pointer.
+ *
+ * Puts the dev->fops corresponding to the device minor number into
+ * \p filp, call the \c open method, and restore the file operations.
+ */
+int drm_stub_open(struct inode *inode, struct file *filp)
+{
+	struct drm_device *dev = NULL;
+	struct drm_minor *minor;
+	int minor_id = iminor(inode);
+	int err = -ENODEV;
+	const struct file_operations *old_fops;
+
+	DRM_DEBUG("\n");
+
+	mutex_lock(&drm_global_mutex);
+	minor = idr_find(&drm_minors_idr, minor_id);
+	if (!minor)
+		goto out;
+
+	if (!(dev = minor->dev))
+		goto out;
+
+	if (drm_device_is_unplugged(dev))
+		goto out;
+
+	old_fops = filp->f_op;
+	filp->f_op = fops_get(dev->driver->fops);
+	if (filp->f_op == NULL) {
+		filp->f_op = old_fops;
+		goto out;
+	}
+	if (filp->f_op->open && (err = filp->f_op->open(inode, filp))) {
+		fops_put(filp->f_op);
+		filp->f_op = fops_get(old_fops);
+	}
+	fops_put(old_fops);
+
+out:
+	mutex_unlock(&drm_global_mutex);
+	return err;
+}
+
+/**
+ * Check whether DRI will run on this CPU.
+ *
+ * \return non-zero if the DRI will run on this CPU, or zero otherwise.
+ */
+static int drm_cpu_valid(void)
+{
+#if defined(__i386__)
+	if (boot_cpu_data.x86 == 3)
+		return 0;	/* No cmpxchg on a 386 */
+#endif
+#if defined(__sparc__) && !defined(__sparc_v9__)
+	return 0;		/* No cmpxchg before v9 sparc. */
+#endif
+	return 1;
+}
+#endif /* __linux__ */
 
 /**
  * Called whenever a process opens /dev/drm.
@@ -187,21 +299,39 @@ static int drm_open_helper(struct cdev *kdev, int flags, int fmt,
 
 	DRM_DEBUG("pid = %d, device = %s\n", DRM_CURRENTPID, devtoname(kdev));
 
+#ifdef FREEBSD_NOTYET
+	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
+#else
 	priv = malloc(sizeof(*priv), DRM_MEM_FILES, M_NOWAIT | M_ZERO);
+#endif
 	if (!priv)
 		return -ENOMEM;
 
+#ifdef __linux__
+	filp->private_data = priv;
+	priv->filp = filp;
+	priv->uid = current_euid();
+	priv->pid = get_pid(task_pid(current));
+	priv->minor = idr_find(&drm_minors_idr, minor_id);
+	priv->ioctl_count = 0;
+	/* for compatibility root is always authenticated */
+	priv->authenticated = capable(CAP_SYS_ADMIN);
+#elif __FreeBSD__
 	priv->uid = p->td_ucred->cr_svuid;
 	priv->pid = p->td_proc->p_pid;
 	priv->minor = kdev->si_drv1;
 	priv->ioctl_count = 0;
 	/* for compatibility root is always authenticated */
 	priv->authenticated = DRM_SUSER(p);
+#endif
 	priv->lock_count = 0;
 
 	INIT_LIST_HEAD(&priv->lhead);
 	INIT_LIST_HEAD(&priv->fbs);
 	INIT_LIST_HEAD(&priv->event_list);
+#ifdef __linux__
+	init_waitqueue_head(&priv->event_wait);
+#endif
 	priv->event_space = 4096; /* set aside 4k for event buffer */
 
 	if (dev->driver->driver_features & DRIVER_GEM)
@@ -220,12 +350,20 @@ static int drm_open_helper(struct cdev *kdev, int flags, int fmt,
 
 
 	/* if there is no current master make this fd it */
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	if (!priv->minor->master) {
 		/* create a new master */
 		priv->minor->master = drm_master_create(priv->minor);
 		if (!priv->minor->master) {
+#ifdef FREEBSD_NOTYET
+			mutex_unlock(&dev->struct_mutex);
+#else
 			DRM_UNLOCK(dev);
+#endif
 			ret = -ENOMEM;
 			goto out_free;
 		}
@@ -236,40 +374,98 @@ static int drm_open_helper(struct cdev *kdev, int flags, int fmt,
 
 		priv->authenticated = 1;
 
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 		if (dev->driver->master_create) {
 			ret = dev->driver->master_create(dev, priv->master);
 			if (ret) {
+#ifdef FREEBSD_NOTYET
+				mutex_lock(&dev->struct_mutex);
+#else
 				DRM_LOCK(dev);
+#endif
 				/* drop both references if this fails */
 				drm_master_put(&priv->minor->master);
 				drm_master_put(&priv->master);
+#ifdef FREEBSD_NOTYET
+				mutex_unlock(&dev->struct_mutex);
+#else
 				DRM_UNLOCK(dev);
+#endif
 				goto out_free;
 			}
 		}
+#ifdef FREEBSD_NOTYET
+		mutex_lock(&dev->struct_mutex);
+#else
 		DRM_LOCK(dev);
+#endif
 		if (dev->driver->master_set) {
 			ret = dev->driver->master_set(dev, priv, true);
 			if (ret) {
 				/* drop both references if this fails */
 				drm_master_put(&priv->minor->master);
 				drm_master_put(&priv->master);
+#ifdef FREEBSD_NOTYET
+				mutex_unlock(&dev->struct_mutex);
+#else
 				DRM_UNLOCK(dev);
+#endif
 				goto out_free;
 			}
 		}
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 	} else {
 		/* get a reference to the master */
 		priv->master = drm_master_get(priv->minor->master);
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 	}
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	list_add(&priv->lhead, &dev->filelist);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
+#ifdef __linux__
+#ifdef __alpha__
+	/*
+	 * Default the hose
+	 */
+	if (!dev->hose) {
+		struct pci_dev *pci_dev;
+		pci_dev = pci_get_class(PCI_CLASS_DISPLAY_VGA << 8, NULL);
+		if (pci_dev) {
+			dev->hose = pci_dev->sysdata;
+			pci_dev_put(pci_dev);
+		}
+		if (!dev->hose) {
+			struct pci_bus *b = pci_bus_b(pci_root_buses.next);
+			if (b)
+				dev->hose = b->sysdata;
+		}
+	}
+#endif
+
+	return 0;
+#elif  __FreeBSD__
 	mtx_lock(&Giant); /* FIXME: Giant required? */
 	device_busy(dev->dev);
 	mtx_unlock(&Giant);
@@ -279,10 +475,31 @@ static int drm_open_helper(struct cdev *kdev, int flags, int fmt,
 		drm_release(priv);
 
 	return ret;
+#endif
+
       out_free:
+#ifdef FREEBSD_NOTYET
+	kfree(priv);
+	filp->private_data = NULL;
+#else
 	free(priv, DRM_MEM_FILES);
+#endif
 	return ret;
 }
+
+#ifdef __linux__
+/** No-op. */
+int drm_fasync(int fd, struct file *filp, int on)
+{
+	struct drm_file *priv = filp->private_data;
+	struct drm_device *dev = priv->minor->dev;
+
+	DRM_DEBUG("fd = %d, device = 0x%lx\n", fd,
+		  (long)old_encode_dev(priv->minor->device));
+	return fasync_helper(fd, filp, on, &dev->buf_async);
+}
+EXPORT_SYMBOL(drm_fasync);
+#endif
 
 static void drm_master_release(struct drm_device *dev, struct drm_file *file_priv)
 {
@@ -302,7 +519,11 @@ static void drm_events_release(struct drm_file *file_priv)
 	struct drm_pending_vblank_event *v, *vt;
 	unsigned long flags;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev->event_lock, flags);
+#else
 	DRM_SPINLOCK_IRQSAVE(&dev->event_lock, flags);
+#endif
 
 	/* Remove pending flips */
 	list_for_each_entry_safe(v, vt, &dev->vblank_event_list, base.link)
@@ -316,7 +537,11 @@ static void drm_events_release(struct drm_file *file_priv)
 	list_for_each_entry_safe(e, et, &file_priv->event_list, link)
 		e->destroy(e);
 
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev->event_lock, flags);
+#else
 	DRM_SPINUNLOCK_IRQRESTORE(&dev->event_lock, flags);
+#endif
 }
 
 /**
@@ -336,7 +561,11 @@ void drm_release(void *data)
 	struct drm_file *file_priv = data;
 	struct drm_device *dev = file_priv->minor->dev;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&drm_global_mutex);
+#else
 	sx_xlock(&drm_global_mutex);
+#endif
 
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
 
@@ -366,7 +595,9 @@ void drm_release(void *data)
 
 	drm_events_release(file_priv);
 
+#ifdef __FreeBSD__
 	seldrain(&file_priv->event_poll);
+#endif
 
 	if (dev->driver->driver_features & DRIVER_MODESET)
 		drm_fb_release(file_priv);
@@ -397,7 +628,11 @@ void drm_release(void *data)
 	mutex_unlock(&dev->ctxlist_mutex);
 #endif /* FREEBSD_NOTYET */
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 
 	if (file_priv->is_master) {
 		struct drm_master *master = file_priv->master;
@@ -433,7 +668,11 @@ void drm_release(void *data)
 	drm_master_put(&file_priv->master);
 	file_priv->is_master = 0;
 	list_del(&file_priv->lhead);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	if (dev->driver->postclose)
 		dev->driver->postclose(dev, file_priv);
@@ -443,16 +682,25 @@ void drm_release(void *data)
 		drm_prime_destroy_file_private(&file_priv->prime);
 #endif /* FREEBSD_NOTYET */
 
+#ifdef __linux__
+	put_pid(file_priv->pid);
+#endif
+#ifdef FREEBSD_NOTYET
+	kfree(file_priv);
+#else
 	free(file_priv, DRM_MEM_FILES);
+#endif
 
 	/* ========================================================
 	 * End inline drm_release
 	 */
 
 	atomic_inc(&dev->counts[_DRM_STAT_CLOSES]);
+#ifdef __FreeBSD__
 	mtx_lock(&Giant);
 	device_unbusy(dev->dev);
 	mtx_unlock(&Giant);
+#endif
 	if (!--dev->open_count) {
 		if (atomic_read(&dev->ioctl_count)) {
 			DRM_ERROR("Device busy: %d\n",
@@ -460,7 +708,11 @@ void drm_release(void *data)
 		} else
 			drm_lastclose(dev);
 	}
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&drm_global_mutex);
+#else
 	sx_xunlock(&drm_global_mutex);
+#endif
 }
 EXPORT_SYMBOL(drm_release);
 
@@ -472,7 +724,7 @@ drm_dequeue_event(struct drm_file *file_priv, struct uio *uio,
 	bool ret = false;
 
 	/* Already locked in drm_read(). */
-	/* DRM_SPINLOCK_IRQSAVE(&dev->event_lock, flags); */
+	/* spin_lock_irqsave(&dev->event_lock, flags); */
 
 	*out = NULL;
 	if (list_empty(&file_priv->event_list))
@@ -488,7 +740,7 @@ drm_dequeue_event(struct drm_file *file_priv, struct uio *uio,
 	ret = true;
 
 out:
-	/* DRM_SPINUNLOCK_IRQRESTORE(&dev->event_lock, flags); */
+	/* spin_unlock_irqrestore(&dev->event_lock, flags); */
 	return ret;
 }
 
@@ -537,20 +789,6 @@ out:
 }
 EXPORT_SYMBOL(drm_read);
 
-void
-drm_event_wakeup(struct drm_pending_event *e)
-{
-	struct drm_file *file_priv;
-	struct drm_device *dev;
-
-	file_priv = e->file_priv;
-	dev = file_priv->minor->dev;
-	mtx_assert(&dev->event_lock, MA_OWNED);
-
-	wakeup(&file_priv->event_space);
-	selwakeup(&file_priv->event_poll);
-}
-
 int
 drm_poll(struct cdev *kdev, int events, struct thread *td)
 {
@@ -582,6 +820,7 @@ drm_poll(struct cdev *kdev, int events, struct thread *td)
 }
 EXPORT_SYMBOL(drm_poll);
 
+#ifdef __FreeBSD__
 int
 drm_mmap_single(struct cdev *kdev, vm_ooffset_t *offset, vm_size_t size,
     struct vm_object **obj_res, int nprot)
@@ -598,3 +837,18 @@ drm_mmap_single(struct cdev *kdev, vm_ooffset_t *offset, vm_size_t size,
 		return (ENODEV);
 	}
 }
+
+void
+drm_event_wakeup(struct drm_pending_event *e)
+{
+	struct drm_file *file_priv;
+	struct drm_device *dev;
+
+	file_priv = e->file_priv;
+	dev = file_priv->minor->dev;
+	mtx_assert(&dev->event_lock, MA_OWNED);
+
+	wakeup(&file_priv->event_space);
+	selwakeup(&file_priv->event_poll);
+}
+#endif
