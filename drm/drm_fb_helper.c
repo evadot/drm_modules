@@ -27,9 +27,15 @@
  *      Dave Airlie <airlied@linux.ie>
  *      Jesse Barnes <jesse.barnes@intel.com>
  */
-
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#ifdef __linux__
+#include <linux/kernel.h>
+#include <linux/sysrq.h>
+#include <linux/slab.h>
+#include <linux/fb.h>
+#include <linux/module.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_fb_helper.h>
@@ -41,6 +47,7 @@ MODULE_LICENSE("GPL and additional rights");
 
 static DRM_LIST_HEAD(kernel_fb_helper_list);
 
+#ifdef __FreeBSD__
 #include <sys/kdb.h>
 #include <sys/param.h>
 #include <sys/systm.h>
@@ -133,6 +140,7 @@ fb_get_options(const char *connector_name, char **option)
 
 	return (*option != NULL ? 0 : -ENOENT);
 }
+#endif /* __FreeBSD__ */
 
 /**
  * DOC: fbdev helpers
@@ -153,8 +161,12 @@ int drm_fb_helper_single_add_all_connectors(struct drm_fb_helper *fb_helper)
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
 		struct drm_fb_helper_connector *fb_helper_connector;
 
+#ifdef FREEBSD_NOTYET
+		fb_helper_connector = kzalloc(sizeof(struct drm_fb_helper_connector), GFP_KERNEL);
+#else
 		fb_helper_connector = malloc(sizeof(struct drm_fb_helper_connector),
 		    DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 		if (!fb_helper_connector)
 			goto fail;
 
@@ -164,7 +176,11 @@ int drm_fb_helper_single_add_all_connectors(struct drm_fb_helper *fb_helper)
 	return 0;
 fail:
 	for (i = 0; i < fb_helper->connector_count; i++) {
+#ifdef FREEBSD_NOTYET
+		kfree(fb_helper->connector_info[i]);
+#else
 		free(fb_helper->connector_info[i], DRM_MEM_KMS);
+#endif
 		fb_helper->connector_info[i] = NULL;
 	}
 	fb_helper->connector_count = 0;
@@ -436,7 +452,11 @@ static void drm_fb_helper_dpms(struct fb_info *info, int dpms_mode)
 	/*
 	 * For each CRTC in this fb, turn the connectors on/off.
 	 */
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->mode_config.mutex);
+#else
 	sx_xlock(&dev->mode_config.mutex);
+#endif
 	for (i = 0; i < fb_helper->crtc_count; i++) {
 		crtc = fb_helper->crtc_info[i].mode_set.crtc;
 
@@ -451,7 +471,11 @@ static void drm_fb_helper_dpms(struct fb_info *info, int dpms_mode)
 				dev->mode_config.dpms_property, dpms_mode);
 		}
 	}
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->mode_config.mutex);
+#else
 	sx_xunlock(&dev->mode_config.mutex);
+#endif
 }
 
 int drm_fb_helper_blank(int blank, struct fb_info *info)
@@ -488,14 +512,27 @@ static void drm_fb_helper_crtc_free(struct drm_fb_helper *helper)
 	int i;
 
 	for (i = 0; i < helper->connector_count; i++)
+#ifdef FREEBSD_NOTYET
+		kfree(helper->connector_info[i]);
+	kfree(helper->connector_info);
+#else
 		free(helper->connector_info[i], DRM_MEM_KMS);
 	free(helper->connector_info, DRM_MEM_KMS);
+#endif
 	for (i = 0; i < helper->crtc_count; i++) {
+#ifdef FREEBSD_NOTYET
+		kfree(helper->crtc_info[i].mode_set.connectors);
+#else
 		free(helper->crtc_info[i].mode_set.connectors, DRM_MEM_KMS);
+#endif
 		if (helper->crtc_info[i].mode_set.mode)
 			drm_mode_destroy(helper->dev, helper->crtc_info[i].mode_set.mode);
 	}
+#ifdef FREEBSD_NOTYET
+	kfree(helper->crtc_info);
+#else
 	free(helper->crtc_info, DRM_MEM_KMS);
+#endif
 }
 
 int drm_fb_helper_init(struct drm_device *dev,
@@ -509,25 +546,43 @@ int drm_fb_helper_init(struct drm_device *dev,
 
 	INIT_LIST_HEAD(&fb_helper->kernel_fb_list);
 
+#ifdef FREEBSD_NOTYET
+	fb_helper->crtc_info = kcalloc(crtc_count, sizeof(struct drm_fb_helper_crtc), GFP_KERNEL);
+#else
 	fb_helper->crtc_info = malloc(crtc_count * sizeof(struct drm_fb_helper_crtc),
 	    DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 	if (!fb_helper->crtc_info)
 		return -ENOMEM;
 
 	fb_helper->crtc_count = crtc_count;
+#ifdef FREEBSD_NOTYET
+	fb_helper->connector_info = kcalloc(dev->mode_config.num_connector, sizeof(struct drm_fb_helper_connector *), GFP_KERNEL);
+#else
 	fb_helper->connector_info = malloc(dev->mode_config.num_connector * sizeof(struct drm_fb_helper_connector *),
 	    DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 	if (!fb_helper->connector_info) {
+#ifdef FREEBSD_NOTYET
+		kfree(fb_helper->crtc_info);
+#else
 		free(fb_helper->crtc_info, DRM_MEM_KMS);
+#endif
 		return -ENOMEM;
 	}
 	fb_helper->connector_count = 0;
 
 	for (i = 0; i < crtc_count; i++) {
 		fb_helper->crtc_info[i].mode_set.connectors =
+#ifdef FREEBSD_NOTYET
+			kcalloc(max_conn_count,
+				sizeof(struct drm_connector *),
+				GFP_KERNEL);
+#else
 			malloc(max_conn_count *
 				sizeof(struct drm_connector *),
 				DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 
 		if (!fb_helper->crtc_info[i].mode_set.connectors)
 			goto out_free;
@@ -777,16 +832,28 @@ int drm_fb_helper_set_par(struct fb_info *info)
 		return -EINVAL;
 	}
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->mode_config.mutex);
+#else
 	sx_xlock(&dev->mode_config.mutex);
+#endif
 	for (i = 0; i < fb_helper->crtc_count; i++) {
 		crtc = fb_helper->crtc_info[i].mode_set.crtc;
 		ret = crtc->funcs->set_config(&fb_helper->crtc_info[i].mode_set);
 		if (ret) {
+#ifdef FREEBSD_NOTYET
+			mutex_unlock(&dev->mode_config.mutex);
+#else
 			sx_xunlock(&dev->mode_config.mutex);
+#endif
 			return ret;
 		}
 	}
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->mode_config.mutex);
+#else
 	sx_xunlock(&dev->mode_config.mutex);
+#endif
 
 	if (fb_helper->delayed_hotplug) {
 		fb_helper->delayed_hotplug = false;
@@ -806,7 +873,11 @@ int drm_fb_helper_pan_display(struct fb_var_screeninfo *var,
 	int ret = 0;
 	int i;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->mode_config.mutex);
+#else
 	sx_xlock(&dev->mode_config.mutex);
+#endif
 	for (i = 0; i < fb_helper->crtc_count; i++) {
 		crtc = fb_helper->crtc_info[i].mode_set.crtc;
 
@@ -823,7 +894,11 @@ int drm_fb_helper_pan_display(struct fb_var_screeninfo *var,
 			}
 		}
 	}
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->mode_config.mutex);
+#else
 	sx_xunlock(&dev->mode_config.mutex);
+#endif
 	return ret;
 }
 EXPORT_SYMBOL(drm_fb_helper_pan_display);
@@ -1266,8 +1341,13 @@ static int drm_pick_crtcs(struct drm_fb_helper *fb_helper,
 	if (modes[n] == NULL)
 		return best_score;
 
+#ifdef FREEBSD_NOTYET
+	crtcs = kzalloc(dev->mode_config.num_connector *
+			sizeof(struct drm_fb_helper_crtc *), GFP_KERNEL);
+#else
 	crtcs = malloc(dev->mode_config.num_connector *
 			sizeof(struct drm_fb_helper_crtc *), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 	if (!crtcs)
 		return best_score;
 
@@ -1318,7 +1398,11 @@ static int drm_pick_crtcs(struct drm_fb_helper *fb_helper,
 		}
 	}
 out:
+#ifdef FREEBSD_NOTYET
+	kfree(crtcs);
+#else
 	free(crtcs, DRM_MEM_KMS);
+#endif
 	return best_score;
 }
 
@@ -1337,12 +1421,21 @@ static void drm_setup_crtcs(struct drm_fb_helper *fb_helper)
 	width = dev->mode_config.max_width;
 	height = dev->mode_config.max_height;
 
+#ifdef FREEBSD_NOTYET
+	crtcs = kcalloc(dev->mode_config.num_connector,
+			sizeof(struct drm_fb_helper_crtc *), GFP_KERNEL);
+	modes = kcalloc(dev->mode_config.num_connector,
+			sizeof(struct drm_display_mode *), GFP_KERNEL);
+	enabled = kcalloc(dev->mode_config.num_connector,
+			  sizeof(bool), GFP_KERNEL);
+#else
 	crtcs = malloc(dev->mode_config.num_connector *
 			sizeof(struct drm_fb_helper_crtc *), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
 	modes = malloc(dev->mode_config.num_connector *
 			sizeof(struct drm_display_mode *), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
 	enabled = malloc(dev->mode_config.num_connector *
 			  sizeof(bool), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 	if (!crtcs || !modes || !enabled) {
 		DRM_ERROR("Memory allocation failed\n");
 		goto out;
@@ -1387,9 +1480,15 @@ static void drm_setup_crtcs(struct drm_fb_helper *fb_helper)
 	}
 
 out:
+#ifdef FREEBSD_NOTYET
+	kfree(crtcs);
+	kfree(modes);
+	kfree(enabled);
+#else
 	free(crtcs, DRM_MEM_KMS);
 	free(modes, DRM_MEM_KMS);
 	free(enabled, DRM_MEM_KMS);
+#endif
 }
 
 /**
@@ -1458,7 +1557,11 @@ int drm_fb_helper_hotplug_event(struct drm_fb_helper *fb_helper)
 	if (!fb_helper->fb)
 		return 0;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->mode_config.mutex);
+#else
 	sx_xlock(&dev->mode_config.mutex);
+#endif
 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
 		if (crtc->fb)
 			crtcs_bound++;
@@ -1468,7 +1571,11 @@ int drm_fb_helper_hotplug_event(struct drm_fb_helper *fb_helper)
 
 	if (bound < crtcs_bound) {
 		fb_helper->delayed_hotplug = true;
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->mode_config.mutex);
+#else
 		sx_xunlock(&dev->mode_config.mutex);
+#endif
 		return 0;
 	}
 	DRM_DEBUG_KMS("\n");
@@ -1480,7 +1587,11 @@ int drm_fb_helper_hotplug_event(struct drm_fb_helper *fb_helper)
 	count = drm_fb_helper_probe_connector_modes(fb_helper, max_width,
 						    max_height);
 	drm_setup_crtcs(fb_helper);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->mode_config.mutex);
+#else
 	sx_xunlock(&dev->mode_config.mutex);
+#endif
 
 	return drm_fb_helper_single_fb_probe(fb_helper, bpp_sel);
 }
