@@ -32,6 +32,9 @@
  * Pauli Nieminen <suokkos-at-gmail-dot-com>
  */
 
+#ifdef FREEBSD_NOTYET
+#include <linux/export.h>
+#endif
 #include <drm/drm_buffer.h>
 
 /**
@@ -47,8 +50,13 @@ int drm_buffer_alloc(struct drm_buffer **buf, int size)
 
 	/* Allocating pointer table to end of structure makes drm_buffer
 	 * variable sized */
+#ifdef FREEBSD_NOTYET
+	*buf = kzalloc(sizeof(struct drm_buffer) + nr_pages*sizeof(char *),
+			GFP_KERNEL);
+#else
 	*buf = malloc(sizeof(struct drm_buffer) + nr_pages*sizeof(char *),
 			DRM_MEM_DRIVER, M_ZERO | M_WAITOK);
+#endif
 
 	if (*buf == NULL) {
 		DRM_ERROR("Failed to allocate drm buffer object to hold"
@@ -62,8 +70,13 @@ int drm_buffer_alloc(struct drm_buffer **buf, int size)
 	for (idx = 0; idx < nr_pages; ++idx) {
 
 		(*buf)->data[idx] =
+#ifdef FREEBSD_NOTYET
+			kmalloc(min(PAGE_SIZE, size - idx * PAGE_SIZE),
+				GFP_KERNEL);
+#else
 			malloc(min(PAGE_SIZE, size - idx * PAGE_SIZE),
 				DRM_MEM_DRIVER, M_WAITOK);
+#endif
 
 
 		if ((*buf)->data[idx] == NULL) {
@@ -81,12 +94,24 @@ error_out:
 
 	/* Only last element can be null pointer so check for it first. */
 	if ((*buf)->data[idx])
+#ifdef FREEBSD_NOTYET
+		kfree((*buf)->data[idx]);
+#else
 		free((*buf)->data[idx], DRM_MEM_DRIVER);
+#endif
 
 	for (--idx; idx >= 0; --idx)
+#ifdef FREEBSD_NOTYET
+		kfree((*buf)->data[idx]);
+#else
 		free((*buf)->data[idx], DRM_MEM_DRIVER);
+#endif
 
+#ifdef FREEBSD_NOTYET
+	kfree(*buf);
+#else
 	free(*buf, DRM_MEM_DRIVER);
+#endif
 	return -ENOMEM;
 }
 EXPORT_SYMBOL(drm_buffer_alloc);
@@ -139,9 +164,17 @@ void drm_buffer_free(struct drm_buffer *buf)
 		int nr_pages = buf->size / PAGE_SIZE + 1;
 		int idx;
 		for (idx = 0; idx < nr_pages; ++idx)
+#ifdef FREEBSD_NOTYET
+			kfree(buf->data[idx]);
+#else
 			free(buf->data[idx], DRM_MEM_DRIVER);
+#endif
 
+#ifdef FREEBSD_NOTYET
+		kfree(buf);
+#else
 		free(buf, DRM_MEM_DRIVER);
+#endif
 	}
 }
 EXPORT_SYMBOL(drm_buffer_free);
