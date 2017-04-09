@@ -28,13 +28,24 @@
  * Authors: Thomas Hellstrom <thellstrom-at-vmware-dot-com>
  */
 
+#ifdef __linux__
+#include <linux/mutex.h>
+#include <linux/slab.h>
+#include <linux/module.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_global.h>
 
+#ifdef __FreeBSD__
 MALLOC_DEFINE(M_DRM_GLOBAL, "drm_global", "DRM Global Items");
+#endif
 
 struct drm_global_item {
+#ifdef FREEBSD_NOTYET
+	struct mutex mutex;
+#else
 	struct sx mutex;
+#endif
 	void *object;
 	int refcount;
 };
@@ -47,7 +58,11 @@ void drm_global_init(void)
 
 	for (i = 0; i < DRM_GLOBAL_NUM; ++i) {
 		struct drm_global_item *item = &glob[i];
+#ifdef FREEBSD_NOTYET
+		mutex_init(&item->mutex);
+#else
 		sx_init(&item->mutex, "drmgi");
+#endif
 		item->object = NULL;
 		item->refcount = 0;
 	}
@@ -58,9 +73,15 @@ void drm_global_release(void)
 	int i;
 	for (i = 0; i < DRM_GLOBAL_NUM; ++i) {
 		struct drm_global_item *item = &glob[i];
+#ifdef FREEBSD_NOTYET
+		BUG_ON(item->object != NULL);
+		BUG_ON(item->refcount != 0);
+		mutex_destroy(&item->mutex);
+#else
 		MPASS(item->object == NULL);
 		MPASS(item->refcount == 0);
 		sx_destroy(&item->mutex);
+#endif
 	}
 }
 
@@ -70,10 +91,18 @@ int drm_global_item_ref(struct drm_global_reference *ref)
 	struct drm_global_item *item = &glob[ref->global_type];
 	void *object;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&item->mutex);
+#else
 	sx_xlock(&item->mutex);
+#endif
 	if (item->refcount == 0) {
+#ifdef FREEBSD_NOTYET
+		item->object = kzalloc(ref->size, GFP_KERNEL);
+#else
 		item->object = malloc(ref->size, M_DRM_GLOBAL,
 		    M_NOWAIT | M_ZERO);
+#endif
 		if (unlikely(item->object == NULL)) {
 			ret = -ENOMEM;
 			goto out_err;
@@ -88,10 +117,18 @@ int drm_global_item_ref(struct drm_global_reference *ref)
 	++item->refcount;
 	ref->object = item->object;
 	object = item->object;
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&item->mutex);
+#else
 	sx_xunlock(&item->mutex);
+#endif
 	return 0;
 out_err:
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&item->mutex);
+#else
 	sx_xunlock(&item->mutex);
+#endif
 	item->object = NULL;
 	return ret;
 }
@@ -101,14 +138,25 @@ void drm_global_item_unref(struct drm_global_reference *ref)
 {
 	struct drm_global_item *item = &glob[ref->global_type];
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&item->mutex);
+	BUG_ON(item->refcount == 0);
+	BUG_ON(ref->object != item->object);
+#else
 	sx_xlock(&item->mutex);
 	MPASS(item->refcount != 0);
 	MPASS(ref->object == item->object);
+#endif
 	if (--item->refcount == 0) {
 		ref->release(ref);
 		free(item->object, M_DRM_GLOBAL);
 		item->object = NULL;
 	}
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&item->mutex);
+#else
 	sx_xunlock(&item->mutex);
+#endif
 }
 EXPORT_SYMBOL(drm_global_item_unref);
+
