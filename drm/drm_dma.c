@@ -6,7 +6,7 @@
  * \author Gareth Hughes <gareth@valinux.com>
  */
 
-/*-
+/*
  * Created: Fri Mar 19 14:30:16 1999 by faith@valinux.com
  *
  * Copyright 1999, 2000 Precision Insight, Inc., Cedar Park, Texas.
@@ -33,6 +33,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#ifdef FREEBSD_NOTYET
+#include <linux/export.h>
+#end
 #include <drm/drmP.h>
 
 /**
@@ -47,7 +50,11 @@ int drm_dma_setup(struct drm_device *dev)
 {
 	int i;
 
+#ifdef FREEBSD_NOTYET
+	dev->dma = kzalloc(sizeof(*dev->dma), GFP_KERNEL);
+#else
 	dev->dma = malloc(sizeof(*dev->dma), DRM_MEM_DRIVER, M_NOWAIT | M_ZERO);
+#endif
 	if (!dev->dma)
 		return -ENOMEM;
 
@@ -86,20 +93,38 @@ void drm_dma_takedown(struct drm_device *dev)
 					drm_pci_free(dev, dma->bufs[i].seglist[j]);
 				}
 			}
+#ifdef FREEBSD_NOTYET
+			kfree(dma->bufs[i].seglist);
+#else
 			free(dma->bufs[i].seglist, DRM_MEM_SEGS);
+#endif
 		}
 		if (dma->bufs[i].buf_count) {
 			for (j = 0; j < dma->bufs[i].buf_count; j++) {
+#ifdef FREEBSD_NOTYET
+				kfree(dma->bufs[i].buflist[j].dev_private);
+#else
 				free(dma->bufs[i].buflist[j].dev_private,
 				    DRM_MEM_BUFS);
+#endif
 			}
+#ifdef FREEBSD_NOTYET
+			kfree(dma->bufs[i].buflist);
+#else
 			free(dma->bufs[i].buflist, DRM_MEM_BUFS);
+#endif
 		}
 	}
 
+#ifdef FREEBSD_NOTYET
+	kfree(dma->buflist);
+	kfree(dma->pagelist);
+	kfree(dev->dma);
+#else
 	free(dma->buflist, DRM_MEM_BUFS);
 	free(dma->pagelist, DRM_MEM_PAGES);
 	free(dev->dma, DRM_MEM_DRIVER);
+#endif
 	dev->dma = NULL;
 }
 
