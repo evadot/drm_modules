@@ -33,13 +33,20 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#ifdef __linux__
+#include <linux/vmalloc.h>
+#include <linux/slab.h>
+#include <linux/log2.h>
+#include <linux/export.h>
+#include <asm/shmparam.h>
+#elif __FreeBSD__
 #include <sys/param.h>
 #include <sys/shm.h>
-
 #include <dev/pci/pcireg.h>
-
+#endif
 #include <drm/drmP.h>
 
+#ifdef __FreeBSD__
 /* Allocation of PCI memory resources (framebuffer, registers, etc.) for
  * drm_get_resource_*.  Note that they are not RF_ACTIVE, so there's no virtual
  * address for accessing them.  Cleaned up at unload.
@@ -107,6 +114,7 @@ unsigned long drm_get_resource_len(struct drm_device *dev,
 
 	return (len);
 }
+#endif /* __FreeBSD__ */
 
 static struct drm_map_list *drm_find_matching_map(struct drm_device *dev,
 						  struct drm_local_map *map)
@@ -213,7 +221,11 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 	int ret;
 	int align;
 
+#ifdef FREEBSD_NOTYET
+	map = kmalloc(sizeof(*map), GFP_KERNEL);
+#else
 	map = malloc(sizeof(*map), DRM_MEM_MAPS, M_NOWAIT);
+#endif
 	if (!map)
 		return -ENOMEM;
 
@@ -227,7 +239,11 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 	 * when processes fork.
 	 */
 	if ((map->flags & _DRM_REMOVABLE) && map->type != _DRM_SHM) {
+#ifdef FREEBSD_NOTYET
+		kfree(map);
+#else
 		free(map, DRM_MEM_MAPS);
+#endif
 		return -EINVAL;
 	}
 	DRM_DEBUG("offset = 0x%08llx, size = 0x%08lx, type = %d\n",
@@ -245,8 +261,16 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 	 * Linux's one. That's why the test below doesn't inverse the
 	 * constant.
 	 */
+#ifdef __linux__
+	if ((map->offset & (~(resource_size_t)PAGE_MASK)) || (map->size & (~PAGE_MASK))) {
+#elif __FreeBSD__
 	if ((map->offset & ((resource_size_t)PAGE_MASK)) || (map->size & (PAGE_MASK))) {
+#endif
+#ifdef FREEBSD_NOTYET
+		kfree(map);
+#else
 		free(map, DRM_MEM_MAPS);
+#endif
 		return -EINVAL;
 	}
 	map->mtrr = -1;
@@ -278,7 +302,11 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 				list->map->size = map->size;
 			}
 
+#ifdef FREEBSD_NOTYET
+			kfree(map);
+#else
 			free(map, DRM_MEM_MAPS);
+#endif
 			*maplist = list;
 			return 0;
 		}
@@ -286,16 +314,29 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 		if (drm_core_has_MTRR(dev)) {
 			if (map->type == _DRM_FRAME_BUFFER ||
 			    (map->flags & _DRM_WRITE_COMBINING)) {
+#ifdef __linux__
+				map->mtrr = mtrr_add(map->offset, map->size,
+						     MTRR_TYPE_WRCOMB, 1);
+#elif__FreeBSD__
 				if (drm_mtrr_add(
 				    map->offset, map->size,
 				    DRM_MTRR_WC) == 0)
 					map->mtrr = 1;
+#endif
 			}
 		}
 		if (map->type == _DRM_REGISTERS) {
+#ifdef __linux__
+			map->handle = ioremap(map->offset, map->size);
+#elif __FreeBSD__
 			drm_core_ioremap(map, dev);
+#endif
 			if (!map->handle) {
+#ifdef FREEBSD_NOTYET
+				kfree(map);
+#else
 				free(map, DRM_MEM_MAPS);
+#endif
 				return -ENOMEM;
 			}
 		}
@@ -311,23 +352,40 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 				list->map->size = map->size;
 			}
 
+#ifdef FREEBSD_NOTYET
+			kfree(map);
+#else
 			free(map, DRM_MEM_MAPS);
+#endif
 			*maplist = list;
 			return 0;
 		}
+#ifdef FREEBSD_NOTYET
+		map->handle = vmalloc_user(map->size);
+#else
 		map->handle = malloc(map->size, DRM_MEM_MAPS, M_NOWAIT);
+#endif
 		DRM_DEBUG("%lu %d %p\n",
 			  map->size, drm_order(map->size), map->handle);
 		if (!map->handle) {
+#ifdef FREEBSD_NOTYET
+			kfree(map);
+#else
 			free(map, DRM_MEM_MAPS);
+#endif
 			return -ENOMEM;
 		}
 		map->offset = (unsigned long)map->handle;
 		if (map->flags & _DRM_CONTAINS_LOCK) {
 			/* Prevent a 2nd X Server from creating a 2nd lock */
 			if (dev->primary->master->lock.hw_lock != NULL) {
+#ifdef FREEBSD_NOTYET
+				vfree(map->handle);
+				kfree(map);
+#else
 				free(map->handle, DRM_MEM_MAPS);
 				free(map, DRM_MEM_MAPS);
+#endif
 				return -EBUSY;
 			}
 			dev->sigdata.lock = dev->primary->master->lock.hw_lock = map->handle;	/* Pointer to lock */
@@ -338,7 +396,11 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 		int valid = 0;
 
 		if (!drm_core_has_AGP(dev)) {
+#ifdef FREEBSD_NOTYET
+			kfree(map);
+#else
 			free(map, DRM_MEM_MAPS);
+#endif
 			return -EINVAL;
 		}
 #ifdef __linux__
@@ -352,11 +414,19 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 		 * address if the map's offset isn't already within the
 		 * aperture.
 		 */
+#ifdef __linux__
+		if (map->offset < dev->agp->base ||
+		    map->offset > dev->agp->base +
+		    dev->agp->agp_info.aper_size * 1024 * 1024 - 1) {
+			map->offset += dev->agp->base;
+		}
+#elif __FreeBSD__
 		if (map->offset < dev->agp->base ||
 		    map->offset > dev->agp->base +
 		    dev->agp->agp_info.ai_aperture_size * 1024 * 1024 - 1) {
 			map->offset += dev->agp->base;
 		}
+#endif
 		map->mtrr = dev->agp->agp_mtrr;	/* for getmap */
 
 		/* This assumes the DRM is in total control of AGP space.
