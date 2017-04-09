@@ -29,8 +29,8 @@
 #include <linux/sched.h>
 #include <linux/i2c.h>
 #endif
-#include <drm/drm_dp_helper.h>
 #include <drm/drmP.h>
+#include <drm/drm_dp_helper.h>
 
 /**
  * DOC: dp helpers
@@ -41,6 +41,7 @@
  * blocks, ...
  */
 
+#ifdef __linux__
 /* Run a single AUX_CH I2C transaction, writing/reading data as necessary */
 static int
 i2c_algo_dp_aux_transaction(struct i2c_adapter *adapter, int mode,
@@ -228,6 +229,7 @@ i2c_dp_aux_add_bus(struct i2c_adapter *adapter)
 	return error;
 }
 EXPORT_SYMBOL(i2c_dp_aux_add_bus);
+#endif
 
 /* Helpers for DP link training */
 static u8 dp_link_status(u8 link_status[DP_LINK_STATUS_SIZE], int r)
