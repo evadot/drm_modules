@@ -32,8 +32,24 @@
  */
 
 #include <drm/drmP.h>
+#ifdef _FREEBSD_NOTYET
+#include <linux/module.h>
+#include <linux/slab.h>
+#endif
 
 #if __OS_HAS_AGP
+
+#ifdef __linux__
+#include <asm/agp.h>
+#endif
+
+#ifdef __FreeBSD__
+#define	agp_copy_info		agp_get_info
+#define	agp_backend_release	agp_release
+#define	agp_allocate_memory(_dev, _pages, _type) \
+	agp_alloc_memory(_dev, _type, _pages << PAGE_SHIFT)
+#define	agp_find_bridge(x)	agp_find_device()
+#endif
 
 /**
  * Get AGP information.
@@ -55,6 +71,17 @@ int drm_agp_info(struct drm_device *dev, struct drm_agp_info *info)
 		return -EINVAL;
 
 	kern = &dev->agp->agp_info;
+#ifdef __linux__
+	info->agp_version_major = kern->version.major;
+	info->agp_version_minor = kern->version.minor;
+	info->mode = kern->mode;
+	info->aperture_base = kern->aper_base;
+	info->aperture_size = kern->aper_size * 1024 * 1024;
+	info->memory_allowed = kern->max_memory << PAGE_SHIFT;
+	info->memory_used = kern->current_memory << PAGE_SHIFT;
+	info->id_vendor = kern->device->vendor;
+	info->id_device = kern->device->device;
+#elif __FreeBSD__
 	agp_get_info(dev->agp->bridge, kern);
 	info->agp_version_major = 1;
 	info->agp_version_minor = 0;
@@ -65,6 +92,7 @@ int drm_agp_info(struct drm_device *dev, struct drm_agp_info *info)
 	info->memory_used       = kern->ai_memory_used;
 	info->id_vendor         = kern->ai_devid & 0xffff;
 	info->id_device         = kern->ai_devid >> 16;
+#endif
 
 	return 0;
 }
@@ -95,15 +123,21 @@ int drm_agp_info_ioctl(struct drm_device *dev, void *data,
  */
 int drm_agp_acquire(struct drm_device * dev)
 {
+#ifdef __FreeBSD__
 	int retcode;
-
+#endif
 	if (!dev->agp)
 		return -ENODEV;
 	if (dev->agp->acquired)
 		return -EBUSY;
+#ifdef __linux__
+	if (!(dev->agp->bridge = agp_backend_acquire(dev->pdev)))
+		return -ENODEV;
+#elif __FreeBSD__
 	retcode = agp_acquire(dev->agp->bridge);
 	if (retcode)
 		return -retcode;
+#endif
 	dev->agp->acquired = 1;
 	return 0;
 }
@@ -140,7 +174,7 @@ int drm_agp_release(struct drm_device * dev)
 {
 	if (!dev->agp || !dev->agp->acquired)
 		return -EINVAL;
-	agp_release(dev->agp->bridge);
+	agp_backend_release(dev->agp->bridge);
 	dev->agp->acquired = 0;
 	return 0;
 }
@@ -201,32 +235,53 @@ int drm_agp_alloc(struct drm_device *dev, struct drm_agp_buffer *request)
 	DRM_AGP_MEM *memory;
 	unsigned long pages;
 	u32 type;
+#ifdef __FreeBSD__
 	struct agp_memory_info info;
+#endif
 
 	if (!dev->agp || !dev->agp->acquired)
 		return -EINVAL;
+#ifdef FREEBSD_NOTYET
+	if (!(entry = kmalloc(sizeof(*entry), GFP_KERNEL)))
+		return -ENOMEM;
+#else
 	if (!(entry = malloc(sizeof(*entry), DRM_MEM_AGPLISTS, M_NOWAIT)))
 		return -ENOMEM;
+#endif
 
 	memset(entry, 0, sizeof(*entry));
 
 	pages = (request->size + PAGE_SIZE - 1) / PAGE_SIZE;
 	type = (u32) request->type;
-	if (!(memory = agp_alloc_memory(dev->agp->bridge, type, pages << PAGE_SHIFT))) {
+	if (!(memory = agp_allocate_memory(dev->agp->bridge, pages, type))) {
+#ifdef FREEBSD_NOTYET
+		kfree(entry);
+#else
 		free(entry, DRM_MEM_AGPLISTS);
+#endif
 		return -ENOMEM;
 	}
 
+#ifdef __linux__
+	entry->handle = (unsigned long)memory->key + 1;
+#elif __FreeBSD__
 	entry->handle = (unsigned long)memory;
+#endif
 	entry->memory = memory;
 	entry->bound = 0;
 	entry->pages = pages;
 	list_add(&entry->head, &dev->agp->memory);
 
+#ifdef __FreeBSD__
 	agp_memory_info(dev->agp->bridge, entry->memory, &info);
+#endif
 
 	request->handle = entry->handle;
+#ifdef __linux__
+	request->physical = memory->physical;
+#elif __FreeBSD__
 	request->physical = info.ami_physical;
+#endif
 
 	return 0;
 }
@@ -373,7 +428,11 @@ int drm_agp_free(struct drm_device *dev, struct drm_agp_buffer *request)
 	list_del(&entry->head);
 
 	drm_free_agp(entry->memory, entry->pages);
+#ifdef FREEBSD_NOTYET
+	kfree(entry);
+#else
 	free(entry, DRM_MEM_AGPLISTS);
+#endif
 	return 0;
 }
 EXPORT_SYMBOL(drm_agp_free);
@@ -401,19 +460,38 @@ struct drm_agp_head *drm_agp_init(struct drm_device *dev)
 {
 	struct drm_agp_head *head = NULL;
 
+#ifdef FREEBSD_NOTYET
+	if (!(head = kmalloc(sizeof(*head), GFP_KERNEL)))
+#else
 	if (!(head = malloc(sizeof(*head), DRM_MEM_AGPLISTS, M_NOWAIT)))
+#endif
 		return NULL;
 	memset((void *)head, 0, sizeof(*head));
-	head->bridge = agp_find_device();
+	head->bridge = agp_find_bridge(dev->pdev);
 	if (!head->bridge) {
+#ifdef __linux__
+		if (!(head->bridge = agp_backend_acquire(dev->pdev))) {
+			kfree(head);
+			return NULL;
+		}
+		agp_copy_info(head->bridge, &head->agp_info);
+		agp_backend_release(head->bridge);
+#elif __FreeBSD__
 		free(head, DRM_MEM_AGPLISTS);
 		return NULL;
+#endif
 	} else {
-		agp_get_info(head->bridge, &head->agp_info);
+		agp_copy_info(head->bridge, &head->agp_info);
 	}
 	INIT_LIST_HEAD(&head->memory);
+#ifdef __linux__
+	head->cant_use_aperture = head->agp_info.cant_use_aperture;
+	head->page_mask = head->agp_info.page_mask;
+	head->base = head->agp_info.aper_base;
+#elif __FreeBSD__
 	head->cant_use_aperture = 0;
 	head->base = head->agp_info.ai_aperture_base;
+#endif
 	return head;
 }
 
