@@ -27,13 +27,21 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
-
+#ifdef __linux__
+#include <linux/kernel.h>
+#include <linux/slab.h>
+#include <linux/i2c.h>
+#include <linux/module.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_edid.h>
-#include <drm/drm_edid_modes.h>
+#include "drm_edid_modes.h"
+
+#ifdef __FreeBSD__
 #include <dev/iicbus/iic.h>
 #include <dev/iicbus/iiconf.h>
 #include "iicbus_if.h"
+#endif
 
 #define version_greater(edid, maj, min) \
 	(((edid)->version > (maj)) || \
@@ -310,12 +318,17 @@ drm_do_probe_ddc_edid(device_t adapter, unsigned char *buf,
 
 static bool drm_edid_is_zero(u8 *in_edid, int length)
 {
+#ifdef FREEBSD_NOTYET
+	if (memchr_inv(in_edid, 0, length))
+		return false;
+#else
 	int i;
 	u32 *raw_edid = (u32 *)in_edid;
 
 	for (i = 0; i < length / 4; i++)
 		if (*(raw_edid + i) != 0)
 			return false;
+#endif
 
 	return true;
 }
@@ -327,7 +340,11 @@ drm_do_get_edid(struct drm_connector *connector, device_t adapter)
 	u8 *block, *new;
 	bool print_bad_edid = !connector->bad_edid_counter || (drm_debug & DRM_DEBUGBITS_KMS);
 
+#ifdef FREEBSD_NOTYET
+	if ((block = kmalloc(EDID_LENGTH, GFP_KERNEL)) == NULL)
+#else
 	if ((block = malloc(EDID_LENGTH, DRM_MEM_KMS, M_NOWAIT)) == NULL)
+#endif
 		return NULL;
 
 	/* base block fetch */
@@ -348,12 +365,14 @@ drm_do_get_edid(struct drm_connector *connector, device_t adapter)
 	if (block[0x7e] == 0)
 		return block;
 
+#ifdef FREEBSD_NOTYET
+	new = krealloc(block, (block[0x7e] + 1) * EDID_LENGTH, GFP_KERNEL);
+#else
 	new = reallocf(block, (block[0x7e] + 1) * EDID_LENGTH, DRM_MEM_KMS,
 	    M_NOWAIT);
-	if (!new) {
-		block = NULL;
+#endif
+	if (!new)
 		goto out;
-	}
 	block = new;
 
 	for (j = 1; j <= block[0x7e]; j++) {
@@ -380,8 +399,12 @@ drm_do_get_edid(struct drm_connector *connector, device_t adapter)
 	if (valid_extensions != block[0x7e]) {
 		block[EDID_LENGTH-1] += block[0x7e] - valid_extensions;
 		block[0x7e] = valid_extensions;
+#ifdef FREEBSD_NOTYET
+		new = krealloc(block, (valid_extensions + 1) * EDID_LENGTH, GFP_KERNEL);
+#else
 		new = reallocf(block, (valid_extensions + 1) * EDID_LENGTH,
 		    DRM_MEM_KMS, M_NOWAIT);
+#endif
 		if (!new)
 			goto out;
 		block = new;
@@ -397,7 +420,11 @@ carp:
 	connector->bad_edid_counter++;
 
 out:
+#ifdef FREEBSD_NOTYET
+	kfree(block);
+#else
 	free(block, DRM_MEM_KMS);
+#endif
 	return NULL;
 }
 
