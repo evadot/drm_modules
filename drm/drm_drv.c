@@ -46,13 +46,28 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <sys/sysent.h>
-
+#ifdef __linux__
+#include <linux/debugfs.h>
+#include <linux/slab.h>
+#include <linux/export.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_core.h>
 #include <drm/drm_global.h>
 
+#ifdef __FreeBSD__
+#include <sys/sysent.h>
 struct sx drm_global_mutex;
+#endif
+
+#ifdef __linux__
+static int drm_version(struct drm_device *dev, void *data,
+		       struct drm_file *file_priv);
+
+#define DRM_IOCTL_DEF(ioctl, _func, _flags) \
+	[DRM_IOCTL_NR(ioctl)] = {.cmd = ioctl, .func = _func, .flags = _flags, .cmd_drv = 0}
+
+#endif
 
 /** Ioctl table */
 static struct drm_ioctl_desc drm_ioctls[] = {
@@ -165,8 +180,10 @@ static struct drm_ioctl_desc drm_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_IOCTL_MODE_OBJ_SETPROPERTY, drm_mode_obj_set_property_ioctl, DRM_MASTER|DRM_CONTROL_ALLOW|DRM_UNLOCKED),
 };
 
+#ifdef __FreeBSD__
 #ifdef COMPAT_FREEBSD32
 extern struct drm_ioctl_desc drm_compat_ioctls[];
+#endif
 #endif
 
 #define DRM_CORE_IOCTL_COUNT	ARRAY_SIZE( drm_ioctls )
@@ -195,7 +212,11 @@ int drm_lastclose(struct drm_device * dev)
 	if (dev->irq_enabled && !drm_core_check_feature(dev, DRIVER_MODESET))
 		drm_irq_uninstall(dev);
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 
 	/* Clear AGP information */
 	if (drm_core_has_AGP(dev) && dev->agp &&
@@ -208,7 +229,11 @@ int drm_lastclose(struct drm_device * dev)
 			if (entry->bound)
 				drm_unbind_agp(entry->memory);
 			drm_free_agp(entry->memory, entry->pages);
+#ifdef FREEBSD_NOTYET
+			kfree(entry);
+#else
 			free(entry, DRM_MEM_AGPLISTS);
+#endif
 		}
 		INIT_LIST_HEAD(&dev->agp->memory);
 

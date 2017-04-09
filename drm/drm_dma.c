@@ -33,9 +33,9 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifdef FREEBSD_NOTYET
+#ifdef __linux__
 #include <linux/export.h>
-#end
+#endif
 #include <drm/drmP.h>
 
 /**
