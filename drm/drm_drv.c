@@ -64,9 +64,6 @@ struct sx drm_global_mutex;
 static int drm_version(struct drm_device *dev, void *data,
 		       struct drm_file *file_priv);
 
-#define DRM_IOCTL_DEF(ioctl, _func, _flags) \
-	[DRM_IOCTL_NR(ioctl)] = {.cmd = ioctl, .func = _func, .flags = _flags, .cmd_drv = 0}
-
 #endif
 
 static int	drm_version(struct drm_device *dev, void *data,

@@ -32,13 +32,56 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
 #ifndef _DRM_P_H_
 #define _DRM_P_H_
 
 #if defined(_KERNEL) || defined(__KERNEL__)
+#ifdef __linux__
+#ifdef __alpha__
+/* add include of current.h so that "current" is defined
+ * before static inline funcs in wait.h. Doing this so we
+ * can build the DRM (part of PI DRI). 4/21/2000 S + B */
+#include <asm/current.h>
+#endif				/* __alpha__ */
+#include <linux/kernel.h>
+#include <linux/miscdevice.h>
+#include <linux/fs.h>
+#include <linux/proc_fs.h>
+#include <linux/init.h>
+#include <linux/file.h>
+#include <linux/platform_device.h>
+#include <linux/pci.h>
+#include <linux/jiffies.h>
+#include <linux/dma-mapping.h>
+#include <linux/mm.h>
+#include <linux/cdev.h>
+#include <linux/mutex.h>
+#include <linux/slab.h>
+#if defined(__alpha__) || defined(__powerpc__)
+#include <asm/pgtable.h>	/* For pte_wrprotect */
+#endif
+#include <asm/io.h>
+#include <asm/mman.h>
+#include <asm/uaccess.h>
+#ifdef CONFIG_MTRR
+#include <asm/mtrr.h>
+#endif
+#if defined(CONFIG_AGP) || defined(CONFIG_AGP_MODULE)
+#include <linux/types.h>
+#include <linux/agp_backend.h>
+#endif
+#include <linux/workqueue.h>
+#include <linux/poll.h>
+#include <asm/pgalloc.h>
+#include <drm/drm.h>
+#include <drm/drm_sarea.h>
+
+#include <linux/idr.h>
+
+#define __OS_HAS_AGP (defined(CONFIG_AGP) || (defined(CONFIG_AGP_MODULE) && defined(MODULE)))
+#define __OS_HAS_MTRR (defined(CONFIG_MTRR))
+
+#elif __FreeBSD__
 
 #include <sys/param.h>
 #include <sys/queue.h>
@@ -94,6 +137,7 @@ __FBSDID("$FreeBSD$");
 #include <sys/selinfo.h>
 #include <sys/bus.h>
 
+#include <linux/mutex.h>
 #include <linux/slab.h>
 
 #include <drm/drm.h>
@@ -102,8 +146,6 @@ __FBSDID("$FreeBSD$");
 #include <drm/drm_atomic.h>
 #include <drm/drm_linux_list.h>
 #include <drm/drm_gem_names.h>
-
-#include <drm/drm_os_freebsd.h>
 
 #if defined(CONFIG_AGP) || (defined(CONFIG_AGP_MODULE) && defined(MODULE))
 #define __OS_HAS_AGP 1
@@ -116,9 +158,14 @@ __FBSDID("$FreeBSD$");
 #define __OS_HAS_MTRR 0
 #endif
 
+#endif /* __FreeBSD__ */
+
+struct module;
+
 struct drm_file;
 struct drm_device;
 
+#include <drm/drm_os_freebsd.h>
 #include <drm/drm_hashtab.h>
 #include <drm/drm_mm.h>
 
@@ -289,6 +336,9 @@ do {										\
 typedef int drm_ioctl_t(struct drm_device *dev, void *data,
 			struct drm_file *file_priv);
 
+typedef int drm_ioctl_compat_t(struct file *filp, unsigned int cmd,
+			       unsigned long arg);
+
 #define DRM_IOCTL_NR(n)                ((n) & 0xff)
 #define DRM_MAJOR       226
 
@@ -322,6 +372,12 @@ struct drm_magic_entry {
 	struct drm_file *priv;
 };
 
+struct drm_vma_entry {
+	struct list_head head;
+	struct vm_area_struct *vma;
+	pid_t pid;
+};
+
 /**
  * DMA buffer.
  */
@@ -350,6 +406,17 @@ struct drm_buf {
 
 	int dev_priv_size;		 /**< Size of buffer private storage */
 	void *dev_private;		 /**< Per-buffer private storage */
+};
+
+/** bufs is one longer than it has to be */
+struct drm_waitlist {
+	int count;			/**< Number of possible buffers */
+	struct drm_buf **bufs;		/**< List of pointers to buffers */
+	struct drm_buf **rp;			/**< Read pointer */
+	struct drm_buf **wp;			/**< Write pointer */
+	struct drm_buf **end;		/**< End pointer */
+	spinlock_t read_lock;
+	spinlock_t write_lock;
 };
 
 struct drm_freelist {
@@ -402,32 +469,72 @@ struct drm_pending_event {
 /* initial implementaton using a linked list - todo hashtab */
 struct drm_prime_file_private {
 	struct list_head head;
+#ifdef FREEBSD_NOTYET
+	struct mutex lock;
+#else
 	struct mtx lock;
+#endif
 };
 
 struct drm_file {
 	int authenticated;
+#ifdef __linux__
+	struct pid *pid;
+	kuid_t uid;
+#elif __FreeBSD__
 	pid_t pid;
 	uid_t uid;
+#endif
 	drm_magic_t magic;
 	unsigned long ioctl_count;
 	struct list_head lhead;
 	struct drm_minor *minor;
 	unsigned long lock_count;
 
-	void *driver_priv;
+#ifdef FREEBSD_NOTYET
+	/** Mapping of mm object handles to object pointers. */
+	struct idr object_idr;
+	/** Lock for synchronization of access to object_idr. */
+	spinlock_t table_lock;
+
+	struct file *filp;
+#endif
+#ifdef __FreeBSD__
 	struct drm_gem_names object_names;
+#endif
+	void *driver_priv;
 
 	int is_master; /* this file private is a master for a minor */
 	struct drm_master *master; /* master this node is currently associated with
 				      N.B. not always minor->master */
 	struct list_head fbs;
 
+#ifdef FREEBSD_NOTYET
+	wait_queue_head_t event_wait;
+#else
 	struct selinfo event_poll;
+#endif
 	struct list_head event_list;
 	int event_space;
 
 	struct drm_prime_file_private prime;
+};
+
+/** Wait queue */
+struct drm_queue {
+	atomic_t use_count;		/**< Outstanding uses (+1) */
+	atomic_t finalization;		/**< Finalization in progress */
+	atomic_t block_count;		/**< Count of processes waiting */
+	atomic_t block_read;		/**< Queue blocked for reads */
+	wait_queue_head_t read_queue;	/**< Processes waiting on block_read */
+	atomic_t block_write;		/**< Queue blocked for writes */
+	wait_queue_head_t write_queue;	/**< Processes waiting on block_write */
+	atomic_t total_queued;		/**< Total queued statistic */
+	atomic_t total_flushed;		/**< Total flushes statistic */
+	atomic_t total_locks;		/**< Total locks statistics */
+	enum drm_ctx_flags flags;	/**< Context preserving and 2D-only */
+	struct drm_waitlist waitlist;	/**< Pending buffers */
+	wait_queue_head_t flush_queue;	/**< Processes waiting until flush */
 };
 
 /**
@@ -439,7 +546,11 @@ struct drm_lock_data {
 	struct drm_file *file_priv;
 	wait_queue_head_t lock_queue;	/**< Queue of blocked processes */
 	unsigned long lock_time;	/**< Time of last lock in jiffies */
+#ifdef FREEBSD_NOTYET
+	spinlock_t spinlock;
+#else
 	struct mtx spinlock;
+#endif
 	uint32_t kernel_waiters;
 	uint32_t user_waiters;
 	int idle_has_lock;
@@ -486,7 +597,11 @@ struct drm_agp_head {
 	DRM_AGP_KERN agp_info;		/**< AGP device information */
 	struct list_head memory;
 	unsigned long mode;		/**< AGP mode */
+#ifdef __linux__
+	struct agp_bridge_data *bridge;
+#elif __FreeBSD__
 	device_t bridge;
+#endif
 	int enabled;			/**< whether the AGP bus as been enabled */
 	int acquired;			/**< whether the AGP device has been acquired */
 	unsigned long base;
@@ -574,7 +689,11 @@ struct drm_ati_pcigart_info {
  * GEM specific mm private for tracking GEM objects
  */
 struct drm_gem_mm {
+#ifdef FREEBSD_NOTYET
+	struct drm_mm offset_manager;	/**< Offset mgmt for buffer objects */
+#else
 	struct unrhdr *idxunr;
+#endif
 	struct drm_open_hash offset_hash; /**< User token hash table for maps */
 };
 
@@ -584,7 +703,11 @@ struct drm_gem_mm {
  */
 struct drm_gem_object {
 	/** Reference count of this object */
+#ifdef FREEBSD_NOTYET
+	struct kref refcount;
+#else
 	u_int refcount;
+#endif
 
 	/** Handle count of this object. Each handle also holds a reference */
 	atomic_t handle_count; /* number of handles on this object */
@@ -645,7 +768,11 @@ struct drm_gem_object {
 /* per-master structure */
 struct drm_master {
 
+#ifdef FREEBSD_NOTYET
+	struct kref refcount; /* refcount for this master */
+#else
 	u_int refcount; /* refcount for this master */
+#endif
 
 	struct list_head head; /**< each minor contains a list of masters */
 	struct drm_minor *minor; /**< link back to minor we are a master for */
@@ -975,8 +1102,13 @@ struct drm_device {
 
 	/** \name Locks */
 	/*@{ */
+#ifdef FREEBSD_NOTYET
+	spinlock_t count_lock;		/**< For inuse, drm_device::open_count, drm_device::buf_use */
+	struct mutex struct_mutex;	/**< For others */
+#else
 	struct mtx count_lock;		/**< For inuse, drm_device::open_count, drm_device::buf_use */
 	struct sx dev_struct_lock;	/**< For others */
+#endif
 	/*@} */
 
 	/** \name Usage Counters */
@@ -1007,7 +1139,11 @@ struct drm_device {
 	/*@{ */
 	struct list_head ctxlist;	/**< Linked list of context handles */
 	int ctx_count;			/**< Number of context handles */
+#ifdef FREEBSD_NOTYET
+	struct mutex ctxlist_mutex;	/**< For ctxlist */
+#else
 	struct mtx ctxlist_mutex;	/**< For ctxlist */
+#endif
 	drm_local_map_t **context_sareas;
 	int max_context;
 	unsigned long *ctx_bitmap;
@@ -1022,15 +1158,24 @@ struct drm_device {
 	/** \name Context support */
 	/*@{ */
 	int irq_enabled;		/**< True if irq handler is enabled */
+#ifdef FREEBSD_NOTYET
+	__volatile__ long context_flag;	/**< Context swapping flag */
+	__volatile__ long interrupt_flag; /**< Interruption handler flag */
+	__volatile__ long dma_flag;	/**< DMA dispatch flag */
+#else
 	atomic_t context_flag;		/**< Context swapping flag */
 	atomic_t interrupt_flag;	/**< Interruption handler flag */
 	atomic_t dma_flag;		/**< DMA dispatch flag */
+#endif
 	wait_queue_head_t context_wait;	/**< Processes waiting on ctx switch */
 	int last_checked;		/**< Last context checked for DMA */
 	int last_context;		/**< Last current context */
 	unsigned long last_switch;	/**< jiffies at last context switch */
 	/*@} */
 
+#ifdef FREEBSD_NOTYET
+	struct work_struct work;
+#endif
 	/** \name VBLANK IRQ support */
 	/*@{ */
 
@@ -1042,6 +1187,7 @@ struct drm_device {
 	 */
 	int vblank_disable_allowed;
 
+	wait_queue_head_t *vbl_queue;   /**< VBLANK wait queue */
 	atomic_t *_vblank_count;        /**< number of VBLANK interrupts (driver must alloc the right number of counters) */
 	struct timeval *_vblank_time;   /**< timestamp of current vblank_count (drivers must alloc right number of fields) */
 	struct mtx vblank_time_lock;    /**< Protects vblank count and time updates during vblank enable/disable */
@@ -1090,13 +1236,19 @@ struct drm_device {
 
 	/** \name GEM information */
 	/*@{ */
+#ifdef FREEBSD_NOTYET
+	spinlock_t object_name_lock;
+	struct idr object_name_idr;
+#else
 	struct sx object_name_lock;
 	struct drm_gem_names object_names;
+#endif
 	/*@} */
 	int switch_power_state;
 
 	atomic_t unplugged; /* device has been unplugged or gone away */
 
+#ifdef __FreeBSD__
 				/* Locks */
 	struct mtx	  dma_lock;	/* protects dev->dma */
 	struct mtx	  irq_lock;	/* protects irq condition checks */
@@ -1130,6 +1282,7 @@ struct drm_device {
 	int modesetting;
 
 	const drm_pci_id_list_t *id_entry;	/* PCI ID, name, and chipset private */
+#endif
 };
 
 #define DRM_SWITCH_POWER_ON 0
@@ -1185,6 +1338,21 @@ static inline int drm_mtrr_del(int handle, unsigned long offset,
 	return 0;
 }
 #endif
+
+#ifdef __linux__
+static inline void drm_device_set_unplugged(struct drm_device *dev)
+{
+	smp_wmb();
+	atomic_set(&dev->unplugged, 1);
+}
+
+static inline int drm_device_is_unplugged(struct drm_device *dev)
+{
+	int ret = atomic_read(&dev->unplugged);
+	smp_rmb();
+	return ret;
+}
+#endif /* __linux__ */
 
 /******************************************************************/
 /** \name Internal function definitions */
@@ -1446,19 +1614,26 @@ void drm_gem_pager_dtr(void *obj);
 static inline void
 drm_gem_object_reference(struct drm_gem_object *obj)
 {
-
+#ifdef FREEBSD_NOTYET
+	kref_get(&obj->refcount);
+#else
 	KASSERT(obj->refcount > 0, ("Dangling obj %p", obj));
 	refcount_acquire(&obj->refcount);
+#endif
 }
 
 static inline void
 drm_gem_object_unreference(struct drm_gem_object *obj)
 {
-
+#ifdef FREEBSD_NOTYET
+	if (obj != NULL)
+		kref_put(&obj->refcount, drm_gem_object_free);
+#else
 	if (obj == NULL)
 		return;
 	if (refcount_release(&obj->refcount))
 		drm_gem_object_free(obj);
+#endif
 }
 
 static inline void
@@ -1466,9 +1641,15 @@ drm_gem_object_unreference_unlocked(struct drm_gem_object *obj)
 {
 	if (obj != NULL) {
 		struct drm_device *dev = obj->dev;
+#ifdef FREEBSD_NOTYET
+		mutex_lock(&dev->struct_mutex);
+		kref_put(&obj->refcount, drm_gem_object_free);
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_LOCK(dev);
 		drm_gem_object_unreference(obj);
 		DRM_UNLOCK(dev);
+#endif
 	}
 }
 
