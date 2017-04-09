@@ -35,7 +35,9 @@
 
 #include <drm/drmP.h>
 
+#ifdef __FreeBSD__
 static struct mtx drm_magic_lock;
+#endif
 
 /**
  * Find the file with the given magic number.
@@ -54,12 +56,20 @@ static struct drm_file *drm_find_file(struct drm_master *master, drm_magic_t mag
 	struct drm_hash_item *hash;
 	struct drm_device *dev = master->minor->dev;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	if (!drm_ht_find_item(&master->magiclist, (unsigned long)magic, &hash)) {
 		pt = drm_hash_entry(hash, struct drm_magic_entry, hash_item);
 		retval = pt->priv;
 	}
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 	return retval;
 }
 
@@ -81,15 +91,27 @@ static int drm_add_magic(struct drm_master *master, struct drm_file *priv,
 	struct drm_device *dev = master->minor->dev;
 	DRM_DEBUG("%d\n", magic);
 
+#ifdef FREEBSD_NOTYET
+	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
+#else
 	entry = malloc(sizeof(*entry), DRM_MEM_MAGIC, M_ZERO | M_NOWAIT);
+#endif
 	if (!entry)
 		return -ENOMEM;
 	entry->priv = priv;
 	entry->hash_item.key = (unsigned long)magic;
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	drm_ht_insert_item(&master->magiclist, &entry->hash_item);
 	list_add_tail(&entry->head, &master->magicfree);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	return 0;
 }
@@ -111,17 +133,30 @@ int drm_remove_magic(struct drm_master *master, drm_magic_t magic)
 
 	DRM_DEBUG("%d\n", magic);
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	if (drm_ht_find_item(&master->magiclist, (unsigned long)magic, &hash)) {
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 		return -EINVAL;
 	}
 	pt = drm_hash_entry(hash, struct drm_magic_entry, hash_item);
 	drm_ht_remove_item(&master->magiclist, hash);
 	list_del(&pt->head);
-	DRM_UNLOCK(dev);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
 
+	kfree(pt);
+#else
+	DRM_UNLOCK(dev);
 	free(pt, DRM_MEM_MAGIC);
+#endif
 
 	return 0;
 }
@@ -144,6 +179,9 @@ int drm_remove_magic(struct drm_master *master, drm_magic_t magic)
 int drm_getmagic(struct drm_device *dev, void *data, struct drm_file *file_priv)
 {
 	static drm_magic_t sequence = 0;
+#ifdef FREEBSD_NOTYET
+	static DEFINE_SPINLOCK(lock);
+#endif
 	struct drm_auth *auth = data;
 
 	/* Find unique magic */
@@ -151,11 +189,19 @@ int drm_getmagic(struct drm_device *dev, void *data, struct drm_file *file_priv)
 		auth->magic = file_priv->magic;
 	} else {
 		do {
+#ifdef FREEBSD_NOTYET
+			spin_lock(&lock);
+#else
 			mtx_lock(&drm_magic_lock);
+#endif
 			if (!sequence)
 				++sequence;	/* reserve 0 */
 			auth->magic = sequence++;
+#ifdef FREEBSD_NOTYET
+			spin_unlock(&lock);
+#else
 			mtx_unlock(&drm_magic_lock);
+#endif
 		} while (drm_find_file(file_priv->master, auth->magic));
 		file_priv->magic = auth->magic;
 		drm_add_magic(file_priv->master, file_priv, auth->magic);
@@ -194,6 +240,7 @@ int drm_authmagic(struct drm_device *dev, void *data,
 	return -EINVAL;
 }
 
+#ifndef FREEBSD_NOTYET
 static int
 drm_magic_init(void *arg)
 {
@@ -211,3 +258,4 @@ drm_magic_fini(void *arg)
 
 SYSINIT(drm_magic_init, SI_SUB_KLD, SI_ORDER_MIDDLE, drm_magic_init, NULL);
 SYSUNINIT(drm_magic_fini, SI_SUB_KLD, SI_ORDER_MIDDLE, drm_magic_fini, NULL);
+#endif
