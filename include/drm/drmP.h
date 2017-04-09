@@ -94,6 +94,8 @@ __FBSDID("$FreeBSD$");
 #include <sys/selinfo.h>
 #include <sys/bus.h>
 
+#include <linux/slab.h>
+
 #include <drm/drm.h>
 #include <drm/drm_sarea.h>
 
