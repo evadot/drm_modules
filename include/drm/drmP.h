@@ -1764,9 +1764,6 @@ void	drm_driver_irq_uninstall(struct drm_device *dev);
 extern int		drm_sysctl_init(struct drm_device *dev);
 extern int		drm_sysctl_cleanup(struct drm_device *dev);
 
-int	drm_version(struct drm_device *dev, void *data,
-		    struct drm_file *file_priv);
-
 /* consistent PCI memory functions (drm_pci.c) */
 int	drm_pci_set_busid(struct drm_device *dev, struct drm_master *master);
 int	drm_pci_set_unique(struct drm_device *dev, struct drm_master *master,

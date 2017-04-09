@@ -69,6 +69,9 @@ static int drm_version(struct drm_device *dev, void *data,
 
 #endif
 
+static int	drm_version(struct drm_device *dev, void *data,
+		    struct drm_file *file_priv);
+
 /** Ioctl table */
 static struct drm_ioctl_desc drm_ioctls[] = {
 	DRM_IOCTL_DEF(DRM_IOCTL_VERSION, drm_version, DRM_UNLOCKED),
@@ -261,7 +264,13 @@ int drm_lastclose(struct drm_device * dev)
 	    !drm_core_check_feature(dev, DRIVER_MODESET))
 		drm_dma_takedown(dev);
 
+#ifdef FREEBSD_NOTYET
+	dev->dev_mapping = NULL;
+
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	DRM_DEBUG("lastclose completed\n");
 	return 0;
@@ -278,36 +287,84 @@ static const struct file_operations drm_stub_fops = {
 
 static int __init drm_core_init(void)
 {
+#ifdef __linux__
+	int ret = -ENOMEM;
+#endif
 
+#ifdef __FreeBSD__
 	sx_init(&drm_global_mutex, "drm_global_mutex");
-
+#endif
 	drm_global_init();
+#ifdef __linux__
+	idr_init(&drm_minors_idr);
 
-#if DRM_LINUX
-	linux_ioctl_register_handler(&drm_handler);
-#endif /* DRM_LINUX */
+	if (register_chrdev(DRM_MAJOR, "drm", &drm_stub_fops))
+		goto err_p1;
+
+	drm_class = drm_sysfs_create(THIS_MODULE, "drm");
+	if (IS_ERR(drm_class)) {
+		printk(KERN_ERR "DRM: Error creating drm class.\n");
+		ret = PTR_ERR(drm_class);
+		goto err_p2;
+	}
+
+	drm_proc_root = proc_mkdir("dri", NULL);
+	if (!drm_proc_root) {
+		DRM_ERROR("Cannot create /proc/dri\n");
+		ret = -1;
+		goto err_p3;
+	}
+
+	drm_debugfs_root = debugfs_create_dir("dri", NULL);
+	if (!drm_debugfs_root) {
+		DRM_ERROR("Cannot create /sys/kernel/debug/dri\n");
+		ret = -1;
+		goto err_p3;
+	}
+#endif
 
 	DRM_INFO("Initialized %s %d.%d.%d %s\n",
 		 CORE_NAME, CORE_MAJOR, CORE_MINOR, CORE_PATCHLEVEL, CORE_DATE);
 	return 0;
+#ifdef __linux__
+err_p3:
+	drm_sysfs_destroy();
+err_p2:
+	unregister_chrdev(DRM_MAJOR, "drm");
+
+	idr_destroy(&drm_minors_idr);
+err_p1:
+	return ret;
+#endif
 }
 
 static void __exit drm_core_exit(void)
 {
+#ifdef __linux__
+	remove_proc_entry("dri", NULL);
+	debugfs_remove(drm_debugfs_root);
+	drm_sysfs_destroy();
 
-#if DRM_LINUX
-	linux_ioctl_unregister_handler(&drm_handler);
-#endif /* DRM_LINUX */
+	unregister_chrdev(DRM_MAJOR, "drm");
 
+	idr_remove_all(&drm_minors_idr);
+	idr_destroy(&drm_minors_idr);
+#elif __FreeBSD__
 	drm_global_release();
 
 	sx_destroy(&drm_global_mutex);
+#endif
 }
 
+#ifdef __linux__
+module_init(drm_core_init);
+module_exit(drm_core_exit);
+#else
 SYSINIT(drm_register, SI_SUB_KLD, SI_ORDER_MIDDLE,
     drm_core_init, NULL);
 SYSUNINIT(drm_unregister, SI_SUB_KLD, SI_ORDER_MIDDLE,
     drm_core_exit, NULL);
+#endif
 
 /**
  * Copy and IOCTL return string to user space
@@ -343,7 +400,7 @@ static int drm_copy_field(char *buf, size_t *buf_len, const char *value)
  *
  * Fills in the version information in \p arg.
  */
-int drm_version(struct drm_device *dev, void *data,
+static int drm_version(struct drm_device *dev, void *data,
 		       struct drm_file *file_priv)
 {
 	struct drm_version *version = data;
