@@ -418,6 +418,8 @@ int ttm_mem_global_alloc(struct ttm_mem_global *glob, uint64_t memory,
 					 interruptible);
 }
 
+#define page_to_pfn(pp) OFF_TO_IDX(VM_PAGE_TO_PHYS(pp))
+
 int ttm_mem_global_alloc_page(struct ttm_mem_global *glob,
 			      struct vm_page *page,
 			      bool no_wait, bool interruptible)

@@ -54,7 +54,7 @@ SRCS	+= \
 	iicbus_if.h \
 	pci_if.h
 
-CFLAGS+=	-I${.CURDIR}/../../include -I${SYSDIR}/compat/linuxkpi/common/include/
+CFLAGS+=	-I${.CURDIR}/../../include
 
 .include <bsd.kmod.mk>
 

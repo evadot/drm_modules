@@ -137,9 +137,6 @@
 #include <sys/selinfo.h>
 #include <sys/bus.h>
 
-#include <linux/mutex.h>
-#include <linux/slab.h>
-
 #include <drm/drm.h>
 #include <drm/drm_sarea.h>
 
