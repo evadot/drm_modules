@@ -25,11 +25,17 @@
  *
  */
 
+#ifdef __linux__
+#include <linux/string.h>
+#include <linux/bitops.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
 
+#ifdef __FreeBSD__
 #include <sys/sf_buf.h>
+#endif
 
 /** @file i915_gem_tiling.c
  *
@@ -350,7 +356,11 @@ i915_gem_set_tiling(struct drm_device *dev, void *data,
 		}
 	}
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	if (args->tiling_mode != obj->tiling_mode ||
 	    args->stride != obj->stride) {
 		/* We need to rebind the object if its current allocation
@@ -397,7 +407,11 @@ i915_gem_set_tiling(struct drm_device *dev, void *data,
 	args->stride = obj->stride;
 	args->tiling_mode = obj->tiling_mode;
 	drm_gem_object_unreference(&obj->base);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	return ret;
 }
@@ -417,7 +431,11 @@ i915_gem_get_tiling(struct drm_device *dev, void *data,
 	if (&obj->base == NULL)
 		return -ENOENT;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 
 	args->tiling_mode = obj->tiling_mode;
 	switch (obj->tiling_mode) {
@@ -441,7 +459,11 @@ i915_gem_get_tiling(struct drm_device *dev, void *data,
 		args->swizzle_mode = I915_BIT_6_SWIZZLE_9_10;
 
 	drm_gem_object_unreference(&obj->base);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	return 0;
 }
