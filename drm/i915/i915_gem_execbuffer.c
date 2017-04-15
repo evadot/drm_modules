@@ -29,10 +29,16 @@
 #include <drm/drmP.h>
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
+#ifdef __linux__
+#include "i915_trace.h"
+#endif
 #include "intel_drv.h"
-
+#ifdef __linux__
+#include <linux/dma_remapping.h>
+#elif __FreeBSD__
 #include <sys/limits.h>
 #include <sys/sf_buf.h>
+#endif
 
 struct eb_objects {
 	int and;
@@ -47,9 +53,15 @@ eb_create(int size)
 	BUILD_BUG_ON_NOT_POWER_OF_2(PAGE_SIZE / sizeof(struct hlist_head));
 	while (count > size)
 		count >>= 1;
+#ifdef FREEBSD_NOTYET
+	eb = kzalloc(count*sizeof(struct hlist_head) +
+		     sizeof(struct eb_objects),
+		     GFP_KERNEL);
+#else
 	eb = malloc(count*sizeof(struct hlist_head) +
 		     sizeof(struct eb_objects),
 		     DRM_I915_GEM, M_WAITOK | M_ZERO);
+#endif
 	if (eb == NULL)
 		return eb;
 
@@ -90,7 +102,11 @@ eb_get_object(struct eb_objects *eb, unsigned long handle)
 static void
 eb_destroy(struct eb_objects *eb)
 {
+#ifdef FREEBSD_NOTYET
+	kfree(eb);
+#else
 	free(eb, DRM_I915_GEM);
+#endif
 }
 
 static inline int use_cpu_reloc(struct drm_i915_gem_object *obj)
@@ -195,14 +211,25 @@ i915_gem_execbuffer_relocate_entry(struct drm_i915_gem_object *obj,
 
 	reloc->delta += target_offset;
 	if (use_cpu_reloc(obj)) {
+#ifdef __linux__
+		uint32_t page_offset = reloc->offset & ~PAGE_MASK;
+		char *vaddr;
+#elif __FreeBSD__
 		uint32_t page_offset = reloc->offset & PAGE_MASK;
 		char *vaddr;
 		struct sf_buf *sf;
+#endif
 
 		ret = i915_gem_object_set_to_cpu_domain(obj, 1);
 		if (ret)
 			return ret;
 
+#ifdef __linux__
+		vaddr = kmap_atomic(i915_gem_object_get_page(obj,
+							     reloc->offset >> PAGE_SHIFT));
+		*(uint32_t *)(vaddr + page_offset) = reloc->delta;
+		kunmap_atomic(vaddr);
+#elif __FreeBSD__
 		sf = sf_buf_alloc(obj->pages[OFF_TO_IDX(reloc->offset)],
 		    SFB_NOWAIT);
 		if (sf == NULL)
@@ -210,6 +237,7 @@ i915_gem_execbuffer_relocate_entry(struct drm_i915_gem_object *obj,
 		vaddr = (void *)sf_buf_kva(sf);
 		*(uint32_t *)(vaddr + page_offset) = reloc->delta;
 		sf_buf_free(sf);
+#endif
 	} else {
 		struct drm_i915_private *dev_priv = dev->dev_private;
 		uint32_t __iomem *reloc_entry;
@@ -225,12 +253,21 @@ i915_gem_execbuffer_relocate_entry(struct drm_i915_gem_object *obj,
 
 		/* Map the page containing the relocation we're going to perform.  */
 		reloc->offset += obj->gtt_offset;
+#ifdef __linux__
+		reloc_page = io_mapping_map_atomic_wc(dev_priv->mm.gtt_mapping,
+						      reloc->offset & PAGE_MASK);
+		reloc_entry = (uint32_t __iomem *)
+			(reloc_page + (reloc->offset & ~PAGE_MASK));
+		iowrite32(reloc->delta, reloc_entry);
+		io_mapping_unmap_atomic(reloc_page);
+#elif __FreeBSD__
 		reloc_page = pmap_mapdev_attr(dev_priv->mm.gtt_base_addr + (reloc->offset &
 		    ~PAGE_MASK), PAGE_SIZE, PAT_WRITE_COMBINING);
 		reloc_entry = (uint32_t __iomem *)
 			(reloc_page + (reloc->offset & PAGE_MASK));
 		*(volatile uint32_t *)reloc_entry = reloc->delta;
 		pmap_unmapdev((vm_offset_t)reloc_page, PAGE_SIZE);
+#endif
 	}
 
 	/* and update the user's relocation entry */
@@ -317,13 +354,21 @@ i915_gem_execbuffer_relocate(struct drm_device *dev,
 	 * acquire the struct mutex again. Obviously this is bad and so
 	 * lockdep complains vehemently.
 	 */
+#ifdef __linux__
+	pagefault_disable();
+#elif __FreeBSD__
 	pflags = vm_fault_disable_pagefaults();
+#endif
 	list_for_each_entry(obj, objects, exec_list) {
 		ret = i915_gem_execbuffer_relocate_object(obj, eb);
 		if (ret)
 			break;
 	}
+#ifdef __linux__
+	pagefault_enable();
+#elif __FreeBSD__
 	vm_fault_enable_pagefaults(pflags);
+#endif
 
 	return ret;
 }
@@ -526,7 +571,11 @@ i915_gem_execbuffer_relocate_slow(struct drm_device *dev,
 		drm_gem_object_unreference(&obj->base);
 	}
 
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	total = 0;
 	for (i = 0; i < count; i++)
@@ -537,7 +586,11 @@ i915_gem_execbuffer_relocate_slow(struct drm_device *dev,
 	if (reloc == NULL || reloc_offset == NULL) {
 		drm_free_large(reloc);
 		drm_free_large(reloc_offset);
+#ifdef FREEBSD_NOTYET
+		mutex_lock(&dev->struct_mutex);
+#else
 		DRM_LOCK(dev);
+#endif
 		return -ENOMEM;
 	}
 
@@ -552,7 +605,11 @@ i915_gem_execbuffer_relocate_slow(struct drm_device *dev,
 		if (copy_from_user(reloc+total, user_relocs,
 				   exec[i].relocation_count * sizeof(*reloc))) {
 			ret = -EFAULT;
+#ifdef FREEBSD_NOTYET
+			mutex_lock(&dev->struct_mutex);
+#else
 			DRM_LOCK(dev);
+#endif
 			goto err;
 		}
 
@@ -570,7 +627,11 @@ i915_gem_execbuffer_relocate_slow(struct drm_device *dev,
 					 &invalid_offset,
 					 sizeof(invalid_offset))) {
 				ret = -EFAULT;
+#ifdef FREEBSD_NOTYET
+				mutex_lock(&dev->struct_mutex);
+#else
 				DRM_LOCK(dev);
+#endif
 				goto err;
 			}
 		}
@@ -581,7 +642,11 @@ i915_gem_execbuffer_relocate_slow(struct drm_device *dev,
 
 	ret = i915_mutex_lock_interruptible(dev);
 	if (ret) {
+#ifdef FREEBSD_NOTYET
+		mutex_lock(&dev->struct_mutex);
+#else
 		DRM_LOCK(dev);
+#endif
 		goto err;
 	}
 
@@ -787,8 +852,12 @@ i915_gem_execbuffer_move_to_active(struct list_head *objects,
 				intel_mark_fb_busy(obj);
 		}
 
+#ifdef __linux__
+		trace_i915_gem_object_change_domain(obj, old_read, old_write);
+#elif __FreeBSD__
 		CTR3(KTR_DRM, "object_change_domain move_to_active %p %x %x",
 		    obj, old_read, old_write);
+#endif
 	}
 }
 
@@ -984,14 +1053,22 @@ i915_gem_do_execbuffer(struct drm_device *dev, void *data,
 		goto pre_mutex_err;
 
 	if (dev_priv->mm.suspended) {
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 		ret = -EBUSY;
 		goto pre_mutex_err;
 	}
 
 	eb = eb_create(args->buffer_count);
 	if (eb == NULL) {
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 		ret = -ENOMEM;
 		goto pre_mutex_err;
 	}
@@ -1133,7 +1210,11 @@ err:
 		drm_gem_object_unreference(&obj->base);
 	}
 
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 pre_mutex_err:
 	for (i = 0; i < args->buffer_count; i++) {
