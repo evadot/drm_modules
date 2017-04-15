@@ -412,8 +412,10 @@ struct drm_waitlist {
 	struct drm_buf **rp;			/**< Read pointer */
 	struct drm_buf **wp;			/**< Write pointer */
 	struct drm_buf **end;		/**< End pointer */
+#ifdef FREEBSD_NOTYET
 	spinlock_t read_lock;
 	spinlock_t write_lock;
+#endif
 };
 
 struct drm_freelist {
