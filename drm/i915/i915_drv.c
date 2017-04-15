@@ -32,15 +32,22 @@
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
 #ifdef __linux__
-#include "drm/i915/i915_trace.h"
+#include "i915_trace.h"
 #endif
 #include "intel_drv.h"
 
+#ifdef __linux__
+#include <linux/console.h>
+#include <linux/module.h>
+#endif
 #include <drm/drm_crtc_helper.h>
 
-#include "fb_if.h"
-
 static int i915_modeset __read_mostly = 1;
+
+#ifdef __FreeBSD__
+#include "fb_if.h"
+#endif
+
 TUNABLE_INT("drm.i915.modeset", &i915_modeset);
 module_param_named(modeset, i915_modeset, int, 0400);
 MODULE_PARM_DESC(modeset,
@@ -147,12 +154,25 @@ int intel_iommu_gfx_mapped = 0;
 TUNABLE_INT("drm.i915.intel_iommu_gfx_mapped", &intel_iommu_gfx_mapped);
 
 static struct drm_driver driver;
+#ifdef __linux__
+extern int intel_agp_enabled;
+
+#define INTEL_VGA_DEVICE(id, info) {		\
+	.class = PCI_BASE_CLASS_DISPLAY << 16,	\
+	.class_mask = 0xff0000,			\
+	.vendor = 0x8086,			\
+	.device = id,				\
+	.subvendor = PCI_ANY_ID,		\
+	.subdevice = PCI_ANY_ID,		\
+	.driver_data = (unsigned long) info }
+#elif __FreeBSD__
 int intel_agp_enabled = 1; /* On FreeBSD, agp is a required dependency. */
 
 #define INTEL_VGA_DEVICE(id, info_) {		\
 	.device = id,				\
 	.info = info_,				\
 }
+#endif
 
 static const struct intel_device_info intel_i830_info = {
 	.gen = 2, .is_mobile = 1, .cursor_needs_physical = 1,
@@ -424,7 +444,11 @@ MODULE_DEVICE_TABLE(pci, pciidlist);
 void intel_detect_pch(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
+#ifdef __linux__
+	struct pci_dev *pch;
+#elif __FreeBSD__
 	device_t pch;
+#endif
 
 	/*
 	 * The reason to probe ISA bridge instead of Dev31:Fun0 is to
@@ -432,11 +456,23 @@ void intel_detect_pch(struct drm_device *dev)
 	 * need to expose ISA bridge to let driver know the real hardware
 	 * underneath. This is a requirement from virtualization team.
 	 */
+#ifdef __linux__
+	pch = pci_get_class(PCI_CLASS_BRIDGE_ISA << 8, NULL);
+#elif __FreeBSD__
 	pch = pci_find_class(PCIC_BRIDGE, PCIS_BRIDGE_ISA);
+#endif
 	if (pch) {
+#ifdef __linux__
+		if (pch->vendor == PCI_VENDOR_ID_INTEL) {
+#elif __FreeBSD__
 		if (pci_get_vendor(pch) == PCI_VENDOR_ID_INTEL) {
+#endif
 			unsigned short id;
+#ifdef __linux__
+			id = pch->device & INTEL_PCH_DEVICE_ID_MASK;
+#elif __FreeBSD__
 			id = pci_get_device(pch) & INTEL_PCH_DEVICE_ID_MASK;
+#endif
 			dev_priv->pch_id = id;
 
 			if (id == INTEL_PCH_IBX_DEVICE_ID_TYPE) {
@@ -502,13 +538,22 @@ static int i915_drm_freeze(struct drm_device *dev)
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		int error = i915_gem_idle(dev);
 		if (error) {
+#ifdef __linux__
+			dev_err(&dev->pdev->dev,
+				"GEM idle failed, resume might fail\n");
+#elif __FreeBSD__
 			dev_err(dev->dev,
 				"GEM idle failed, resume might fail\n");
+#endif
 			return error;
 		}
 
+#ifdef __linux__
+		cancel_delayed_work_sync(&dev_priv->rps.delayed_resume_work);
+#elif __FreeBSD__
 		taskqueue_cancel_timeout(dev_priv->wq,
 		    &dev_priv->rps.delayed_resume_work, NULL);
+#endif
 
 		intel_modeset_disable(dev);
 
@@ -584,11 +629,19 @@ static int __i915_drm_thaw(struct drm_device *dev)
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		intel_init_pch_refclk(dev);
 
+#ifdef FREEBSD_NOTYET
+		mutex_lock(&dev->struct_mutex);
+#else
 		DRM_LOCK(dev);
+#endif
 		dev_priv->mm.suspended = 0;
 
 		error = i915_gem_init_hw(dev);
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 
 		intel_modeset_init_hw(dev);
 		intel_modeset_setup_hw_state(dev, false);
@@ -608,8 +661,12 @@ static int __i915_drm_thaw(struct drm_device *dev)
 		intel_fbdev_set_suspend(dev, 0);
 		console_unlock();
 	} else {
+#ifdef __linux__
+		schedule_work(&dev_priv->console_resume_work);
+#elif __FreeBSD__
 		taskqueue_enqueue(dev_priv->wq,
 		    &dev_priv->console_resume_work);
+#endif
 	}
 
 	return error;
@@ -623,9 +680,17 @@ static int i915_drm_thaw(struct drm_device *dev)
 	intel_gt_reset(dev);
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
+#ifdef FREEBSD_NOTYET
+		mutex_lock(&dev->struct_mutex);
+#else
 		DRM_LOCK(dev);
+#endif
 		i915_gem_restore_gtt_mappings(dev);
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 	}
 
 	__i915_drm_thaw(dev);
@@ -657,9 +722,17 @@ int i915_resume(struct drm_device *dev)
 	 */
 	if (drm_core_check_feature(dev, DRIVER_MODESET) &&
 	    !dev_priv->opregion.header) {
+#ifdef FREEBSD_NOTYET
+		mutex_lock(&dev->struct_mutex);
+#else
 		DRM_LOCK(dev);
+#endif
 		i915_gem_restore_gtt_mappings(dev);
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 	}
 
 	ret = __i915_drm_thaw(dev);
@@ -673,14 +746,18 @@ int i915_resume(struct drm_device *dev)
 static int i8xx_do_reset(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
+#ifdef __FreeBSD__
 	int onems;
+#endif
 
 	if (IS_I85X(dev))
 		return -ENODEV;
 
+#ifdef __FreeBSD__
 	onems = hz / 1000;
 	if (onems == 0)
 		onems = 1;
+#endif
 
 	I915_WRITE(D_STATE, I915_READ(D_STATE) | DSTATE_GFX_RESET_I830);
 	POSTING_READ(D_STATE);
@@ -691,13 +768,21 @@ static int i8xx_do_reset(struct drm_device *dev)
 			   DEBUG_RESET_RENDER |
 			   DEBUG_RESET_FULL);
 		POSTING_READ(DEBUG_RESET_I830);
+#ifdef __linux__
+		msleep(1);
+#elif __FreeBSD__
 		pause("i8xxrst1", onems);
+#endif
 
 		I915_WRITE(DEBUG_RESET_I830, 0);
 		POSTING_READ(DEBUG_RESET_I830);
 	}
 
+#ifdef __linux__
+	msleep(1);
+#elif __FreeBSD__
 	pause("i8xxrst2", onems);
+#endif
 
 	I915_WRITE(D_STATE, I915_READ(D_STATE) & ~DSTATE_GFX_RESET_I830);
 	POSTING_READ(D_STATE);
@@ -708,7 +793,11 @@ static int i8xx_do_reset(struct drm_device *dev)
 static int i965_reset_complete(struct drm_device *dev)
 {
 	u8 gdrst;
+#ifdef __linux__
+	pci_read_config_byte(dev->pdev, I965_GDRST, &gdrst);
+#elif __FreeBSD__
 	pci_read_config_byte(dev->dev, I965_GDRST, &gdrst);
+#endif
 	return (gdrst & GRDOM_RESET_ENABLE) == 0;
 }
 
@@ -722,19 +811,33 @@ static int i965_do_reset(struct drm_device *dev)
 	 * well as the reset bit (GR/bit 0).  Setting the GR bit
 	 * triggers the reset; when done, the hardware will clear it.
 	 */
+#ifdef __linux__
+	pci_read_config_byte(dev->pdev, I965_GDRST, &gdrst);
+	pci_write_config_byte(dev->pdev, I965_GDRST,
+			      gdrst | GRDOM_RENDER |
+			      GRDOM_RESET_ENABLE);
+#elif __FreeBSD__
 	pci_read_config_byte(dev->dev, I965_GDRST, &gdrst);
 	pci_write_config_byte(dev->dev, I965_GDRST,
 			      gdrst | GRDOM_RENDER |
 			      GRDOM_RESET_ENABLE);
+#endif
 	ret =  wait_for(i965_reset_complete(dev), 500);
 	if (ret)
 		return ret;
 
 	/* We can't reset render&media without also resetting display ... */
+#ifdef __linux__
+	pci_read_config_byte(dev->pdev, I965_GDRST, &gdrst);
+	pci_write_config_byte(dev->pdev, I965_GDRST,
+			      gdrst | GRDOM_MEDIA |
+			      GRDOM_RESET_ENABLE);
+#elif __FreeBSD__
 	pci_read_config_byte(dev->dev, I965_GDRST, &gdrst);
 	pci_write_config_byte(dev->dev, I965_GDRST,
 			      gdrst | GRDOM_MEDIA |
 			      GRDOM_RESET_ENABLE);
+#endif
 
 	return wait_for(i965_reset_complete(dev), 500);
 }
@@ -763,11 +866,18 @@ static int gen6_do_reset(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	int	ret;
+#ifdef FREEBSD_NOTYET
+	unsigned long irqflags;
+#endif
 
 	/* Hold gt_lock across reset to prevent any register access
 	 * with forcewake not set correctly
 	 */
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->gt_lock, irqflags);
+#else
 	mtx_lock(&dev_priv->gt_lock);
+#endif
 
 	/* Reset the chip */
 
@@ -778,6 +888,9 @@ static int gen6_do_reset(struct drm_device *dev)
 	I915_WRITE_NOTRACE(GEN6_GDRST, GEN6_GRDOM_FULL);
 
 	/* Spin waiting for the device to ack the reset request */
+#ifdef FREEBSD_NOTYET
+	ret = wait_for((I915_READ_NOTRACE(GEN6_GDRST) & GEN6_GRDOM_FULL) == 0, 500);
+#else
 	/*
 	 * NOTE Linux<->FreeBSD: We use _intel_wait_for() instead of
 	 * wait_for(), because we want to set the 4th argument to 0.
@@ -787,6 +900,7 @@ static int gen6_do_reset(struct drm_device *dev)
 	ret = _intel_wait_for(dev,
 	    (I915_READ_NOTRACE(GEN6_GDRST) & GEN6_GRDOM_FULL) == 0,
 	    500, 0, "915rst");
+#endif
 
 	/* If reset with a user forcewake, try to restore, otherwise turn it off */
 	if (dev_priv->forcewake_count)
@@ -797,7 +911,11 @@ static int gen6_do_reset(struct drm_device *dev)
 	/* Restore fifo count */
 	dev_priv->gt_fifo_count = I915_READ_NOTRACE(GT_FIFO_FREE_ENTRIES);
 
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->gt_lock, irqflags);
+#else
 	mtx_unlock(&dev_priv->gt_lock);
+#endif
 	return ret;
 }
 
@@ -859,7 +977,11 @@ int i915_reset(struct drm_device *dev)
 	if (!i915_try_reset)
 		return 0;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 
 	i915_gem_reset(dev);
 
@@ -872,7 +994,11 @@ int i915_reset(struct drm_device *dev)
 	dev_priv->last_gpu_reset = get_seconds();
 	if (ret) {
 		DRM_ERROR("Failed to reset chip.\n");
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 		return ret;
 	}
 
@@ -911,17 +1037,26 @@ int i915_reset(struct drm_device *dev)
 		 * some unknown reason, this blows up my ilk, so don't.
 		 */
 
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 
 		drm_irq_uninstall(dev);
 		drm_irq_install(dev);
 	} else {
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 	}
 
 	return 0;
 }
 
+#ifdef __FreeBSD__
 const struct intel_device_info *
 i915_get_device_id(int device)
 {
@@ -934,6 +1069,7 @@ i915_get_device_id(int device)
 	}
 	return (NULL);
 }
+#endif
 
 static int i915_probe(device_t kdev)
 {
