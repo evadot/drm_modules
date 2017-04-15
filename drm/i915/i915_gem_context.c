@@ -118,8 +118,12 @@ static int get_context_size(struct drm_device *dev)
 			ret = GEN7_CXT_TOTAL_SIZE(reg) * 64;
 		break;
 	default:
+#ifdef __linux__
+		BUG();
+#elif __FreeBSD__
 		panic("i915_gem_context: Unsupported Intel GPU generation %d",
 		    INTEL_INFO(dev)->gen);
+#endif
 	}
 
 	return ret;
@@ -133,13 +137,25 @@ static void do_destroy(struct i915_hw_context *ctx)
 #endif
 
 	if (ctx->file_priv)
+#ifdef FREEBSD_NOTYET
+		idr_remove(&ctx->file_priv->context_idr, ctx->id);
+#else
 		drm_gem_names_remove(&ctx->file_priv->context_idr, ctx->id);
+#endif
 	else
+#ifdef __linux__
+		BUG_ON(ctx != dev_priv->ring[RCS].default_context);
+#elif __FreeBSD__
 		KASSERT(ctx == dev_priv->ring[RCS].default_context,
 		    ("i915_gem_context: ctx != default_context"));
+#endif
 
 	drm_gem_object_unreference(&ctx->obj->base);
+#ifdef FREEBSD_NOTYET
+	kfree(ctx);
+#else
 	free(ctx, DRM_I915_GEM);
+#endif
 }
 
 static int
@@ -151,13 +167,21 @@ create_hw_context(struct drm_device *dev,
 	struct i915_hw_context *ctx;
 	int ret, id;
 
+#ifdef FREEBSD_NOTYET
+	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
+#else
 	ctx = malloc(sizeof(*ctx), DRM_I915_GEM, M_NOWAIT | M_ZERO);
+#endif
 	if (ctx == NULL)
 		return (-ENOMEM);
 
 	ctx->obj = i915_gem_alloc_object(dev, dev_priv->hw_context_size);
 	if (ctx->obj == NULL) {
+#ifdef FREEBSD_NOTYET
+		kfree(ctx);
+#else
 		free(ctx, DRM_I915_GEM);
+#endif
 		DRM_DEBUG_DRIVER("Context object allocated failed\n");
 		return (-ENOMEM);
 	}
@@ -184,8 +208,19 @@ create_hw_context(struct drm_device *dev,
 	ctx->file_priv = file_priv;
 
 again:
+#ifdef FREEBSD_NOTYET
+	if (idr_pre_get(&file_priv->context_idr, GFP_KERNEL) == 0) {
+		ret = -ENOMEM;
+		DRM_DEBUG_DRIVER("idr allocation failed\n");
+		goto err_out;
+	}
+
+	ret = idr_get_new_above(&file_priv->context_idr, ctx,
+				DEFAULT_CONTEXT_ID + 1, &id);
+#else
 	id = 0;
 	ret = drm_gem_name_create(&file_priv->context_idr, ctx, &id);
+#endif
 	if (ret == 0)
 		ctx->id = id;
 
@@ -217,11 +252,19 @@ static int create_default_context(struct drm_i915_private *dev_priv)
 	struct i915_hw_context *ctx;
 	int ret;
 
+#ifdef FREEBSD_NOTYET
+	BUG_ON(!mutex_is_locked(&dev_priv->dev->struct_mutex));
+
+	ctx = create_hw_context(dev_priv->dev, NULL);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+#else
 	DRM_LOCK_ASSERT(dev_priv->dev);
 
 	ret = create_hw_context(dev_priv->dev, NULL, &ctx);
 	if (ret != 0)
 		return (ret);
+#endif
 
 	/* We may need to do things with the shrinker which require us to
 	 * immediately switch back to the default context. This can cause a
@@ -309,7 +352,11 @@ static int context_idr_cleanup(uint32_t id, void *p, void *data)
 {
 	struct i915_hw_context *ctx = p;
 
+#ifdef FREEBSD_NOTYET
+	BUG_ON(id == DEFAULT_CONTEXT_ID);
+#else
 	KASSERT(id != DEFAULT_CONTEXT_ID, ("i915_gem_context: id == DEFAULT_CONTEXT_ID in cleanup"));
+#endif
 
 	do_destroy(ctx);
 
@@ -320,16 +367,27 @@ void i915_gem_context_close(struct drm_device *dev, struct drm_file *file)
 {
 	struct drm_i915_file_private *file_priv = file->driver_priv;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+	idr_for_each(&file_priv->context_idr, context_idr_cleanup, NULL);
+	idr_destroy(&file_priv->context_idr);
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
 	drm_gem_names_foreach(&file_priv->context_idr, context_idr_cleanup, NULL);
 	drm_gem_names_fini(&file_priv->context_idr);
 	DRM_UNLOCK(dev);
+#endif
 }
 
 static struct i915_hw_context *
 i915_gem_context_get(struct drm_i915_file_private *file_priv, u32 id)
 {
+#ifdef FREEBSD_NOTYET
+	return (struct i915_hw_context *)idr_find(&file_priv->context_idr, id);
+#else
 	return (struct i915_hw_context *)drm_gem_find_ptr(&file_priv->context_idr, id);
+#endif
 }
 
 static inline int
@@ -386,8 +444,12 @@ static int do_switch(struct i915_hw_context *to)
 	u32 hw_flags = 0;
 	int ret;
 
+#ifdef FREEBSD_NOTYET
+	BUG_ON(from_obj != NULL && from_obj->pin_count == 0);
+#else
 	KASSERT(!(from_obj != NULL && from_obj->pin_count == 0),
 	    ("i915_gem_context: invalid \"from\" context"));
+#endif
 
 	if (from_obj == to->obj)
 		return 0;
@@ -510,10 +572,17 @@ int i915_gem_context_create_ioctl(struct drm_device *dev, void *data,
 	if (ret)
 		return ret;
 
+#ifdef FREEBSD_NOTYET
+	ctx = create_hw_context(dev, file_priv);
+	mutex_unlock(&dev->struct_mutex);
+	if (IS_ERR(ctx))
+		return PTR_ERR(ctx);
+#else
 	ret = create_hw_context(dev, file_priv, &ctx);
 	DRM_UNLOCK(dev);
 	if (ret != 0)
 		return (ret);
+#endif
 
 	args->ctx_id = ctx->id;
 	DRM_DEBUG_DRIVER("HW context %d created\n", args->ctx_id);
@@ -538,13 +607,21 @@ int i915_gem_context_destroy_ioctl(struct drm_device *dev, void *data,
 
 	ctx = i915_gem_context_get(file_priv, args->ctx_id);
 	if (!ctx) {
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 		return -ENOENT;
 	}
 
 	do_destroy(ctx);
 
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	DRM_DEBUG_DRIVER("HW context %d destroyed\n", args->ctx_id);
 	return 0;
