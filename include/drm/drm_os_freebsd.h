@@ -118,9 +118,7 @@ typedef void			irqreturn_t;
 
 #define	IS_ALIGNED(x, y)	(((x) & ((y) - 1)) == 0)
 
-#define	PAGE_ALIGN(addr) round_page(addr)
 #define	page_to_phys(x) VM_PAGE_TO_PHYS(x)
-#define	offset_in_page(x) ((x) & ~PAGE_MASK)
 
 #define	drm_get_device_from_kdev(_kdev)	(((struct drm_minor *)(_kdev)->si_drv1)->dev)
 

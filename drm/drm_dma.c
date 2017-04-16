@@ -50,11 +50,7 @@ int drm_dma_setup(struct drm_device *dev)
 {
 	int i;
 
-#ifdef FREEBSD_NOTYET
 	dev->dma = kzalloc(sizeof(*dev->dma), GFP_KERNEL);
-#else
-	dev->dma = malloc(sizeof(*dev->dma), DRM_MEM_DRIVER, M_NOWAIT | M_ZERO);
-#endif
 	if (!dev->dma)
 		return -ENOMEM;
 
@@ -118,11 +114,7 @@ void drm_dma_takedown(struct drm_device *dev)
 	free(dma->buflist, DRM_MEM_BUFS);
 #endif
 	kfree(dma->pagelist);
-#ifdef FREEBSD_NOTYET
 	kfree(dev->dma);
-#else
-	free(dev->dma, DRM_MEM_DRIVER);
-#endif
 	dev->dma = NULL;
 }
 

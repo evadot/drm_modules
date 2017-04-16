@@ -50,7 +50,7 @@ static int drm_platform_set_busid(struct drm_device *dev, struct drm_master *mas
 
 	master->unique_len = 13 + strlen(dev->driver->name);
 	master->unique_size = master->unique_len;
-	master->unique = malloc(master->unique_len + 1, DRM_MEM_DRIVER, M_NOWAIT);
+	master->unique = kmalloc(master->unique_len + 1, DRM_MEM_DRIVER, M_NOWAIT);
 
 	if (master->unique == NULL)
 		return -ENOMEM;

@@ -1555,12 +1555,7 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 	dev->types[8] = _DRM_STAT_SECONDARY;
 	dev->types[9] = _DRM_STAT_DMA;
 
-#ifdef FREEBSD_NOTYET
 	dev_priv = kzalloc(sizeof(drm_i915_private_t), GFP_KERNEL);
-#else
-	dev_priv = malloc(sizeof(drm_i915_private_t), DRM_MEM_DRIVER,
-	    M_WAITOK | M_ZERO);
-#endif
 	if (dev_priv == NULL)
 		return -ENOMEM;
 
@@ -1827,11 +1822,7 @@ put_bridge:
 	pci_dev_put(dev_priv->bridge_dev);
 #endif
 free_priv:
-	#ifdef FREEBSD_NOTYET
 	kfree(dev_priv);
-#else
-	free(dev_priv, DRM_MEM_DRIVER);
-#endif
 	return ret;
 }
 
@@ -1906,11 +1897,7 @@ int i915_driver_unload(struct drm_device *dev)
 		 * config parsed from VBT
 		 */
 		if (dev_priv->child_dev && dev_priv->child_dev_num) {
-#ifdef FREEBSD_NOTYET
 			kfree(dev_priv->child_dev);
-#else
-			free(dev_priv->child_dev, DRM_MEM_DRIVER);
-#endif
 			dev_priv->child_dev = NULL;
 			dev_priv->child_dev_num = 0;
 		}
@@ -2006,11 +1993,7 @@ int i915_driver_unload(struct drm_device *dev)
 #ifdef __linux__
 	pci_dev_put(dev_priv->bridge_dev);
 #endif
-#ifdef FREEBSD_NOTYET
 	kfree(dev->dev_private);
-#else
-	free(dev->dev_private, DRM_MEM_DRIVER);
-#endif
 
 	return 0;
 }

@@ -47,7 +47,7 @@ void drm_sg_cleanup(struct drm_sg_mem * entry)
 		kmem_free(kernel_arena, entry->vaddr, IDX_TO_OFF(entry->pages));
 
 	free(entry->busaddr, DRM_MEM_SGLISTS);
-	free(entry, DRM_MEM_DRIVER);
+	kfree(entry);
 }
 
 int drm_sg_alloc(struct drm_device *dev, struct drm_scatter_gather * request)
@@ -64,7 +64,7 @@ int drm_sg_alloc(struct drm_device *dev, struct drm_scatter_gather * request)
 	if (dev->sg)
 		return -EINVAL;
 
-	entry = malloc(sizeof(*entry), DRM_MEM_DRIVER, M_NOWAIT | M_ZERO);
+	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
 	if (!entry)
 		return -ENOMEM;
 
@@ -75,14 +75,14 @@ int drm_sg_alloc(struct drm_device *dev, struct drm_scatter_gather * request)
 	entry->busaddr = malloc(entry->pages * sizeof(*entry->busaddr),
 	    DRM_MEM_SGLISTS, M_NOWAIT | M_ZERO);
 	if (!entry->busaddr) {
-		free(entry, DRM_MEM_DRIVER);
+		kfree(entry);
 		return -ENOMEM;
 	}
 
 	entry->vaddr = drm_vmalloc_dma(size);
 	if (entry->vaddr == 0) {
-		free(entry->busaddr, DRM_MEM_DRIVER);
-		free(entry, DRM_MEM_DRIVER);
+		kfree(entry->busaddr);
+		kfree(entry);
 		return -ENOMEM;
 	}
 

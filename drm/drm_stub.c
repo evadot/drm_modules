@@ -202,11 +202,7 @@ static void drm_master_destroy(struct kref *kref)
 	}
 
 	if (master->unique) {
-#ifdef FREEBSD_NOTYET
 		kfree(master->unique);
-#else
-		free(master->unique, DRM_MEM_DRIVER);
-#endif
 		master->unique = NULL;
 		master->unique_len = 0;
 	}
