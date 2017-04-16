@@ -97,7 +97,7 @@ drm_mmap(struct cdev *kdev, vm_ooffset_t offset, vm_paddr_t *paddr,
 	   for performance, even if the list was a
 	   bit longer.
 	*/
-	DRM_LOCK(dev);
+	mutex_lock(&dev->struct_mutex);
 	TAILQ_FOREACH(map, &dev->maplist, link) {
 		if (offset >> DRM_MAP_HANDLE_SHIFT ==
 		    (unsigned long)map->handle >> DRM_MAP_HANDLE_SHIFT)
@@ -110,16 +110,16 @@ drm_mmap(struct cdev *kdev, vm_ooffset_t offset, vm_paddr_t *paddr,
 			DRM_DEBUG("map offset = %016lx, handle = %016lx\n",
 			    map->offset, (unsigned long)map->handle);
 		}
-		DRM_UNLOCK(dev);
+		mutex_unlock(&dev->struct_mutex);
 		return -1;
 	}
 	if (((map->flags & _DRM_RESTRICTED) && !DRM_SUSER(DRM_CURPROC))) {
-		DRM_UNLOCK(dev);
+		mutex_unlock(&dev->struct_mutex);
 		DRM_DEBUG("restricted map\n");
 		return -1;
 	}
 	type = map->type;
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	offset = offset & ((1ULL << DRM_MAP_HANDLE_SHIFT) - 1);
 

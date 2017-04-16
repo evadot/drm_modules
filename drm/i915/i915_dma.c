@@ -172,18 +172,10 @@ static int i915_dma_cleanup(struct drm_device * dev)
 	if (dev->irq_enabled)
 		drm_irq_uninstall(dev);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	for (i = 0; i < I915_NUM_RINGS; i++)
 		intel_cleanup_ring_buffer(&dev_priv->ring[i]);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	/* Clear the HWS virtual address at teardown */
 	if (I915_NEED_GFX_HWS(dev))
@@ -621,17 +613,9 @@ static int i915_flush_ioctl(struct drm_device *dev, void *data,
 
 	RING_LOCK_TEST_WITH_RETURN(dev, file_priv);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	ret = i915_quiescent(dev);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	return ret;
 }
@@ -679,17 +663,9 @@ int i915_batchbuffer(struct drm_device *dev, void *data,
 		}
 	}
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	ret = i915_dispatch_batchbuffer(dev, batch, cliprects);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	if (sarea_priv)
 		sarea_priv->last_dispatch = READ_BREADCRUMB(dev_priv);
@@ -750,17 +726,9 @@ int i915_cmdbuffer(struct drm_device *dev, void *data,
 		}
 	}
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	ret = i915_dispatch_cmdbuffer(dev, cmdbuf, cliprects, batch_data);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	if (ret) {
 		DRM_ERROR("i915_dispatch_cmdbuffer failed\n");
 		goto fail_clip_free;
@@ -867,17 +835,9 @@ int i915_irq_emit(struct drm_device *dev, void *data,
 
 	RING_LOCK_TEST_WITH_RETURN(dev, file_priv);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	result = i915_emit_irq(dev);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	if (DRM_COPY_TO_USER(emit->irq_seq, &result, sizeof(int))) {
 		DRM_ERROR("copy_to_user\n");
@@ -960,17 +920,9 @@ static int i915_flip_bufs(struct drm_device *dev, void *data,
 
 	RING_LOCK_TEST_WITH_RETURN(dev, file_priv);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	ret = i915_dispatch_flip(dev);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	return ret;
 }
@@ -1458,17 +1410,9 @@ static int i915_load_modeset_init(struct drm_device *dev)
 cleanup_irq:
 	drm_irq_uninstall(dev);
 cleanup_gem:
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	i915_gem_cleanup_ringbuffer(dev);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	i915_gem_cleanup_aliasing_ppgtt(dev);
 cleanup_gem_stolen:
 	i915_gem_cleanup_stolen(dev);
@@ -1907,20 +1851,12 @@ int i915_driver_unload(struct drm_device *dev)
 
 	intel_free_parsed_bios_data(dev);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	ret = i915_gpu_idle(dev);
 	if (ret)
 		DRM_ERROR("failed to idle hardware: %d\n", ret);
 	i915_gem_retire_requests(dev);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	/* Cancel the retire work handler, which should be idle now. */
 #ifdef __linux__
@@ -2015,19 +1951,11 @@ int i915_driver_unload(struct drm_device *dev)
 		taskqueue_drain_all(dev_priv->wq);
 #endif
 
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-#else
-		DRM_LOCK(dev);
-#endif
 		i915_gem_free_all_phys_object(dev);
 		i915_gem_cleanup_ringbuffer(dev);
 		i915_gem_context_fini(dev);
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		i915_gem_cleanup_aliasing_ppgtt(dev);
 		i915_gem_cleanup_stolen(dev);
 		drm_mm_takedown(&dev_priv->mm.stolen);

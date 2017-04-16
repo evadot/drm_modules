@@ -503,11 +503,7 @@ intel_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	    (crtc_w == primary_w) && (crtc_h == primary_h))
 		disable_primary = true;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 
 	ret = intel_pin_and_fence_fb_obj(dev, obj, NULL);
 	if (ret)
@@ -537,27 +533,15 @@ intel_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 		 * do the pin & ref bookkeeping.
 		 */
 		if (old_obj != obj) {
-#ifdef FREEBSD_NOTYET
 			mutex_unlock(&dev->struct_mutex);
-#else
-			DRM_UNLOCK(dev);
-#endif
 			intel_wait_for_vblank(dev, to_intel_crtc(crtc)->pipe);
-#ifdef FREEBSD_NOTYET
 			mutex_lock(&dev->struct_mutex);
-#else
-			DRM_LOCK(dev);
-#endif
 		}
 		intel_unpin_fb_obj(old_obj);
 	}
 
 out_unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 out:
 	return ret;
 }
@@ -576,18 +560,10 @@ intel_disable_plane(struct drm_plane *plane)
 	if (!intel_plane->obj)
 		goto out;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	intel_unpin_fb_obj(intel_plane->obj);
 	intel_plane->obj = NULL;
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 out:
 
 	return ret;

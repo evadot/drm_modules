@@ -107,11 +107,7 @@ static int intelfb_create(struct intel_fbdev *ifbdev,
 		goto out;
 	}
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 
 	/* Flush everything out, we'll be doing GTT only from now on */
 	ret = intel_pin_and_fence_fb_obj(dev, obj, NULL);
@@ -159,11 +155,7 @@ static int intelfb_create(struct intel_fbdev *ifbdev,
 		      obj->gtt_offset, obj);
 
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 #ifdef __linux__
 	vga_switcheroo_client_fb_set(dev->pdev, info);
 #endif
@@ -173,11 +165,7 @@ out_unpin:
 	i915_gem_object_unpin(obj);
 out_unref:
 	drm_gem_object_unreference(&obj->base);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 out:
 	return ret;
 }

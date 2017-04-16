@@ -189,19 +189,9 @@ int i915_mutex_lock_interruptible(struct drm_device *dev)
 	if (ret)
 		return ret;
 
-#ifdef FREEBSD_NOTYET
 	ret = mutex_lock_interruptible(&dev->struct_mutex);
 	if (ret)
 		return ret;
-#else
-	/*
-	 * interruptible shall it be. might indeed be if dev_lock is
-	 * changed to sx
-	 */
-	ret = sx_xlock_sig(&dev->dev_struct_lock);
-	if (ret)
-		return -EINTR;
-#endif
 
 	WARN_ON(i915_verify_lists(dev));
 	return 0;
@@ -234,18 +224,10 @@ i915_gem_init_ioctl(struct drm_device *dev, void *data,
 	 * XXXKIB. The second-time initialization should be guarded
 	 * against.
 	 */
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	i915_gem_init_global_gtt(dev, args->gtt_start,
 				 args->gtt_end, args->gtt_end);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	return 0;
 }
@@ -260,19 +242,11 @@ i915_gem_get_aperture_ioctl(struct drm_device *dev, void *data,
 	size_t pinned;
 
 	pinned = 0;
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	list_for_each_entry(obj, &dev_priv->mm.bound_list, gtt_list)
 		if (obj->pin_count)
 			pinned += obj->gtt_space->size;
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	args->aper_size = dev_priv->mm.gtt_total;
 	args->aper_available_size = args->aper_size - pinned;
@@ -592,11 +566,7 @@ i915_gem_shmem_pread(struct drm_device *dev,
 			goto next_page;
 
 		hit_slowpath = 1;
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 
 		if (!prefaulted) {
 			ret = fault_in_multipages_writeable(user_data, remain);
@@ -612,11 +582,7 @@ i915_gem_shmem_pread(struct drm_device *dev,
 				       user_data, page_do_bit17_swizzling,
 				       needs_clflush);
 
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-#else
-		DRM_LOCK(dev);
-#endif
 
 next_page:
 #ifdef __linux__
@@ -703,11 +669,7 @@ i915_gem_pread_ioctl(struct drm_device *dev, void *data,
 out:
 	drm_gem_object_unreference(&obj->base);
 unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return ret;
 }
 
@@ -992,21 +954,13 @@ i915_gem_shmem_pwrite(struct drm_device *dev,
 			goto next_page;
 
 		hit_slowpath = 1;
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		ret = shmem_pwrite_slow(page, shmem_page_offset, page_length,
 					user_data, page_do_bit17_swizzling,
 					partial_cacheline_write,
 					needs_clflush_after);
 
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-#else
-		DRM_LOCK(dev);
-#endif
 
 next_page:
 #ifdef __linux__
@@ -1131,11 +1085,7 @@ i915_gem_pwrite_ioctl(struct drm_device *dev, void *data,
 out:
 	drm_gem_object_unreference(&obj->base);
 unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return ret;
 }
 
@@ -1408,17 +1358,9 @@ i915_gem_object_wait_rendering__nonblocking(struct drm_i915_gem_object *obj,
 	if (ret)
 		return ret;
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	ret = __wait_seqno(ring, seqno, true, NULL);
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 
 	i915_gem_retire_requests_ring(ring);
 
@@ -1496,11 +1438,7 @@ i915_gem_set_domain_ioctl(struct drm_device *dev, void *data,
 unref:
 	drm_gem_object_unreference(&obj->base);
 unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return ret;
 }
 
@@ -1531,11 +1469,7 @@ i915_gem_sw_finish_ioctl(struct drm_device *dev, void *data,
 
 	drm_gem_object_unreference(&obj->base);
 unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return ret;
 }
 
@@ -1682,11 +1616,7 @@ retry:
 		if (ret != 0)
 			goto out;
 	} else
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-#else
-		DRM_LOCK(dev);
-#endif
 
 	/*
 	 * Since the object lock was dropped, other thread might have
@@ -1697,11 +1627,7 @@ retry:
 	page = vm_page_lookup(vm_obj, pidx);
 	if (page != NULL) {
 		if (vm_page_busied(page)) {
-#ifdef FREEBSD_NOTYET
 			mutex_unlock(&dev->struct_mutex);
-#else
-			DRM_UNLOCK(dev);
-#endif
 			vm_page_lock(page);
 			VM_OBJECT_WUNLOCK(vm_obj);
 			vm_page_busy_sleep(page, "915pee", false);
@@ -1742,11 +1668,7 @@ retry:
 	VM_OBJECT_WLOCK(vm_obj);
 	if (vm_page_busied(page)) {
 		i915_gem_object_unpin(obj);
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		vm_page_lock(page);
 		VM_OBJECT_WUNLOCK(vm_obj);
 		vm_page_busy_sleep(page, "915pbs", false);
@@ -1754,11 +1676,7 @@ retry:
 	}
 	if (vm_page_insert(page, vm_obj, pidx)) {
 		i915_gem_object_unpin(obj);
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		VM_OBJECT_WUNLOCK(vm_obj);
 		VM_WAIT;
 		goto retry;
@@ -1776,22 +1694,14 @@ have_page:
 		 */
 		i915_gem_object_unpin(obj);
 	}
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	*first = *last = pidx;
 	return (VM_PAGER_OK);
 
 unpin:
 	i915_gem_object_unpin(obj);
 unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 out:
 	KASSERT(ret != 0, ("i915_gem_pager_fault: wrong return"));
 	CTR4(KTR_DRM, "fault_fail %p %jx %x err %d", gem_obj, pidx, fault_type,
@@ -1817,17 +1727,9 @@ i915_gem_pager_dtor(void *handle)
 	struct drm_gem_object *obj = handle;
 	struct drm_device *dev = obj->dev;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	drm_gem_object_unreference(obj);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 }
 
 struct cdev_pager_ops i915_gem_pager_ops = {
@@ -2043,11 +1945,7 @@ i915_gem_mmap_gtt(struct drm_file *file,
 out:
 	drm_gem_object_unreference(&obj->base);
 unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return ret;
 }
 
@@ -2739,19 +2637,16 @@ i915_gem_retire_work_handler(void *arg, int pending)
 	dev = dev_priv->dev;
 
 	/* Come back later if the device is busy... */
-#ifdef FREEBSD_NOTYET
 	if (!mutex_trylock(&dev->struct_mutex)) {
+#ifdef FREEBSD_NOTYET
 		queue_delayed_work(dev_priv->wq, &dev_priv->mm.retire_work,
 				   round_jiffies_up_relative(HZ));
-		return;
-	}
 #else
-	if (!sx_try_xlock(&dev->dev_struct_lock)) {
 		taskqueue_enqueue_timeout(dev_priv->wq,
 		    &dev_priv->mm.retire_work, hz);
+#endif
 		return;
 	}
-#endif
 
 	CTR0(KTR_DRM, "retire_task");
 
@@ -2774,11 +2669,7 @@ i915_gem_retire_work_handler(void *arg, int pending)
 	if (idle)
 		intel_mark_idle(dev);
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 }
 
 /**
@@ -2846,11 +2737,7 @@ i915_gem_wait_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
 
 	obj = to_intel_bo(drm_gem_object_lookup(dev, file, args->bo_handle));
 	if (&obj->base == NULL) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return -ENOENT;
 	}
 
@@ -2876,11 +2763,7 @@ i915_gem_wait_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
 	}
 
 	drm_gem_object_unreference(&obj->base);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	ret = __wait_seqno(ring, seqno, true, timeout);
 	if (timeout) {
@@ -2890,11 +2773,7 @@ i915_gem_wait_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
 
 out:
 	drm_gem_object_unreference(&obj->base);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return ret;
 }
 
@@ -3762,11 +3641,7 @@ int i915_gem_get_caching_ioctl(struct drm_device *dev, void *data,
 
 	drm_gem_object_unreference(&obj->base);
 unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return ret;
 }
 
@@ -3803,11 +3678,7 @@ int i915_gem_set_caching_ioctl(struct drm_device *dev, void *data,
 
 	drm_gem_object_unreference(&obj->base);
 unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return ret;
 }
 
@@ -4119,11 +3990,7 @@ i915_gem_pin_ioctl(struct drm_device *dev, void *data,
 out:
 	drm_gem_object_unreference(&obj->base);
 unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return ret;
 }
 
@@ -4160,11 +4027,7 @@ i915_gem_unpin_ioctl(struct drm_device *dev, void *data,
 out:
 	drm_gem_object_unreference(&obj->base);
 unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return ret;
 }
 
@@ -4201,11 +4064,7 @@ i915_gem_busy_ioctl(struct drm_device *dev, void *data,
 
 	drm_gem_object_unreference(&obj->base);
 unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return ret;
 }
 
@@ -4259,11 +4118,7 @@ i915_gem_madvise_ioctl(struct drm_device *dev, void *data,
 out:
 	drm_gem_object_unreference(&obj->base);
 unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return ret;
 }
 
@@ -4395,28 +4250,16 @@ i915_gem_idle(struct drm_device *dev)
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 
 	if (dev_priv->mm.suspended) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return 0;
 	}
 
 	ret = i915_gpu_idle(dev);
 	if (ret) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return ret;
 	}
 	i915_gem_retire_requests(dev);
@@ -4437,11 +4280,7 @@ i915_gem_idle(struct drm_device *dev)
 	i915_kernel_lost_context(dev);
 	i915_gem_cleanup_ringbuffer(dev);
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	/* Cancel the retire work handler, which should be idle now. */
 	taskqueue_cancel_timeout(dev_priv->wq, &dev_priv->mm.retire_work, NULL);
@@ -4594,11 +4433,7 @@ int i915_gem_init(struct drm_device *dev)
 	gtt_size = dev_priv->mm.gtt->gtt_total_entries << PAGE_SHIFT;
 	mappable_size = dev_priv->mm.gtt->gtt_mappable_entries << PAGE_SHIFT;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	if (intel_enable_ppgtt(dev) && HAS_ALIASING_PPGTT(dev)) {
 		/* PPGTT pdes are stolen from global gtt ptes, so shrink the
 		 * aperture accordingly when using aliasing ppgtt. */
@@ -4608,11 +4443,7 @@ int i915_gem_init(struct drm_device *dev)
 
 		ret = i915_gem_init_aliasing_ppgtt(dev);
 		if (ret) {
-#ifdef FREEBSD_NOTYET
 			mutex_unlock(&dev->struct_mutex);
-#else
-			DRM_UNLOCK(dev);
-#endif
 			return ret;
 		}
 	} else {
@@ -4631,11 +4462,7 @@ int i915_gem_init(struct drm_device *dev)
 	}
 
 	ret = i915_gem_init_hw(dev);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	if (ret) {
 		i915_gem_cleanup_aliasing_ppgtt(dev);
 		return ret;
@@ -4673,29 +4500,17 @@ i915_gem_entervt_ioctl(struct drm_device *dev, void *data,
 		atomic_set(&dev_priv->mm.wedged, 0);
 	}
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	dev_priv->mm.suspended = 0;
 
 	ret = i915_gem_init_hw(dev);
 	if (ret != 0) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return ret;
 	}
 
 	BUG_ON(!list_empty(&dev_priv->mm.active_list));
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	ret = drm_irq_install(dev);
 	if (ret)
@@ -4704,18 +4519,10 @@ i915_gem_entervt_ioctl(struct drm_device *dev, void *data,
 	return 0;
 
 cleanup_ringbuffer:
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	i915_gem_cleanup_ringbuffer(dev);
 	dev_priv->mm.suspended = 1;
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	return ret;
 }
@@ -4996,17 +4803,9 @@ i915_gem_phys_pwrite(struct drm_device *dev,
 		 * of the obj, so we can safely drop the lock and continue
 		 * to access vaddr.
 		 */
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		unwritten = copy_from_user(vaddr, user_data, args->size);
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-#else
-		DRM_LOCK(dev);
-#endif
 		if (unwritten)
 			return -EFAULT;
 	}
@@ -5043,7 +4842,7 @@ i915_gem_inactive_shrink(void *arg)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	int pass1, pass2;
 
-	if (!sx_try_xlock(&dev->dev_struct_lock)) {
+	if (!mutex_lock_interruptible(&dev->struct_mutex)) {
 		return;
 	}
 
@@ -5055,11 +4854,7 @@ i915_gem_inactive_shrink(void *arg)
 	if (pass2 <= pass1 / 100)
 		i915_gem_shrink_all(dev_priv);
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 }
 
 static vm_page_t

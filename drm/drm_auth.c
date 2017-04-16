@@ -52,20 +52,12 @@ static struct drm_file *drm_find_file(struct drm_master *master, drm_magic_t mag
 	struct drm_hash_item *hash;
 	struct drm_device *dev = master->minor->dev;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	if (!drm_ht_find_item(&master->magiclist, (unsigned long)magic, &hash)) {
 		pt = drm_hash_entry(hash, struct drm_magic_entry, hash_item);
 		retval = pt->priv;
 	}
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return retval;
 }
 
@@ -92,18 +84,10 @@ static int drm_add_magic(struct drm_master *master, struct drm_file *priv,
 		return -ENOMEM;
 	entry->priv = priv;
 	entry->hash_item.key = (unsigned long)magic;
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	drm_ht_insert_item(&master->magiclist, &entry->hash_item);
 	list_add_tail(&entry->head, &master->magicfree);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	return 0;
 }
@@ -125,27 +109,15 @@ int drm_remove_magic(struct drm_master *master, drm_magic_t magic)
 
 	DRM_DEBUG("%d\n", magic);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	if (drm_ht_find_item(&master->magiclist, (unsigned long)magic, &hash)) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return -EINVAL;
 	}
 	pt = drm_hash_entry(hash, struct drm_magic_entry, hash_item);
 	drm_ht_remove_item(&master->magiclist, hash);
 	list_del(&pt->head);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	kfree(pt);
 

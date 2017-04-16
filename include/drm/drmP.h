@@ -1211,11 +1211,7 @@ struct drm_device {
 	/** \name Locks */
 	/*@{ */
 	spinlock_t count_lock;		/**< For inuse, drm_device::open_count, drm_device::buf_use */
-#ifdef FREEBSD_NOTYET
 	struct mutex struct_mutex;	/**< For others */
-#else
-	struct sx dev_struct_lock;	/**< For others */
-#endif
 	/*@} */
 
 	/** \name Usage Counters */
@@ -1762,16 +1758,9 @@ drm_gem_object_unreference_unlocked(struct drm_gem_object *obj)
 {
 	if (obj != NULL) {
 		struct drm_device *dev = obj->dev;
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-#else
-		DRM_LOCK(dev);
-#endif
 		kref_put(&obj->refcount, drm_gem_object_free);
-#ifdef FREEBSD_NOTYET
-#else
-		DRM_UNLOCK(dev);
-#endif
+		mutex_unlock(&dev->struct_mutex);
 	}
 }
 
@@ -1908,8 +1897,8 @@ SYSCTL_DECL(_hw_drm);
 #define DRM_CURPROC		curthread
 #define DRM_STRUCTPROC		struct thread
 #if defined(INVARIANTS)
-#define	DRM_LOCK_ASSERT(dev)	sx_assert(&(dev)->dev_struct_lock, SA_XLOCKED)
-#define	DRM_UNLOCK_ASSERT(dev)	sx_assert(&(dev)->dev_struct_lock, SA_UNLOCKED)
+/* #define	DRM_LOCK_ASSERT(dev)	sx_assert(&(dev)->dev_struct_lock, SA_XLOCKED) */
+/* #define	DRM_UNLOCK_ASSERT(dev)	sx_assert(&(dev)->dev_struct_lock, SA_UNLOCKED) */
 #else
 #define	DRM_LOCK_ASSERT(d)
 #define	DRM_UNLOCK_ASSERT(d)
@@ -1944,7 +1933,7 @@ enum {
 /* Returns -errno to shared code */
 #define DRM_WAIT_ON( ret, queue, timeout, condition )		\
 for ( ret = 0 ; !ret && !(condition) ; ) {			\
-	DRM_UNLOCK(dev);					\
+	mutex_unlock(&dev->struct_mutex);			\
 	mtx_lock(&dev->irq_lock);				\
 	if (!(condition))					\
 	    ret = -mtx_sleep(&(queue), &dev->irq_lock, 		\
@@ -1952,7 +1941,7 @@ for ( ret = 0 ; !ret && !(condition) ; ) {			\
 	    if (ret == -ERESTART)				\
 	        ret = -ERESTARTSYS;				\
 	mtx_unlock(&dev->irq_lock);				\
-	DRM_LOCK(dev);						\
+	mutex_lock(&dev->struct_mutex);				\
 }
 
 #define	dev_err(dev, fmt, ...)						\

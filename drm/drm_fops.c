@@ -350,20 +350,12 @@ static int drm_open_helper(struct cdev *kdev, int flags, int fmt,
 
 
 	/* if there is no current master make this fd it */
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	if (!priv->minor->master) {
 		/* create a new master */
 		priv->minor->master = drm_master_create(priv->minor);
 		if (!priv->minor->master) {
-#ifdef FREEBSD_NOTYET
 			mutex_unlock(&dev->struct_mutex);
-#else
-			DRM_UNLOCK(dev);
-#endif
 			ret = -ENOMEM;
 			goto out_free;
 		}
@@ -374,75 +366,39 @@ static int drm_open_helper(struct cdev *kdev, int flags, int fmt,
 
 		priv->authenticated = 1;
 
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		if (dev->driver->master_create) {
 			ret = dev->driver->master_create(dev, priv->master);
 			if (ret) {
-#ifdef FREEBSD_NOTYET
 				mutex_lock(&dev->struct_mutex);
-#else
-				DRM_LOCK(dev);
-#endif
 				/* drop both references if this fails */
 				drm_master_put(&priv->minor->master);
 				drm_master_put(&priv->master);
-#ifdef FREEBSD_NOTYET
 				mutex_unlock(&dev->struct_mutex);
-#else
-				DRM_UNLOCK(dev);
-#endif
 				goto out_free;
 			}
 		}
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-#else
-		DRM_LOCK(dev);
-#endif
 		if (dev->driver->master_set) {
 			ret = dev->driver->master_set(dev, priv, true);
 			if (ret) {
 				/* drop both references if this fails */
 				drm_master_put(&priv->minor->master);
 				drm_master_put(&priv->master);
-#ifdef FREEBSD_NOTYET
 				mutex_unlock(&dev->struct_mutex);
-#else
-				DRM_UNLOCK(dev);
-#endif
 				goto out_free;
 			}
 		}
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 	} else {
 		/* get a reference to the master */
 		priv->master = drm_master_get(priv->minor->master);
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 	}
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	list_add(&priv->lhead, &dev->filelist);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 #ifdef __linux__
 #ifdef __alpha__
@@ -620,11 +576,7 @@ void drm_release(void *data)
 	mutex_unlock(&dev->ctxlist_mutex);
 #endif /* FREEBSD_NOTYET */
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 
 	if (file_priv->is_master) {
 		struct drm_master *master = file_priv->master;
@@ -660,11 +612,7 @@ void drm_release(void *data)
 	drm_master_put(&file_priv->master);
 	file_priv->is_master = 0;
 	list_del(&file_priv->lhead);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	if (dev->driver->postclose)
 		dev->driver->postclose(dev, file_priv);

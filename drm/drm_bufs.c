@@ -460,11 +460,7 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 	}
 	list->map = map;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	list_add(&list->head, &dev->maplist);
 
 	/* Assign a 32-bit handle */
@@ -482,20 +478,12 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 #endif
 		kfree(map);
 		kfree(list);
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return ret;
 	}
 
 	list->user_token = list->hash.key << PAGE_SHIFT;
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	if (!(map->flags & _DRM_DRIVER))
 		list->master = dev->primary->master;
@@ -650,17 +638,9 @@ int drm_rmmap(struct drm_device *dev, struct drm_local_map *map)
 {
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	ret = drm_rmmap_locked(dev, map);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	return ret;
 }
@@ -689,11 +669,7 @@ int drm_rmmap_ioctl(struct drm_device *dev, void *data,
 	struct drm_map_list *r_list;
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	list_for_each_entry(r_list, &dev->maplist, head) {
 		if (r_list->map &&
 		    r_list->user_token == (unsigned long)request->handle &&
@@ -707,31 +683,19 @@ int drm_rmmap_ioctl(struct drm_device *dev, void *data,
 	 * find anything.
 	 */
 	if (list_empty(&dev->maplist) || !map) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return -EINVAL;
 	}
 
 	/* Register and framebuffer maps are permanent */
 	if ((map->type == _DRM_REGISTERS) || (map->type == _DRM_FRAME_BUFFER)) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return 0;
 	}
 
 	ret = drm_rmmap_locked(dev, map);
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	return ret;
 }
@@ -855,28 +819,16 @@ int drm_addbufs_agp(struct drm_device * dev, struct drm_buf_desc * request)
 	atomic_inc(&dev->buf_alloc);
 	spin_unlock(&dev->count_lock);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	entry = &dma->bufs[order];
 	if (entry->buf_count) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;	/* May only call once for each order */
 	}
 
 	if (count < 0 || count > 4096) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -EINVAL;
 	}
@@ -888,11 +840,7 @@ int drm_addbufs_agp(struct drm_device * dev, struct drm_buf_desc * request)
 	    M_NOWAIT | M_ZERO);
 #endif
 	if (!entry->buflist) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;
 	}
@@ -928,11 +876,7 @@ int drm_addbufs_agp(struct drm_device * dev, struct drm_buf_desc * request)
 			/* Set count correctly so we free the proper amount. */
 			entry->buf_count = count;
 			drm_cleanup_buf_error(dev, entry);
-#ifdef FREEBSD_NOTYET
 			mutex_unlock(&dev->struct_mutex);
-#else
-			DRM_UNLOCK(dev);
-#endif
 			atomic_dec(&dev->buf_alloc);
 			return -ENOMEM;
 		}
@@ -958,11 +902,7 @@ int drm_addbufs_agp(struct drm_device * dev, struct drm_buf_desc * request)
 	if (!temp_buflist) {
 		/* Free the entry because it isn't valid */
 		drm_cleanup_buf_error(dev, entry);
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;
 	}
@@ -980,11 +920,7 @@ int drm_addbufs_agp(struct drm_device * dev, struct drm_buf_desc * request)
 	DRM_DEBUG("dma->buf_count : %d\n", dma->buf_count);
 	DRM_DEBUG("entry->buf_count : %d\n", entry->buf_count);
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	request->count = entry->buf_count;
 	request->size = size;
@@ -1052,28 +988,16 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 	atomic_inc(&dev->buf_alloc);
 	spin_unlock(&dev->count_lock);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	entry = &dma->bufs[order];
 	if (entry->buf_count) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;	/* May only call once for each order */
 	}
 
 	if (count < 0 || count > 4096) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -EINVAL;
 	}
@@ -1085,11 +1009,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 	    M_NOWAIT | M_ZERO);
 #endif
 	if (!entry->buflist) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;
 	}
@@ -1098,11 +1018,10 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 	if (!entry->seglist) {
 #ifdef FREEBSD_NOTYET
 		kfree(entry->buflist);
-		mutex_unlock(&dev->struct_mutex);
 #else
 		free(entry->buflist, DRM_MEM_BUFS);
-		DRM_UNLOCK(dev);
 #endif
+		mutex_unlock(&dev->struct_mutex);
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;
 	}
@@ -1115,12 +1034,11 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 	if (!temp_pagelist) {
 #ifdef FREEBSD_NOTYET
 		kfree(entry->buflist);
-		mutex_unlock(&dev->struct_mutex);
 #else
 		free(entry->buflist, DRM_MEM_BUFS);
-		kfree(entry->seglist);
-		DRM_UNLOCK(dev);
 #endif
+		mutex_unlock(&dev->struct_mutex);
+		kfree(entry->seglist);
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;
 	}
@@ -1148,11 +1066,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 			entry->seg_count = count;
 			drm_cleanup_buf_error(dev, entry);
 			kfree(temp_pagelist);
-#ifdef FREEBSD_NOTYET
 			mutex_unlock(&dev->struct_mutex);
-#else
-			DRM_UNLOCK(dev);
-#endif
 			atomic_dec(&dev->buf_alloc);
 			return -ENOMEM;
 		}
@@ -1194,11 +1108,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 				entry->seg_count = count;
 				drm_cleanup_buf_error(dev, entry);
 				kfree(temp_pagelist);
-#ifdef FREEBSD_NOTYET
 				mutex_unlock(&dev->struct_mutex);
-#else
-				DRM_UNLOCK(dev);
-#endif
 				atomic_dec(&dev->buf_alloc);
 				return -ENOMEM;
 			}
@@ -1222,11 +1132,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 		/* Free the entry because it isn't valid */
 		drm_cleanup_buf_error(dev, entry);
 		kfree(temp_pagelist);
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;
 	}
@@ -1249,11 +1155,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 	dma->page_count += entry->seg_count << page_order;
 	dma->byte_count += PAGE_SIZE * (entry->seg_count << page_order);
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	request->count = entry->buf_count;
 	request->size = size;
@@ -1328,28 +1230,16 @@ static int drm_addbufs_sg(struct drm_device * dev, struct drm_buf_desc * request
 	atomic_inc(&dev->buf_alloc);
 	spin_unlock(&dev->count_lock);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	entry = &dma->bufs[order];
 	if (entry->buf_count) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;	/* May only call once for each order */
 	}
 
 	if (count < 0 || count > 4096) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -EINVAL;
 	}
@@ -1362,11 +1252,7 @@ static int drm_addbufs_sg(struct drm_device * dev, struct drm_buf_desc * request
 	    M_NOWAIT | M_ZERO);
 #endif
 	if (!entry->buflist) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;
 	}
@@ -1408,11 +1294,7 @@ static int drm_addbufs_sg(struct drm_device * dev, struct drm_buf_desc * request
 			/* Set count correctly so we free the proper amount. */
 			entry->buf_count = count;
 			drm_cleanup_buf_error(dev, entry);
-#ifdef FREEBSD_NOTYET
 			mutex_unlock(&dev->struct_mutex);
-#else
-			DRM_UNLOCK(dev);
-#endif
 			atomic_dec(&dev->buf_alloc);
 			return -ENOMEM;
 		}
@@ -1438,11 +1320,7 @@ static int drm_addbufs_sg(struct drm_device * dev, struct drm_buf_desc * request
 	if (!temp_buflist) {
 		/* Free the entry because it isn't valid */
 		drm_cleanup_buf_error(dev, entry);
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;
 	}
@@ -1460,11 +1338,7 @@ static int drm_addbufs_sg(struct drm_device * dev, struct drm_buf_desc * request
 	DRM_DEBUG("dma->buf_count : %d\n", dma->buf_count);
 	DRM_DEBUG("entry->buf_count : %d\n", entry->buf_count);
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	request->count = entry->buf_count;
 	request->size = size;
@@ -1536,28 +1410,16 @@ static int drm_addbufs_fb(struct drm_device * dev, struct drm_buf_desc * request
 	atomic_inc(&dev->buf_alloc);
 	spin_unlock(&dev->count_lock);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	entry = &dma->bufs[order];
 	if (entry->buf_count) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;	/* May only call once for each order */
 	}
 
 	if (count < 0 || count > 4096) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -EINVAL;
 	}
@@ -1570,11 +1432,7 @@ static int drm_addbufs_fb(struct drm_device * dev, struct drm_buf_desc * request
 	    M_NOWAIT | M_ZERO);
 #endif
 	if (!entry->buflist) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;
 	}
@@ -1610,11 +1468,7 @@ static int drm_addbufs_fb(struct drm_device * dev, struct drm_buf_desc * request
 			/* Set count correctly so we free the proper amount. */
 			entry->buf_count = count;
 			drm_cleanup_buf_error(dev, entry);
-#ifdef FREEBSD_NOTYET
 			mutex_unlock(&dev->struct_mutex);
-#else
-			DRM_UNLOCK(dev);
-#endif
 			atomic_dec(&dev->buf_alloc);
 			return -ENOMEM;
 		}
@@ -1640,11 +1494,7 @@ static int drm_addbufs_fb(struct drm_device * dev, struct drm_buf_desc * request
 	if (!temp_buflist) {
 		/* Free the entry because it isn't valid */
 		drm_cleanup_buf_error(dev, entry);
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;
 	}
@@ -1662,11 +1512,7 @@ static int drm_addbufs_fb(struct drm_device * dev, struct drm_buf_desc * request
 	DRM_DEBUG("dma->buf_count : %d\n", dma->buf_count);
 	DRM_DEBUG("entry->buf_count : %d\n", entry->buf_count);
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	request->count = entry->buf_count;
 	request->size = size;

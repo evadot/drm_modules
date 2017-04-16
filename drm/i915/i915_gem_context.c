@@ -367,17 +367,15 @@ void i915_gem_context_close(struct drm_device *dev, struct drm_file *file)
 {
 	struct drm_i915_file_private *file_priv = file->driver_priv;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
+#ifdef FREEBSD_NOTYET
 	idr_for_each(&file_priv->context_idr, context_idr_cleanup, NULL);
 	idr_destroy(&file_priv->context_idr);
-	mutex_unlock(&dev->struct_mutex);
 #else
-	DRM_LOCK(dev);
 	drm_gem_names_foreach(&file_priv->context_idr, context_idr_cleanup, NULL);
 	drm_gem_names_fini(&file_priv->context_idr);
-	DRM_UNLOCK(dev);
 #endif
+	mutex_unlock(&dev->struct_mutex);
 }
 
 static struct i915_hw_context *
@@ -574,12 +572,14 @@ int i915_gem_context_create_ioctl(struct drm_device *dev, void *data,
 
 #ifdef FREEBSD_NOTYET
 	ctx = create_hw_context(dev, file_priv);
+#else
+	ret = create_hw_context(dev, file_priv, &ctx);
+#endif
 	mutex_unlock(&dev->struct_mutex);
+#ifdef FREEBSD_NOTYET
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 #else
-	ret = create_hw_context(dev, file_priv, &ctx);
-	DRM_UNLOCK(dev);
 	if (ret != 0)
 		return (ret);
 #endif
@@ -607,21 +607,13 @@ int i915_gem_context_destroy_ioctl(struct drm_device *dev, void *data,
 
 	ctx = i915_gem_context_get(file_priv, args->ctx_id);
 	if (!ctx) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return -ENOENT;
 	}
 
 	do_destroy(ctx);
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	DRM_DEBUG_DRIVER("HW context %d destroyed\n", args->ctx_id);
 	return 0;

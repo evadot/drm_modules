@@ -286,11 +286,7 @@ static void intel_fbc_work_fn(void *arg, int pending)
 	struct drm_device *dev = work->crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	if (work == dev_priv->fbc_work) {
 		/* Double check that we haven't switched fb without cancelling
 		 * the prior work.
@@ -306,13 +302,11 @@ static void intel_fbc_work_fn(void *arg, int pending)
 
 		dev_priv->fbc_work = NULL;
 	}
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
 
+#ifdef FREEBSD_NOTYET
 	kfree(work);
 #else
-	DRM_UNLOCK(dev);
-
 	free(work, DRM_MEM_KMS);
 #endif
 }
@@ -2344,11 +2338,7 @@ err_unpin:
 	i915_gem_object_unpin(ctx);
 err_unref:
 	drm_gem_object_unreference(&ctx->base);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return NULL;
 }
 
@@ -4353,11 +4343,7 @@ void intel_init_power_wells(struct drm_device *dev)
 	if (!IS_HASWELL(dev))
 		return;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 
 	for (i = 0; i < ARRAY_SIZE(power_wells); i++) {
 		int well = I915_READ(power_wells[i]);
@@ -4369,11 +4355,7 @@ void intel_init_power_wells(struct drm_device *dev)
 		}
 	}
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 }
 
 /* Set up chip specific power management-related functions */

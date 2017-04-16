@@ -629,19 +629,11 @@ static int __i915_drm_thaw(struct drm_device *dev)
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		intel_init_pch_refclk(dev);
 
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-#else
-		DRM_LOCK(dev);
-#endif
 		dev_priv->mm.suspended = 0;
 
 		error = i915_gem_init_hw(dev);
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 
 		intel_modeset_init_hw(dev);
 		intel_modeset_setup_hw_state(dev, false);
@@ -680,17 +672,9 @@ static int i915_drm_thaw(struct drm_device *dev)
 	intel_gt_reset(dev);
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-#else
-		DRM_LOCK(dev);
-#endif
 		i915_gem_restore_gtt_mappings(dev);
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 	}
 
 	__i915_drm_thaw(dev);
@@ -722,17 +706,9 @@ int i915_resume(struct drm_device *dev)
 	 */
 	if (drm_core_check_feature(dev, DRIVER_MODESET) &&
 	    !dev_priv->opregion.header) {
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-#else
-		DRM_LOCK(dev);
-#endif
 		i915_gem_restore_gtt_mappings(dev);
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 	}
 
 	ret = __i915_drm_thaw(dev);
@@ -977,11 +953,7 @@ int i915_reset(struct drm_device *dev)
 	if (!i915_try_reset)
 		return 0;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 
 	i915_gem_reset(dev);
 
@@ -994,11 +966,7 @@ int i915_reset(struct drm_device *dev)
 	dev_priv->last_gpu_reset = get_seconds();
 	if (ret) {
 		DRM_ERROR("Failed to reset chip.\n");
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return ret;
 	}
 
@@ -1037,20 +1005,12 @@ int i915_reset(struct drm_device *dev)
 		 * some unknown reason, this blows up my ilk, so don't.
 		 */
 
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 
 		drm_irq_uninstall(dev);
 		drm_irq_install(dev);
 	} else {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 	}
 
 	return 0;

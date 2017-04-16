@@ -144,7 +144,7 @@ static int i915_gem_object_list_info(struct drm_device *dev, struct sbuf *m, voi
 	size_t total_obj_size, total_gtt_size;
 	int count;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	switch (list) {
@@ -157,7 +157,7 @@ static int i915_gem_object_list_info(struct drm_device *dev, struct sbuf *m, voi
 		head = &dev_priv->mm.inactive_list;
 		break;
 	default:
-		DRM_UNLOCK(dev);
+		mutex_unlock(&dev->struct_mutex);
 		return -EINVAL;
 	}
 
@@ -170,7 +170,7 @@ static int i915_gem_object_list_info(struct drm_device *dev, struct sbuf *m, voi
 		total_gtt_size += obj->gtt_space->size;
 		count++;
 	}
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	seq_printf(m, "Total %d objects, %zu bytes, %zu GTT size\n",
 		   count, total_obj_size, total_gtt_size);
@@ -195,7 +195,7 @@ static int i915_gem_object_info(struct drm_device *dev, struct sbuf *m, void *da
 	size_t size, mappable_size, purgeable_size;
 	struct drm_i915_gem_object *obj;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	seq_printf(m, "%u objects, %zu bytes\n",
@@ -250,7 +250,7 @@ static int i915_gem_object_info(struct drm_device *dev, struct sbuf *m, void *da
 	seq_printf(m, "%zu [%zu] gtt total\n",
 		   dev_priv->mm.gtt_total, dev_priv->mm.mappable_gtt_total);
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
 }
@@ -263,7 +263,7 @@ static int i915_gem_gtt_info(struct drm_device *dev, struct sbuf *m, void *data)
 	size_t total_obj_size, total_gtt_size;
 	int count;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	total_obj_size = total_gtt_size = count = 0;
@@ -279,7 +279,7 @@ static int i915_gem_gtt_info(struct drm_device *dev, struct sbuf *m, void *data)
 		count++;
 	}
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	seq_printf(m, "Total %d objects, %zu bytes, %zu GTT size\n",
 		   count, total_obj_size, total_gtt_size);
@@ -339,7 +339,7 @@ static int i915_gem_request_info(struct drm_device *dev, struct sbuf *m, void *d
 	struct drm_i915_gem_request *gem_request;
 	int count, i;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	count = 0;
@@ -357,7 +357,7 @@ static int i915_gem_request_info(struct drm_device *dev, struct sbuf *m, void *d
 		}
 		count++;
 	}
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	if (count == 0)
 		seq_printf(m, "No requests\n");
@@ -380,13 +380,13 @@ static int i915_gem_seqno_info(struct drm_device *dev, struct sbuf *m, void *dat
 	struct intel_ring_buffer *ring;
 	int i;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	for_each_ring(ring, dev_priv, i)
 		i915_ring_seqno_info(m, ring);
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
 }
@@ -398,7 +398,7 @@ static int i915_interrupt_info(struct drm_device *dev, struct sbuf *m, void *dat
 	struct intel_ring_buffer *ring;
 	int i, pipe;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	if (IS_VALLEYVIEW(dev)) {
@@ -480,7 +480,7 @@ static int i915_interrupt_info(struct drm_device *dev, struct sbuf *m, void *dat
 		}
 		i915_ring_seqno_info(m, ring);
 	}
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
 }
@@ -490,7 +490,7 @@ static int i915_gem_fence_regs_info(struct drm_device *dev, struct sbuf *m, void
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	int i;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	seq_printf(m, "Reserved fences = %d\n", dev_priv->fence_reg_start);
@@ -507,7 +507,7 @@ static int i915_gem_fence_regs_info(struct drm_device *dev, struct sbuf *m, void
 		seq_printf(m, "\n");
 	}
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 	return 0;
 }
 
@@ -761,9 +761,9 @@ i915_error_state_write(struct drm_device *dev, const char *str, void *unused)
 
 	DRM_DEBUG_DRIVER("Resetting error state\n");
 
-	DRM_LOCK(dev);
+	mutex_lock(&dev->struct_mutex);
 	i915_destroy_error_state(dev);
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return (0);
 }
@@ -773,12 +773,12 @@ static int i915_rstdby_delays(struct drm_device *dev, struct sbuf *m, void *unus
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	u16 crstanddelay;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	crstanddelay = I915_READ16(CRSTANDVID);
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	seq_printf(m, "w/ctx: %d, w/o ctx: %d\n", (crstanddelay >> 8) & 0x3f, (crstanddelay & 0x3f));
 
@@ -809,7 +809,7 @@ static int i915_cur_delayinfo(struct drm_device *dev, struct sbuf *m, void *unus
 		int max_freq;
 
 		/* RPSTAT1 is in the GT power well */
-		if (sx_xlock_sig(&dev->dev_struct_lock))
+		if (mutex_lock_interruptible(&dev->struct_mutex))
 			return -EINTR;
 		gen6_gt_force_wake_get(dev_priv);
 
@@ -827,7 +827,7 @@ static int i915_cur_delayinfo(struct drm_device *dev, struct sbuf *m, void *unus
 		cagf *= GT_FREQUENCY_MULTIPLIER;
 
 		gen6_gt_force_wake_put(dev_priv);
-		DRM_UNLOCK(dev);
+		mutex_unlock(&dev->struct_mutex);
 
 		seq_printf(m, "GT_PERF_STATUS: 0x%08x\n", gt_perf_status);
 		seq_printf(m, "RPSTAT1: 0x%08x\n", rpstat);
@@ -875,7 +875,7 @@ static int i915_delayfreq_table(struct drm_device *dev, struct sbuf *m, void *un
 	u32 delayfreq;
 	int i;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	for (i = 0; i < 16; i++) {
@@ -884,7 +884,7 @@ static int i915_delayfreq_table(struct drm_device *dev, struct sbuf *m, void *un
 			   (delayfreq & PXVFREQ_PX_MASK) >> PXVFREQ_PX_SHIFT);
 	}
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
 }
@@ -900,7 +900,7 @@ static int i915_inttoext_table(struct drm_device *dev, struct sbuf *m, void *unu
 	u32 inttoext;
 	int i;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	for (i = 1; i <= 32; i++) {
@@ -908,7 +908,7 @@ static int i915_inttoext_table(struct drm_device *dev, struct sbuf *m, void *unu
 		seq_printf(m, "INTTOEXT%02d: 0x%08x\n", i, inttoext);
 	}
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
 }
@@ -919,14 +919,14 @@ static int ironlake_drpc_info(struct drm_device *dev, struct sbuf *m)
 	u32 rgvmodectl, rstdbyctl;
 	u16 crstandvid;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	rgvmodectl = I915_READ(MEMMODECTL);
 	rstdbyctl = I915_READ(RSTDBYCTL);
 	crstandvid = I915_READ16(CRSTANDVID);
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	seq_printf(m, "HD boost: %s\n", (rgvmodectl & MEMMODE_BOOST_EN) ?
 		   "yes" : "no");
@@ -984,7 +984,7 @@ static int gen6_drpc_info(struct drm_device *dev, struct sbuf *m)
 	int count=0;
 
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	mtx_lock(&dev_priv->gt_lock);
@@ -1006,7 +1006,7 @@ static int gen6_drpc_info(struct drm_device *dev, struct sbuf *m)
 
 	rpmodectl1 = I915_READ(GEN6_RP_CONTROL);
 	rcctl1 = I915_READ(GEN6_RC_CONTROL);
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 	sx_xlock(&dev_priv->rps.hw_lock);
 	sandybridge_pcode_read(dev_priv, GEN6_PCODE_READ_RC6VIDS, &rc6vids);
 	sx_xunlock(&dev_priv->rps.hw_lock);
@@ -1153,13 +1153,13 @@ static int i915_emon_status(struct drm_device *dev, struct sbuf *m, void *unused
 	if (!IS_GEN5(dev))
 		return -ENODEV;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	temp = i915_mch_val(dev_priv);
 	chipset = i915_chipset_val(dev_priv);
 	gfx = i915_gfx_val(dev_priv);
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	seq_printf(m, "GMCH temp: %ld\n", temp);
 	seq_printf(m, "Chipset power: %ld\n", chipset);
@@ -1203,12 +1203,12 @@ static int i915_gfxec(struct drm_device *dev, struct sbuf *m, void *unused)
 {
 	drm_i915_private_t *dev_priv = dev->dev_private;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	seq_printf(m, "GFXEC: %ld\n", (unsigned long)I915_READ(0x112f4));
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
 }
@@ -1219,13 +1219,13 @@ static int i915_opregion(struct drm_device *dev, struct sbuf *m, void *unused)
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	struct intel_opregion *opregion = &dev_priv->opregion;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	if (opregion->header)
 		seq_write(m, opregion->header, OPREGION_SIZE);
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
 }
@@ -1237,12 +1237,12 @@ static int i915_gem_framebuffer_info(struct drm_device *dev, struct sbuf *m, voi
 	struct intel_fbdev *ifbdev;
 	struct intel_framebuffer *fb;
 
-	if (sx_xlock_sig(&dev->dev_struct_lock))
+	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
 	ifbdev = dev_priv->fbdev;
 	if (ifbdev == NULL) {
-		DRM_UNLOCK(dev);
+		mutex_unlock(&dev->struct_mutex);
 		return 0;
 	}
 	fb = to_intel_framebuffer(ifbdev->helper.fb);
@@ -1268,7 +1268,7 @@ static int i915_gem_framebuffer_info(struct drm_device *dev, struct sbuf *m, voi
 		seq_printf(m, "\n");
 	}
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
 }
@@ -1344,7 +1344,7 @@ static int i915_swizzle_info(struct drm_device *dev, struct sbuf *m, void *data)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	int ret;
 
-	ret = sx_xlock_sig(&dev->dev_struct_lock);
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
 	if (ret)
 		return -EINTR;
 
@@ -1374,7 +1374,7 @@ static int i915_swizzle_info(struct drm_device *dev, struct sbuf *m, void *data)
 		seq_printf(m, "DISP_ARB_CTL = 0x%08x\n",
 			   I915_READ(DISP_ARB_CTL));
 	}
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
 }
@@ -1386,7 +1386,7 @@ static int i915_ppgtt_info(struct drm_device *dev, struct sbuf *m, void *data)
 	int i, ret;
 
 
-	ret = sx_xlock_sig(&dev->dev_struct_lock);
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
 	if (ret)
 		return -EINTR;
 	if (INTEL_INFO(dev)->gen == 6)
@@ -1407,7 +1407,7 @@ static int i915_ppgtt_info(struct drm_device *dev, struct sbuf *m, void *data)
 		seq_printf(m, "pd gtt offset: 0x%08x\n", ppgtt->pd_offset);
 	}
 	seq_printf(m, "ECOCHK: 0x%08x\n", I915_READ(GAM_ECOCHK));
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
 }

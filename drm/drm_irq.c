@@ -354,36 +354,20 @@ int drm_irq_install(struct drm_device *dev)
 	if (drm_dev_to_irq(dev) == 0)
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 
 	/* Driver must have been initialized */
 	if (!dev->dev_private) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return -EINVAL;
 	}
 
 	if (dev->irq_enabled) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return -EBUSY;
 	}
 	dev->irq_enabled = 1;
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	DRM_DEBUG("irq=%d\n", drm_dev_to_irq(dev));
 
@@ -418,17 +402,9 @@ int drm_irq_install(struct drm_device *dev)
 
 	if (ret < 0) {
 		device_printf(dev->dev, "Error setting interrupt: %d\n", -ret);
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-#else
-		DRM_LOCK(dev);
-#endif
 		dev->irq_enabled = 0;
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return ret;
 	}
 
@@ -437,17 +413,9 @@ int drm_irq_install(struct drm_device *dev)
 		ret = dev->driver->irq_postinstall(dev);
 
 	if (ret < 0) {
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-#else
-		DRM_LOCK(dev);
-#endif
 		dev->irq_enabled = 0;
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 #ifdef __linux__
 		if (!drm_core_check_feature(dev, DRIVER_MODESET))
 			vga_client_register(dev->pdev, NULL, NULL, NULL);
@@ -477,18 +445,10 @@ int drm_irq_uninstall(struct drm_device *dev)
 	if (!drm_core_check_feature(dev, DRIVER_HAVE_IRQ))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	irq_enabled = dev->irq_enabled;
 	dev->irq_enabled = 0;
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	/*
 	 * Wake up any waiters so they don't hang.

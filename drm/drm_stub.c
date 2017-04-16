@@ -255,11 +255,7 @@ int drm_setmaster_ioctl(struct drm_device *dev, void *data,
 	if (file_priv->minor->master)
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	file_priv->minor->master = drm_master_get(file_priv->master);
 	file_priv->is_master = 1;
 	if (dev->driver->master_set) {
@@ -269,11 +265,7 @@ int drm_setmaster_ioctl(struct drm_device *dev, void *data,
 			drm_master_put(&file_priv->minor->master);
 		}
 	}
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	return 0;
 }
@@ -287,20 +279,12 @@ int drm_dropmaster_ioctl(struct drm_device *dev, void *data,
 	if (!file_priv->minor->master)
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	if (dev->driver->master_drop)
 		dev->driver->master_drop(dev, file_priv, false);
 	drm_master_put(&file_priv->minor->master);
 	file_priv->is_master = 0;
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return 0;
 }
 
@@ -320,7 +304,7 @@ int drm_fill_in_dev(struct drm_device *dev,
 #else
 	mtx_init(&dev->irq_lock, "drmirq", NULL, MTX_DEF);
 	spin_lock_init(&dev->event_lock);
-	sx_init(&dev->dev_struct_lock, "drmslk");
+	mutex_init(&dev->struct_mutex);
 	mutex_init(&dev->ctxlist_mutex);
 	mtx_init(&dev->pcir_lock, "drmpcir", NULL, MTX_DEF);
 #endif
@@ -411,7 +395,6 @@ void drm_cancel_fill_in_dev(struct drm_device *dev)
 	mtx_destroy(&dev->irq_lock);
 	spin_lock_destroy(&dev->count_lock);
 	spin_lock_destroy(&dev->event_lock);
-	sx_destroy(&dev->dev_struct_lock);
 	mutex_destroy(&dev->ctxlist_mutex);
 	mtx_destroy(&dev->pcir_lock);
 }
@@ -577,7 +560,6 @@ void drm_put_dev(struct drm_device *dev)
 	mtx_destroy(&dev->irq_lock);
 	spin_lock_destroy(&dev->count_lock);
 	spin_lock_destroy(&dev->event_lock);
-	sx_destroy(&dev->dev_struct_lock);
 	mutex_destroy(&dev->ctxlist_mutex);
 	mtx_destroy(&dev->pcir_lock);
 

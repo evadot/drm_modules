@@ -171,13 +171,13 @@ static int drm_name_info DRM_SYSCTL_HANDLER_ARGS
 	DRM_SYSCTL_PRINT("%s 0x%jx", dev->driver->name,
 	    (uintmax_t)dev2udev(minor->device));
 
-	DRM_LOCK(dev);
+	mutex_lock(&dev->struct_mutex);
 	master = minor->master;
 	if (master != NULL && master->unique) {
 		snprintf(buf, sizeof(buf), " %s", master->unique);
 		hasunique = 1;
 	}
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	if (hasunique)
 		SYSCTL_OUT(req, buf, strlen(buf));
@@ -210,7 +210,7 @@ static int drm_vm_info DRM_SYSCTL_HANDLER_ARGS
 	/* We can't hold the lock while doing SYSCTL_OUTs, so allocate a
 	 * temporary copy of all the map entries and then SYSCTL_OUT that.
 	 */
-	DRM_LOCK(dev);
+	mutex_lock(&dev->struct_mutex);
 
 	mapcount = 0;
 	list_for_each_entry(entry, &dev->maplist, head) {
@@ -221,7 +221,7 @@ static int drm_vm_info DRM_SYSCTL_HANDLER_ARGS
 	tempmaps = malloc(sizeof(*tempmaps) * mapcount, DRM_MEM_DRIVER,
 	    M_NOWAIT);
 	if (tempmaps == NULL) {
-		DRM_UNLOCK(dev);
+		mutex_unlock(&dev->struct_mutex);
 		return ENOMEM;
 	}
 
@@ -231,7 +231,7 @@ static int drm_vm_info DRM_SYSCTL_HANDLER_ARGS
 			tempmaps[i++] = *entry->map;
 	}
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	DRM_SYSCTL_PRINT("\nslot offset	        size       "
 	    "type flags address            mtrr\n");
@@ -284,9 +284,9 @@ static int drm_bufs_info DRM_SYSCTL_HANDLER_ARGS
 	/* We can't hold the locks around DRM_SYSCTL_PRINT, so make a temporary
 	 * copy of the whole structure and the relevant data from buflist.
 	 */
-	DRM_LOCK(dev);
+	mutex_lock(&dev->struct_mutex);
 	if (dma == NULL) {
-		DRM_UNLOCK(dev);
+		mutex_unlock(&dev->struct_mutex);
 		return 0;
 	}
 	mtx_lock(&dev->dma_lock);
@@ -297,7 +297,7 @@ static int drm_bufs_info DRM_SYSCTL_HANDLER_ARGS
 		templists[i] = dma->buflist[i]->list;
 	dma = &tempdma;
 	mtx_unlock(&dev->dma_lock);
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	DRM_SYSCTL_PRINT("\n o     size count  free	 segs pages    kB\n");
 	for (i = 0; i <= DRM_MAX_ORDER; i++) {
@@ -336,7 +336,7 @@ static int drm_clients_info DRM_SYSCTL_HANDLER_ARGS
 	int retcode;
 	int privcount, i;
 
-	DRM_LOCK(dev);
+	mutex_lock(&dev->struct_mutex);
 
 	privcount = 0;
 	list_for_each_entry(priv, &dev->filelist, lhead)
@@ -345,14 +345,14 @@ static int drm_clients_info DRM_SYSCTL_HANDLER_ARGS
 	tempprivs = malloc(sizeof(struct drm_file) * privcount, DRM_MEM_DRIVER,
 	    M_NOWAIT);
 	if (tempprivs == NULL) {
-		DRM_UNLOCK(dev);
+		mutex_unlock(&dev->struct_mutex);
 		return ENOMEM;
 	}
 	i = 0;
 	list_for_each_entry(priv, &dev->filelist, lhead)
 		tempprivs[i++] = *priv;
 
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	DRM_SYSCTL_PRINT(
 	    "\na dev            pid   uid      magic     ioctls\n");
@@ -381,7 +381,7 @@ static int drm_vblank_info DRM_SYSCTL_HANDLER_ARGS
 	int i;
 
 	DRM_SYSCTL_PRINT("\ncrtc ref count    last     enabled inmodeset\n");
-	DRM_LOCK(dev);
+	mutex_lock(&dev->struct_mutex);
 	if (dev->_vblank_count == NULL)
 		goto done;
 	for (i = 0 ; i < dev->num_crtcs ; i++) {
@@ -393,7 +393,7 @@ static int drm_vblank_info DRM_SYSCTL_HANDLER_ARGS
 		    dev->vblank_inmodeset[i]);
 	}
 done:
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	SYSCTL_OUT(req, "", -1);
 	return retcode;

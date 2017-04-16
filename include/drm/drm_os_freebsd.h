@@ -265,9 +265,6 @@ capable(enum __drm_capabilities cap)
 #define	sigemptyset(set)	SIGEMPTYSET(set)
 #define	sigaddset(set, sig)	SIGADDSET(set, sig)
 
-#define DRM_LOCK(dev)		sx_xlock(&(dev)->dev_struct_lock)
-#define DRM_UNLOCK(dev) 	sx_xunlock(&(dev)->dev_struct_lock)
-
 extern unsigned long drm_linux_timer_hz_mask;
 #define jiffies			ticks
 #define	msecs_to_jiffies(x)	(((int64_t)(x)) * hz / 1000)

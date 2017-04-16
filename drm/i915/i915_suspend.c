@@ -813,11 +813,7 @@ int i915_save_state(struct drm_device *dev)
 	pci_read_config_byte(dev->dev, LBB, &dev_priv->regfile.saveLBB);
 #endif
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 
 	i915_save_display(dev);
 
@@ -855,11 +851,7 @@ int i915_save_state(struct drm_device *dev)
 	for (i = 0; i < 3; i++)
 		dev_priv->regfile.saveSWF2[i] = I915_READ(SWF30 + (i << 2));
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	return 0;
 }
@@ -875,11 +867,7 @@ int i915_restore_state(struct drm_device *dev)
 	pci_write_config_byte(dev->dev, LBB, dev_priv->regfile.saveLBB);
 #endif
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 
 	i915_restore_display(dev);
 
@@ -912,11 +900,7 @@ int i915_restore_state(struct drm_device *dev)
 	for (i = 0; i < 3; i++)
 		I915_WRITE(SWF30 + (i << 2), dev_priv->regfile.saveSWF2[i]);
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	intel_i2c_reset(dev);
 

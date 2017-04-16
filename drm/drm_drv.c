@@ -212,11 +212,7 @@ int drm_lastclose(struct drm_device * dev)
 	if (dev->irq_enabled && !drm_core_check_feature(dev, DRIVER_MODESET))
 		drm_irq_uninstall(dev);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 
 	/* Clear AGP information */
 	if (drm_core_has_AGP(dev) && dev->agp &&
@@ -257,13 +253,9 @@ int drm_lastclose(struct drm_device * dev)
 	    !drm_core_check_feature(dev, DRIVER_MODESET))
 		drm_dma_takedown(dev);
 
-#ifdef FREEBSD_NOTYET
 	dev->dev_mapping = NULL;
 
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	DRM_DEBUG("lastclose completed\n");
 	return 0;

@@ -498,11 +498,7 @@ static void ivybridge_parity_work(void *context, int pending)
 	 * In order to prevent a get/put style interface, acquire struct mutex
 	 * any time we access those registers.
 	 */
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev_priv->dev->struct_mutex);
-#else
-	DRM_LOCK(dev_priv->dev);
-#endif
 
 	misccpctl = I915_READ(GEN7_MISCCPCTL);
 	I915_WRITE(GEN7_MISCCPCTL, misccpctl & ~GEN7_DOP_CLOCK_GATE_ENABLE);
@@ -532,11 +528,7 @@ static void ivybridge_parity_work(void *context, int pending)
 	mtx_unlock(&dev_priv->irq_lock);
 #endif
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev_priv->dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev_priv->dev);
-#endif
 
 #ifdef __linux__
 	parity_event[0] = "L3_PARITY_ERROR=1";

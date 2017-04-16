@@ -67,22 +67,14 @@ void drm_ctxbitmap_free(struct drm_device * dev, int ctx_handle)
 	}
 #endif
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 #ifdef __linux__
 	idr_remove(&dev->ctx_idr, ctx_handle);
 #elif __FreeBSD__
 	clear_bit(ctx_handle, dev->ctx_bitmap);
 	dev->context_sareas[ctx_handle] = NULL;
 #endif
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 }
 
 /**
@@ -121,18 +113,10 @@ again:
 	if (dev->ctx_bitmap == NULL)
 		return -1;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	bit = find_first_zero_bit(dev->ctx_bitmap, DRM_MAX_CTXBITMAP);
 	if (bit >= DRM_MAX_CTXBITMAP) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return -1;
 	}
 
@@ -148,22 +132,14 @@ again:
 		if (ctx_sareas == NULL) {
 			clear_bit(bit, dev->ctx_bitmap);
 			DRM_DEBUG("failed to allocate bit : %d\n", bit);
-#ifdef FREEBSD_NOTYET
 			mutex_unlock(&dev->struct_mutex);
-#else
-			DRM_UNLOCK(dev);
-#endif
 			return -1;
 		}
 		dev->max_context = max_ctx;
 		dev->context_sareas = ctx_sareas;
 		dev->context_sareas[bit] = NULL;
 	}
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return bit;
 #endif
 }
@@ -183,28 +159,16 @@ int drm_ctxbitmap_init(struct drm_device * dev)
 	int i;
 	int temp;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	dev->ctx_bitmap = malloc(PAGE_SIZE, DRM_MEM_CTXBITMAP,
 	    M_NOWAIT | M_ZERO);
 	if (dev->ctx_bitmap == NULL) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-#else
-		DRM_UNLOCK(dev);
-#endif
 		return ENOMEM;
 	}
 	dev->context_sareas = NULL;
 	dev->max_context = -1;
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 	for (i = 0; i < DRM_RESERVED_CONTEXTS; i++) {
 		temp = drm_ctxbitmap_next(dev);
@@ -225,11 +189,7 @@ int drm_ctxbitmap_init(struct drm_device * dev)
  */
 void drm_ctxbitmap_cleanup(struct drm_device * dev)
 {
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 #ifdef __linux__
 	idr_remove_all(&dev->ctx_idr);
 #elif __FreeBSD__
@@ -237,11 +197,7 @@ void drm_ctxbitmap_cleanup(struct drm_device * dev)
 		free(dev->context_sareas, DRM_MEM_SAREA);
 	free(dev->ctx_bitmap, DRM_MEM_CTXBITMAP);
 #endif
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 }
 
 /*@}*/
@@ -268,11 +224,7 @@ int drm_getsareactx(struct drm_device *dev, void *data,
 	struct drm_ctx_priv_map *request = data;
 	struct drm_local_map *map;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 
 #ifdef __linux__
 	map = idr_find(&dev->ctx_idr, request->ctx_id);
@@ -280,13 +232,12 @@ int drm_getsareactx(struct drm_device *dev, void *data,
 #elif __FreeBSD__
 	if (dev->max_context < 0 ||
 	    request->ctx_id >= (unsigned) dev->max_context) {
-#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
+#ifdef __linux__
 		return -EINVAL;
-#else
-		DRM_UNLOCK(dev);
-#endif
+#elif __FreeBSD__
 		return EINVAL;
+#endif
 	}
 #endif
 
@@ -303,11 +254,7 @@ int drm_getsareactx(struct drm_device *dev, void *data,
 	map = dev->context_sareas[request->ctx_id];
 #endif
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 
 #ifdef __linux__
 	if (request->handle == NULL)
@@ -338,11 +285,7 @@ int drm_setsareactx(struct drm_device *dev, void *data,
 	struct drm_local_map *map = NULL;
 	struct drm_map_list *r_list = NULL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
-#else
-	DRM_LOCK(dev);
-#endif
 	list_for_each_entry(r_list, &dev->maplist, head) {
 		if (r_list->map
 		    && r_list->user_token == (unsigned long) request->handle) {
@@ -351,21 +294,13 @@ int drm_setsareactx(struct drm_device *dev, void *data,
 			if (request->ctx_id >= (unsigned) dev->max_context)
 				goto bad;
 			dev->context_sareas[request->ctx_id] = map;
-#ifdef FREEBSD_NOTYET
 			mutex_unlock(&dev->struct_mutex);
-#else
-			DRM_UNLOCK(dev);
-#endif
 			return 0;
 		}
 	}
 
 bad:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-#else
-	DRM_UNLOCK(dev);
-#endif
 	return EINVAL;
 }
 
@@ -505,11 +440,11 @@ int drm_addctx(struct drm_device *dev, void *data,
 	ctx_entry->tag = file_priv;
 
 	mutex_lock(&dev->ctxlist_mutex);
-	DRM_LOCK(dev);
+	mutex_lock(&dev->struct_mutex);
 	list_add(&ctx_entry->head, &dev->ctxlist);
 	++dev->ctx_count;
 	mutex_unlock(&dev->ctxlist_mutex);
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
 }
@@ -605,7 +540,7 @@ int drm_rmctx(struct drm_device *dev, void *data,
 	}
 
 	mutex_lock(&dev->ctxlist_mutex);
-	DRM_LOCK(dev);
+	mutex_lock(&dev->struct_mutex);
 	if (!list_empty(&dev->ctxlist)) {
 		struct drm_ctx_list *pos, *n;
 
@@ -622,7 +557,7 @@ int drm_rmctx(struct drm_device *dev, void *data,
 		}
 	}
 	mutex_unlock(&dev->ctxlist_mutex);
-	DRM_UNLOCK(dev);
+	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
 }
