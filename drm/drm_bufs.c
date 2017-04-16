@@ -755,11 +755,7 @@ static void drm_cleanup_buf_error(struct drm_device * dev,
 				drm_pci_free(dev, entry->seglist[i]);
 			}
 		}
-#ifdef FREEBSD_NOTYET
 		kfree(entry->seglist);
-#else
-		free(entry->seglist, DRM_MEM_SEGS);
-#endif
 
 		entry->seg_count = 0;
 	}
@@ -1098,12 +1094,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 		return -ENOMEM;
 	}
 
-#ifdef FREEBSD_NOTYET
 	entry->seglist = kzalloc(count * sizeof(*entry->seglist), GFP_KERNEL);
-#else
-	entry->seglist = malloc(count * sizeof(*entry->seglist), DRM_MEM_SEGS,
-	    M_NOWAIT | M_ZERO);
-#endif
 	if (!entry->seglist) {
 #ifdef FREEBSD_NOTYET
 		kfree(entry->buflist);
@@ -1124,11 +1115,10 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 	if (!temp_pagelist) {
 #ifdef FREEBSD_NOTYET
 		kfree(entry->buflist);
-		kfree(entry->seglist);
 		mutex_unlock(&dev->struct_mutex);
 #else
 		free(entry->buflist, DRM_MEM_BUFS);
-		free(entry->seglist, DRM_MEM_SEGS);
+		kfree(entry->seglist);
 		DRM_UNLOCK(dev);
 #endif
 		atomic_dec(&dev->buf_alloc);

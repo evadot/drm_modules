@@ -93,11 +93,7 @@ void drm_dma_takedown(struct drm_device *dev)
 					drm_pci_free(dev, dma->bufs[i].seglist[j]);
 				}
 			}
-#ifdef FREEBSD_NOTYET
 			kfree(dma->bufs[i].seglist);
-#else
-			free(dma->bufs[i].seglist, DRM_MEM_SEGS);
-#endif
 		}
 		if (dma->bufs[i].buf_count) {
 			for (j = 0; j < dma->bufs[i].buf_count; j++) {
