@@ -140,12 +140,13 @@
 #include <linux/mutex.h>
 #define spin_is_locked(_l) mtx_owned(&(_l)->m)
 
+#include <linux/bitops.h>
 #include <linux/types.h>
+#include <asm/atomic.h>
 
 #include <drm/drm.h>
 #include <drm/drm_sarea.h>
 
-#include <drm/drm_atomic.h>
 #include <drm/drm_linux_list.h>
 #include <drm/drm_gem_names.h>
 
@@ -1268,15 +1269,9 @@ struct drm_device {
 	/** \name Context support */
 	/*@{ */
 	int irq_enabled;		/**< True if irq handler is enabled */
-#ifdef FREEBSD_NOTYET
 	__volatile__ long context_flag;	/**< Context swapping flag */
 	__volatile__ long interrupt_flag; /**< Interruption handler flag */
 	__volatile__ long dma_flag;	/**< DMA dispatch flag */
-#else
-	atomic_t context_flag;		/**< Context swapping flag */
-	atomic_t interrupt_flag;	/**< Interruption handler flag */
-	atomic_t dma_flag;		/**< DMA dispatch flag */
-#endif
 	wait_queue_head_t context_wait;	/**< Processes waiting on ctx switch */
 	int last_checked;		/**< Last context checked for DMA */
 	int last_context;		/**< Last current context */

@@ -154,9 +154,6 @@ typedef void			irqreturn_t;
 #define	lower_32_bits(n)	((u32)(n))
 #define	upper_32_bits(n)	((u32)(((n) >> 16) >> 16))
 
-#define	__set_bit(n, s)		set_bit((n), (s))
-#define	__clear_bit(n, s)	clear_bit((n), (s))
-
 #define min_t(type, x, y) ({			\
 	type __min1 = (x);			\
 	type __min2 = (y);			\
@@ -200,7 +197,6 @@ typedef void			irqreturn_t;
 #define DIV_ROUND_UP(n,d) 	(((n) + (d) - 1) / (d))
 #define	DIV_ROUND_CLOSEST(n,d)	(((n) + (d) / 2) / (d))
 #define	div_u64(n, d)		((n) / (d))
-#define	hweight32(i)		bitcount32(i)
 
 static inline unsigned long
 roundup_pow_of_two(unsigned long x)
@@ -209,19 +205,6 @@ roundup_pow_of_two(unsigned long x)
 	return (1UL << flsl(x - 1));
 }
 
-/**
- * ror32 - rotate a 32-bit value right
- * @word: value to rotate
- * @shift: bits to roll
- *
- * Source: include/linux/bitops.h
- */
-static inline uint32_t
-ror32(uint32_t word, unsigned int shift)
-{
-
-	return (word >> shift) | (word << (32 - shift));
-}
 
 #define	IS_ALIGNED(x, y)	(((x) & ((y) - 1)) == 0)
 #define	round_down(x, y)	rounddown2((x), (y))

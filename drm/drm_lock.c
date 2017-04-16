@@ -35,6 +35,13 @@
 
 #include <drm/drmP.h>
 
+#ifdef cmpxchg
+#undef cmpxchg
+#endif
+#define	cmpxchg(ptr, old, new) \
+    (atomic_cmpset_int((volatile u_int *)(ptr),(old),(new)) ? (old) : (0))
+
+
 #if defined(__linux__)
 static int drm_notifier(void *priv);
 #endif

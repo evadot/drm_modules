@@ -386,8 +386,8 @@ static int drm_vblank_info DRM_SYSCTL_HANDLER_ARGS
 		goto done;
 	for (i = 0 ; i < dev->num_crtcs ; i++) {
 		DRM_SYSCTL_PRINT("  %02d  %02d %08d %08d %02d      %02d\n",
-		    i, dev->vblank_refcount[i],
-		    dev->_vblank_count[i],
+		    i, atomic_read(&dev->vblank_refcount[i]),
+		    atomic_read(&dev->_vblank_count[i]),
 		    dev->last_vblank[i],
 		    dev->vblank_enabled[i],
 		    dev->vblank_inmodeset[i]);
