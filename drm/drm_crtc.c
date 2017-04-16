@@ -2042,17 +2042,8 @@ int drm_mode_setcrtc(struct drm_device *dev, void *data,
 		hdisplay = mode->hdisplay;
 		vdisplay = mode->vdisplay;
 
-#ifdef FREEBSD_NOTYET
 		if (crtc->invert_dimensions)
 			swap(hdisplay, vdisplay);
-#else
-		if (crtc->invert_dimensions) {
-			int tmp;
-			tmp = vdisplay;
-			vdisplay = hdisplay;
-			hdisplay = tmp;
-		}
-#endif
 
 		if (hdisplay > fb->width ||
 		    vdisplay > fb->height ||
@@ -3768,17 +3759,8 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 	hdisplay = crtc->mode.hdisplay;
 	vdisplay = crtc->mode.vdisplay;
 
-#ifdef FREEBSD_NOTYET
 	if (crtc->invert_dimensions)
 		swap(hdisplay, vdisplay);
-#else
-	if (crtc->invert_dimensions) {
-		int tmp;
-		tmp = vdisplay;
-		vdisplay = hdisplay;
-		hdisplay = tmp;
-	}
-#endif
 
 	if (hdisplay > fb->width ||
 	    vdisplay > fb->height ||
