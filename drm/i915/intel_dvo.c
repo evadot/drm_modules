@@ -24,7 +24,10 @@
  * Authors:
  *	Eric Anholt <eric@anholt.net>
  */
-
+#ifdef __linux__
+#include <linux/i2c.h>
+#include <linux/slab.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include "intel_drv.h"
@@ -336,8 +339,15 @@ static int intel_dvo_get_modes(struct drm_connector *connector)
 
 static void intel_dvo_destroy(struct drm_connector *connector)
 {
+#ifdef __linux__
+	drm_sysfs_connector_remove(connector);
+#endif
 	drm_connector_cleanup(connector);
+#ifdef FREEBSD_NOTYET
+	kfree(connector);
+#else
 	free(connector, DRM_MEM_KMS);
+#endif
 }
 
 static const struct drm_encoder_helper_funcs intel_dvo_helper_funcs = {
@@ -366,7 +376,11 @@ static void intel_dvo_enc_destroy(struct drm_encoder *encoder)
 	if (intel_dvo->dev.dev_ops->destroy)
 		intel_dvo->dev.dev_ops->destroy(&intel_dvo->dev);
 
+#ifdef FREEBSD_NOTYET
+	kfree(intel_dvo->panel_fixed_mode);
+#else
 	free(intel_dvo->panel_fixed_mode, DRM_MEM_KMS);
+#endif
 
 	intel_encoder_destroy(encoder);
 }
@@ -422,13 +436,25 @@ void intel_dvo_init(struct drm_device *dev)
 	int i;
 	int encoder_type = DRM_MODE_ENCODER_NONE;
 
+#ifdef FREEBSD_NOTYET
+	intel_dvo = kzalloc(sizeof(struct intel_dvo), GFP_KERNEL);
+#else
 	intel_dvo = malloc(sizeof(struct intel_dvo), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_dvo)
 		return;
 
+#ifdef FREEBSD_NOTYET
+	intel_connector = kzalloc(sizeof(struct intel_connector), GFP_KERNEL);
+#else
 	intel_connector = malloc(sizeof(struct intel_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+	#endif
 	if (!intel_connector) {
+#ifdef FREEBSD_NOTYET
+		kfree(intel_dvo);
+#else
 		free(intel_dvo, DRM_MEM_KMS);
+#endif
 		return;
 	}
 
@@ -526,6 +552,11 @@ void intel_dvo_init(struct drm_device *dev)
 	}
 
 	drm_encoder_cleanup(&intel_encoder->base);
+#ifdef FREEBSD_NOTYET
+	kfree(intel_dvo);
+	kfree(intel_connector);
+#else
 	free(intel_dvo, DRM_MEM_KMS);
 	free(intel_connector, DRM_MEM_KMS);
+#endif
 }
