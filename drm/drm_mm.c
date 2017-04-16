@@ -65,11 +65,7 @@ static struct drm_mm_node *drm_mm_kmalloc(struct drm_mm *mm, int atomic)
 #endif
 
 	if (unlikely(child == NULL)) {
-#ifdef FREEBSD_NOTYET
 		spin_lock(&mm->unused_lock);
-#else
-		mtx_lock(&mm->unused_lock);
-#endif
 		if (list_empty(&mm->unused_nodes))
 			child = NULL;
 		else {
@@ -79,11 +75,7 @@ static struct drm_mm_node *drm_mm_kmalloc(struct drm_mm *mm, int atomic)
 			list_del(&child->node_list);
 			--mm->num_unused;
 		}
-#ifdef FREEBSD_NOTYET
 		spin_unlock(&mm->unused_lock);
-#else
-		mtx_unlock(&mm->unused_lock);
-#endif
 	}
 	return child;
 }
@@ -97,39 +89,25 @@ int drm_mm_pre_get(struct drm_mm *mm)
 {
 	struct drm_mm_node *node;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock(&mm->unused_lock);
-#else
-	mtx_lock(&mm->unused_lock);
-#endif
 	while (mm->num_unused < MM_UNUSED_TARGET) {
-#ifdef FREEBSD_NOTYET
 		spin_unlock(&mm->unused_lock);
+#ifdef FREEBSD_NOTYET
 		node = kzalloc(sizeof(*node), GFP_KERNEL);
-		spin_lock(&mm->unused_lock);
 #else
-		mtx_unlock(&mm->unused_lock);
 		node = malloc(sizeof(*node), DRM_MEM_MM, M_NOWAIT | M_ZERO);
-		mtx_lock(&mm->unused_lock);
 #endif
+		spin_lock(&mm->unused_lock);
 
 		if (unlikely(node == NULL)) {
 			int ret = (mm->num_unused < 2) ? -ENOMEM : 0;
-#ifdef FREEBSD_NOTYET
 			spin_unlock(&mm->unused_lock);
-#else
-			mtx_unlock(&mm->unused_lock);
-#endif
 			return ret;
 		}
 		++mm->num_unused;
 		list_add_tail(&node->node_list, &mm->unused_nodes);
 	}
-#ifdef FREEBSD_NOTYET
 	spin_unlock(&mm->unused_lock);
-#else
-	mtx_unlock(&mm->unused_lock);
-#endif
 	return 0;
 }
 EXPORT_SYMBOL(drm_mm_pre_get);
@@ -389,11 +367,7 @@ void drm_mm_put_block(struct drm_mm_node *node)
 
 	drm_mm_remove_node(node);
 
-#ifdef FREEBSD_NOTYET
 	spin_lock(&mm->unused_lock);
-#else
-	mtx_lock(&mm->unused_lock);
-#endif
 	if (mm->num_unused < MM_UNUSED_TARGET) {
 		list_add(&node->node_list, &mm->unused_nodes);
 		++mm->num_unused;
@@ -403,11 +377,7 @@ void drm_mm_put_block(struct drm_mm_node *node)
 #else
 		free(node, DRM_MEM_MM);
 #endif
-#ifdef FREEBSD_NOTYET
 	spin_unlock(&mm->unused_lock);
-#else
-	mtx_unlock(&mm->unused_lock);
-#endif
 }
 EXPORT_SYMBOL(drm_mm_put_block);
 
@@ -689,11 +659,7 @@ int drm_mm_init(struct drm_mm * mm, unsigned long start, unsigned long size)
 	INIT_LIST_HEAD(&mm->unused_nodes);
 	mm->num_unused = 0;
 	mm->scanned_blocks = 0;
-#ifdef FREEBSD_NOTYET
 	spin_lock_init(&mm->unused_lock);
-#else
-	mtx_init(&mm->unused_lock, "drm_unused", NULL, MTX_DEF);
-#endif
 
 	/* Clever trick to avoid a special case in the free hole tracking. */
 	INIT_LIST_HEAD(&mm->head_node.node_list);
@@ -722,11 +688,7 @@ void drm_mm_takedown(struct drm_mm * mm)
 		return;
 	}
 
-#ifdef FREEBSD_NOTYET
 	spin_lock(&mm->unused_lock);
-#else
-	mtx_lock(&mm->unused_lock);
-#endif
 	list_for_each_entry_safe(entry, next, &mm->unused_nodes, node_list) {
 		list_del(&entry->node_list);
 #ifdef FREEBSD_NOTYET
@@ -736,11 +698,7 @@ void drm_mm_takedown(struct drm_mm * mm)
 #endif
 		--mm->num_unused;
 	}
-#ifdef FREEBSD_NOTYET
 	spin_unlock(&mm->unused_lock);
-#else
-	mtx_unlock(&mm->unused_lock);
-#endif
 
 	BUG_ON(mm->num_unused != 0);
 }

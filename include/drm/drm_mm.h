@@ -30,9 +30,6 @@
  * Thomas Hellstrom <thomas-at-tungstengraphics-dot-com>
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
 #ifndef _DRM_MM_H_
 #define _DRM_MM_H_
 
@@ -64,7 +61,7 @@ struct drm_mm {
 	struct drm_mm_node head_node;
 	struct list_head unused_nodes;
 	int num_unused;
-	struct mtx unused_lock;
+	spinlock_t unused_lock;
 	unsigned int scan_check_range : 1;
 	unsigned scan_alignment;
 	unsigned long scan_color;
