@@ -40,6 +40,11 @@
 #include <drm/drmP.h>
 #include <drm/drm.h>
 
+#ifdef __FreeBSD__
+#define DRM_MAP_HANDLE_BITS	(sizeof(void *) == 4 ? 4 : 24)
+#define DRM_MAP_HANDLE_SHIFT	(sizeof(void *) * 8 - DRM_MAP_HANDLE_BITS)
+#endif
+
 #ifdef FREEBSD_NOTYET
 int
 drm_mmap(struct cdev *kdev, vm_ooffset_t offset, vm_paddr_t *paddr,

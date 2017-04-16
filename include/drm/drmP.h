@@ -614,6 +614,7 @@ struct drm_agp_head {
 	unsigned long base;
 	int agp_mtrr;
 	int cant_use_aperture;
+	unsigned long page_mask;
 };
 
 /**
@@ -638,12 +639,10 @@ struct drm_sigdata {
 	struct drm_hw_lock *lock;
 };
 
+
 /**
  * Kernel side of a mapping
  */
-#define DRM_MAP_HANDLE_BITS	(sizeof(void *) == 4 ? 4 : 24)
-#define DRM_MAP_HANDLE_SHIFT	(sizeof(void *) * 8 - DRM_MAP_HANDLE_BITS)
-
 struct drm_local_map {
 	resource_size_t offset;	 /**< Requested physical address (0 for SAREA)*/
 	unsigned long size;	 /**< Requested physical size (bytes) */
@@ -653,8 +652,10 @@ struct drm_local_map {
 				 /**< Kernel-space: kernel-virtual address */
 	int mtrr;		 /**< MTRR slot used */
 
-				  /* Private data                         */
+#ifdef __FreeBSD__
+	/* Private data                         */
 	drm_dma_handle_t *dmah;
+#endif
 };
 
 typedef struct drm_local_map drm_local_map_t;
@@ -697,7 +698,9 @@ struct drm_ati_pcigart_info {
 	struct drm_dma_handle *table_handle;
 	struct drm_local_map mapping;
 	int table_size;
+#ifdef __FreeBSD__
 	struct drm_dma_handle *dmah; /* handle for ATI PCIGART table FIXME */
+#endif
 };
 
 /**
@@ -835,7 +838,9 @@ struct drm_master {
 struct drm_bus {
 	int bus_type;
 	int (*get_irq)(struct drm_device *dev);
+#ifdef __FreeBSD__
 	void (*free_irq)(struct drm_device *dev);
+#endif
 	const char *(*get_name)(struct drm_device *dev);
 	int (*set_busid)(struct drm_device *dev, struct drm_master *master);
 	int (*set_unique)(struct drm_device *dev, struct drm_master *master,
@@ -1011,6 +1016,7 @@ struct drm_driver {
 	int (*debugfs_init)(struct drm_minor *minor);
 	void (*debugfs_cleanup)(struct drm_minor *minor);
 #endif
+
 	/**
 	 * Driver-specific constructor for drm_gem_objects, to set up
 	 * obj->driver_private.
@@ -1209,6 +1215,8 @@ struct drm_pending_vblank_event {
  * may contain multiple heads.
  */
 struct drm_device {
+	struct list_head driver_item;	/**< list of devices per driver */
+	char *devname;			/**< For /proc/interrupts */
 	int if_version;			/**< Highest interface version set */
 
 	/** \name Locks */
@@ -1255,9 +1263,16 @@ struct drm_device {
 #else
 	struct mtx ctxlist_mutex;	/**< For ctxlist */
 #endif
+
+#ifdef FREEBSD_NOTYET
+	struct idr ctx_idr;
+#else
 	drm_local_map_t **context_sareas;
 	int max_context;
 	unsigned long *ctx_bitmap;
+#endif
+
+	struct list_head vmalist;	/**< List of vmas (for debugging) */
 
 	/*@} */
 
@@ -1301,8 +1316,13 @@ struct drm_device {
 	wait_queue_head_t *vbl_queue;   /**< VBLANK wait queue */
 	atomic_t *_vblank_count;        /**< number of VBLANK interrupts (driver must alloc the right number of counters) */
 	struct timeval *_vblank_time;   /**< timestamp of current vblank_count (drivers must alloc right number of fields) */
+#ifdef FREEBSD_NOTYET
+	spinlock_t vblank_time_lock;    /**< Protects vblank count and time updates during vblank enable/disable */
+	spinlock_t vbl_lock;
+#else
 	struct mtx vblank_time_lock;    /**< Protects vblank count and time updates during vblank enable/disable */
 	struct mtx vbl_lock;
+#endif
 	atomic_t *vblank_refcount;      /* number of users of vblank interruptsper crtc */
 	u32 *last_vblank;               /* protected by dev->vbl_lock, used */
 					/* for wraparound handling */
@@ -1310,7 +1330,11 @@ struct drm_device {
 					   once per disable */
 	int *vblank_inmodeset;          /* Display driver is setting mode */
 	u32 *last_vblank_wait;		/* Last vblank seqno waited per CRTC */
+#ifdef FREEBSD_NOTYET
+	struct timer_list vblank_disable_timer;
+#else
 	struct callout vblank_disable_callout;
+#endif
 
 	u32 max_vblank_count;           /**< size of vblank counter register */
 
@@ -1318,22 +1342,48 @@ struct drm_device {
 	 * List of events
 	 */
 	struct list_head vblank_event_list;
+#ifdef FREEBSD_NOTYET
+	spinlock_t event_lock;
+#else
 	struct mtx event_lock;
+#endif
 
 	/*@} */
+#ifdef FREEBSD_NOTYET
+	cycles_t ctx_start;
+	cycles_t lck_start;
+
+	struct fasync_struct *buf_async;/**< Processes waiting for SIGIO */
+	wait_queue_head_t buf_readers;	/**< Processes waiting to read */
+	wait_queue_head_t buf_writers;	/**< Processes waiting to ctx switch */
+#endif
 
 	struct drm_agp_head *agp;	/**< AGP data */
 
+#ifdef __linux__
+	struct device *dev;             /**< Device structure */
+	struct pci_dev *pdev;		/**< PCI device structure */
+	int pci_vendor;			/**< PCI vendor id */
+	int pci_device;			/**< PCI device id */
+#ifdef __alpha__
+	struct pci_controller *hose;
+#endif
+
+	struct platform_device *platformdev; /**< Platform device struture */
+	struct usb_device *usbdev;
+#elif __FreeBSD__
 	device_t dev;			/* Device instance from newbus */
 	uint16_t pci_device;		/* PCI device id */
 	uint16_t pci_vendor;		/* PCI vendor id */
 	uint16_t pci_subdevice;		/* PCI subsystem device id */
 	uint16_t pci_subvendor;		/* PCI subsystem vendor id */
+#endif
 
 	struct drm_sg_mem *sg;	/**< Scatter gather memory */
 	unsigned int num_crtcs;                  /**< Number of CRTCs on this device */
 	void *dev_private;		/**< device private data */
 	void *mm_private;
+	struct address_space *dev_mapping;
 	struct drm_sigdata sigdata;	   /**< For block_all_signals */
 	sigset_t sigmask;
 
