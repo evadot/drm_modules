@@ -480,11 +480,7 @@ struct drm_pending_event {
 /* initial implementaton using a linked list - todo hashtab */
 struct drm_prime_file_private {
 	struct list_head head;
-#ifdef FREEBSD_NOTYET
 	struct mutex lock;
-#else
-	struct mtx lock;
-#endif
 };
 
 /** File private data */
@@ -506,11 +502,11 @@ struct drm_file {
 #ifdef FREEBSD_NOTYET
 	/** Mapping of mm object handles to object pointers. */
 	struct idr object_idr;
+#endif
 	/** Lock for synchronization of access to object_idr. */
 	spinlock_t table_lock;
 
 	struct file *filp;
-#endif
 #ifdef __FreeBSD__
 	struct drm_gem_names object_names;
 #endif
@@ -521,9 +517,8 @@ struct drm_file {
 				      N.B. not always minor->master */
 	struct list_head fbs;
 
-#ifdef FREEBSD_NOTYET
 	wait_queue_head_t event_wait;
-#else
+#ifdef __FreeBSD__
 	struct selinfo event_poll;
 #endif
 	struct list_head event_list;
@@ -712,9 +707,8 @@ struct drm_ati_pcigart_info {
  * GEM specific mm private for tracking GEM objects
  */
 struct drm_gem_mm {
-#ifdef FREEBSD_NOTYET
 	struct drm_mm offset_manager;	/**< Offset mgmt for buffer objects */
-#else
+#ifdef __FreeBSD__
 	struct unrhdr *idxunr;
 #endif
 	struct drm_open_hash offset_hash; /**< User token hash table for maps */
@@ -738,10 +732,10 @@ struct drm_gem_object {
 	/** Related drm device */
 	struct drm_device *dev;
 
-#ifdef FREEBSD_NOTYET
 	/** File representing the shmem storage */
 	struct file *filp;
 
+#ifdef FREEBSD_NOTYET
 	/* Mapping info for this object */
 	struct drm_map_list map_list;
 #else
@@ -1095,10 +1089,8 @@ struct drm_driver {
 #endif
 	struct drm_bus *bus;
 
-#ifdef FREEBSD_NOTYET
 	/* List of devices hanging off this driver */
 	struct list_head device_list;
-#endif
 
 #ifdef __FreeBSD__
 #ifdef COMPAT_FREEBSD32
@@ -1392,11 +1384,10 @@ struct drm_device {
 
 	/** \name GEM information */
 	/*@{ */
-#ifdef FREEBSD_NOTYET
 	spinlock_t object_name_lock;
+#ifdef FREEBSD_NOTYET
 	struct idr object_name_idr;
 #else
-	struct sx object_name_lock;
 	struct drm_gem_names object_names;
 #endif
 	/*@} */
