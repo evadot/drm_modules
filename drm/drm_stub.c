@@ -440,12 +440,7 @@ int drm_get_minor(struct drm_device *dev, struct drm_minor **minor, int type)
 	if (minor_id < 0)
 		return minor_id;
 
-#ifdef FREEBSD_NOTYET
 	new_minor = kzalloc(sizeof(struct drm_minor), GFP_KERNEL);
-#else
-	new_minor = malloc(sizeof(struct drm_minor), DRM_MEM_MINOR,
-	    M_NOWAIT | M_ZERO);
-#endif
 	if (!new_minor) {
 		ret = -ENOMEM;
 		goto err_idr;
@@ -485,11 +480,7 @@ int drm_get_minor(struct drm_device *dev, struct drm_minor **minor, int type)
 
 
 err_mem:
-#ifdef FREEBSD_NOTYET
 	kfree(new_minor);
-#else
-	free(new_minor, DRM_MEM_MINOR);
-#endif
 err_idr:
 	*minor = NULL;
 	return ret;
@@ -516,11 +507,7 @@ int drm_put_minor(struct drm_minor **minor_p)
 
 	destroy_dev(minor->device);
 
-#ifdef FREEBSD_NOTYET
 	kfree(minor);
-#else
-	free(minor, DRM_MEM_MINOR);
-#endif
 	*minor_p = NULL;
 	return 0;
 }
