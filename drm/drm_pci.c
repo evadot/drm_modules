@@ -36,6 +36,7 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <linux/slab.h>
 #include <drm/drmP.h>
 
 static int drm_msi = 1;	/* Enable by default. */
@@ -75,7 +76,7 @@ drm_dma_handle_t *drm_pci_alloc(struct drm_device * dev, size_t size,
 		return NULL;
 	}
 
-	dmah = malloc(sizeof(drm_dma_handle_t), DRM_MEM_DMA, M_ZERO | M_NOWAIT);
+	dmah = kmalloc(sizeof(drm_dma_handle_t), GFP_KERNEL);
 	if (dmah == NULL)
 		return NULL;
 
@@ -93,7 +94,7 @@ drm_dma_handle_t *drm_pci_alloc(struct drm_device * dev, size_t size,
 	    0, NULL, NULL, /* flags, lockfunc, lockfuncargs */
 	    &dmah->tag);
 	if (ret != 0) {
-		free(dmah, DRM_MEM_DMA);
+		kfree(dmah);
 		return NULL;
 	}
 
@@ -101,7 +102,7 @@ drm_dma_handle_t *drm_pci_alloc(struct drm_device * dev, size_t size,
 	    BUS_DMA_WAITOK | BUS_DMA_ZERO | BUS_DMA_NOCACHE, &dmah->map);
 	if (ret != 0) {
 		bus_dma_tag_destroy(dmah->tag);
-		free(dmah, DRM_MEM_DMA);
+		kfree(dmah);
 		return NULL;
 	}
 
@@ -110,7 +111,7 @@ drm_dma_handle_t *drm_pci_alloc(struct drm_device * dev, size_t size,
 	if (ret != 0) {
 		bus_dmamem_free(dmah->tag, dmah->vaddr, dmah->map);
 		bus_dma_tag_destroy(dmah->tag);
-		free(dmah, DRM_MEM_DMA);
+		kfree(dmah);
 		return NULL;
 	}
 
@@ -140,7 +141,7 @@ void __drm_pci_free(struct drm_device * dev, drm_dma_handle_t * dmah)
 void drm_pci_free(struct drm_device * dev, drm_dma_handle_t * dmah)
 {
 	__drm_pci_free(dev, dmah);
-	free(dmah, DRM_MEM_DMA);
+	kfree(dmah);
 }
 
 EXPORT_SYMBOL(drm_pci_free);

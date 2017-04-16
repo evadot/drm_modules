@@ -519,7 +519,6 @@ wait_for_completion_interruptible_timeout(struct completion *c,
 	return (ret);
 }
 
-MALLOC_DECLARE(DRM_MEM_DMA);
 MALLOC_DECLARE(DRM_MEM_SAREA);
 MALLOC_DECLARE(DRM_MEM_DRIVER);
 MALLOC_DECLARE(DRM_MEM_MAGIC);

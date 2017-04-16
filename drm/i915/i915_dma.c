@@ -41,10 +41,10 @@
 #include <linux/acpi.h>
 #include <linux/pnp.h>
 #include <linux/vga_switcheroo.h>
-#include <linux/slab.h>
 #include <acpi/video.h>
 #include <asm/pat.h>
 #endif
+#include <linux/slab.h>
 
 #define LP_RING(d) (&((struct drm_i915_private *)(d))->ring[RCS])
 
@@ -664,15 +664,9 @@ int i915_batchbuffer(struct drm_device *dev, void *data,
 		return -EINVAL;
 
 	if (batch->num_cliprects) {
-#ifdef FREEBSD_NOTYET
 		cliprects = kcalloc(batch->num_cliprects,
 				    sizeof(struct drm_clip_rect),
 				    GFP_KERNEL);
-#else
-		cliprects = malloc(batch->num_cliprects *
-				    sizeof(struct drm_clip_rect),
-				    DRM_MEM_DMA, M_WAITOK | M_ZERO);
-#endif
 		if (cliprects == NULL)
 			return -ENOMEM;
 
@@ -701,11 +695,7 @@ int i915_batchbuffer(struct drm_device *dev, void *data,
 		sarea_priv->last_dispatch = READ_BREADCRUMB(dev_priv);
 
 fail_free:
-#ifdef FREEBSD_NOTYET
 	kfree(cliprects);
-#else
-	free(cliprects, DRM_MEM_DMA);
-#endif
 
 	return ret;
 }
@@ -733,11 +723,7 @@ int i915_cmdbuffer(struct drm_device *dev, void *data,
 	if (cmdbuf->num_cliprects < 0)
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	batch_data = kmalloc(cmdbuf->sz, GFP_KERNEL);
-#else
-	batch_data = malloc(cmdbuf->sz, DRM_MEM_DMA, M_WAITOK);
-#endif
 	if (batch_data == NULL)
 		return -ENOMEM;
 
@@ -748,13 +734,8 @@ int i915_cmdbuffer(struct drm_device *dev, void *data,
 	}
 
 	if (cmdbuf->num_cliprects) {
-#ifdef FREEBSD_NOTYET
 		cliprects = kcalloc(cmdbuf->num_cliprects,
 				    sizeof(struct drm_clip_rect), GFP_KERNEL);
-#else
-		cliprects = malloc(cmdbuf->num_cliprects *
-				    sizeof(struct drm_clip_rect), DRM_MEM_DMA, M_WAITOK | M_ZERO);
-#endif
 		if (cliprects == NULL) {
 			ret = -ENOMEM;
 			goto fail_batch_free;
@@ -789,17 +770,9 @@ int i915_cmdbuffer(struct drm_device *dev, void *data,
 		sarea_priv->last_dispatch = READ_BREADCRUMB(dev_priv);
 
 fail_clip_free:
-#ifdef FREEBSD_NOTYET
 	kfree(cliprects);
-#else
-	free(cliprects, DRM_MEM_DMA);
-#endif
 fail_batch_free:
-#ifdef FREEBSD_NOTYET
 	kfree(batch_data);
-#else
-	free(batch_data, DRM_MEM_DMA);
-#endif
 
 	return ret;
 }
@@ -1514,11 +1487,7 @@ int i915_master_create(struct drm_device *dev, struct drm_master *master)
 {
 	struct drm_i915_master_private *master_priv;
 
-#ifdef FREEBSD_NOTYET
 	master_priv = kzalloc(sizeof(*master_priv), GFP_KERNEL);
-#else
-	master_priv = malloc(sizeof(*master_priv), DRM_MEM_DMA, M_WAITOK | M_ZERO);
-#endif
 	if (!master_priv)
 		return -ENOMEM;
 
@@ -1533,11 +1502,7 @@ void i915_master_destroy(struct drm_device *dev, struct drm_master *master)
 	if (!master_priv)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	kfree(master_priv);
-#else
-	free(master_priv, DRM_MEM_DMA);
-#endif
 
 	master->driver_priv = NULL;
 }
