@@ -1316,11 +1316,10 @@ struct drm_device {
 	struct timeval *_vblank_time;   /**< timestamp of current vblank_count (drivers must alloc right number of fields) */
 #ifdef FREEBSD_NOTYET
 	spinlock_t vblank_time_lock;    /**< Protects vblank count and time updates during vblank enable/disable */
-	spinlock_t vbl_lock;
 #else
 	struct mtx vblank_time_lock;    /**< Protects vblank count and time updates during vblank enable/disable */
-	struct mtx vbl_lock;
 #endif
+	spinlock_t vbl_lock;
 	atomic_t *vblank_refcount;      /* number of users of vblank interruptsper crtc */
 	u32 *last_vblank;               /* protected by dev->vbl_lock, used */
 					/* for wraparound handling */

@@ -182,31 +182,20 @@ static void vblank_disable_and_save(struct drm_device *dev, int crtc)
 static void vblank_disable_fn(void *arg)
 {
 	struct drm_device *dev = (struct drm_device *)arg;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#else
-#endif
 	int i;
 
 	if (!dev->vblank_disable_allowed)
 		return;
 
 	for (i = 0; i < dev->num_crtcs; i++) {
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&dev->vbl_lock, irqflags);
-#else
-		mtx_lock(&dev->vbl_lock);
-#endif
 		if (atomic_read(&dev->vblank_refcount[i]) == 0 &&
 		    dev->vblank_enabled[i]) {
 			DRM_DEBUG("disabling vblank on crtc %d\n", i);
 			vblank_disable_and_save(dev, i);
 		}
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev->vbl_lock, irqflags);
-#else
-		mtx_unlock(&dev->vbl_lock);
-#endif
 	}
 }
 
@@ -242,7 +231,7 @@ void drm_vblank_cleanup(struct drm_device *dev)
 	free(dev->vblank_inmodeset, DRM_MEM_VBLANK);
 	free(dev->_vblank_time, DRM_MEM_VBLANK);
 
-	mtx_destroy(&dev->vbl_lock);
+	spin_lock_destroy(&dev->vbl_lock);
 	mtx_destroy(&dev->vblank_time_lock);
 #endif
 
@@ -257,11 +246,10 @@ int drm_vblank_init(struct drm_device *dev, int num_crtcs)
 #ifdef FREEBSD_NOTYET
 	setup_timer(&dev->vblank_disable_timer, vblank_disable_fn,
 		    (unsigned long)dev);
-	spin_lock_init(&dev->vbl_lock);
 	spin_lock_init(&dev->vblank_time_lock);
 #else
 	callout_init(&dev->vblank_disable_callout, 1);
-	mtx_init(&dev->vbl_lock, "drmvbl", NULL, MTX_DEF);
+	spin_lock_init(&dev->vbl_lock);
 	mtx_init(&dev->vblank_time_lock, "drmvtl", NULL, MTX_DEF);
 #endif
 
@@ -528,9 +516,7 @@ EXPORT_SYMBOL(drm_irq_install);
  */
 int drm_irq_uninstall(struct drm_device *dev)
 {
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 	int irq_enabled, i;
 
 	if (!drm_core_check_feature(dev, DRIVER_HAVE_IRQ))
@@ -553,11 +539,7 @@ int drm_irq_uninstall(struct drm_device *dev)
 	 * Wake up any waiters so they don't hang.
 	 */
 	if (dev->num_crtcs) {
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&dev->vbl_lock, irqflags);
-#else
-		mtx_lock(&dev->vbl_lock);
-#endif
 		for (i = 0; i < dev->num_crtcs; i++) {
 #ifdef FREEBSD_NOTYET
 			DRM_WAKEUP(&dev->vbl_queue[i]);
@@ -568,11 +550,7 @@ int drm_irq_uninstall(struct drm_device *dev)
 			dev->last_vblank[i] =
 				dev->driver->get_vblank_counter(dev, i);
 		}
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev->vbl_lock, irqflags);
-#else
-		mtx_unlock(&dev->vbl_lock);
-#endif
 	}
 
 	if (!irq_enabled)
@@ -1111,16 +1089,10 @@ static void drm_update_vblank_count(struct drm_device *dev, int crtc)
  */
 int drm_vblank_get(struct drm_device *dev, int crtc)
 {
-#ifdef FREEBSD_NOTYET
-	unsigned long irqflags, irqflags2;
-#endif
+	unsigned long irqflags; /*, irqflags2;*/
 	int ret = 0;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev->vbl_lock, irqflags);
-#else
-	mtx_lock(&dev->vbl_lock);
-#endif
 	/* Going from 0->1 means we have to enable interrupts again */
 	if (atomic_add_return(1, &dev->vblank_refcount[crtc]) == 1) {
 #ifdef FREEBSD_NOTYET
@@ -1156,11 +1128,7 @@ int drm_vblank_get(struct drm_device *dev, int crtc)
 			ret = -EINVAL;
 		}
 	}
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev->vbl_lock, irqflags);
-#else
-	mtx_unlock(&dev->vbl_lock);
-#endif
 
 	return ret;
 }
@@ -1198,16 +1166,10 @@ void drm_vblank_off(struct drm_device *dev, int crtc)
 {
 	struct drm_pending_vblank_event *e, *t;
 	struct timeval now;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 	unsigned int seq;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev->vbl_lock, irqflags);
-#else
-	mtx_lock(&dev->vbl_lock);
-#endif
 	vblank_disable_and_save(dev, crtc);
 	DRM_WAKEUP(&dev->_vblank_count[crtc]);
 
@@ -1227,11 +1189,7 @@ void drm_vblank_off(struct drm_device *dev, int crtc)
 	}
 	mtx_unlock(&dev->event_lock);
 
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev->vbl_lock, irqflags);
-#else
-	mtx_unlock(&dev->vbl_lock);
-#endif
 }
 EXPORT_SYMBOL(drm_vblank_off);
 
@@ -1265,25 +1223,15 @@ EXPORT_SYMBOL(drm_vblank_pre_modeset);
 
 void drm_vblank_post_modeset(struct drm_device *dev, int crtc)
 {
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 	/* vblank is not initialized (IRQ not installed ?), or has been freed */
 	if (!dev->num_crtcs)
 		return;
 
 	if (dev->vblank_inmodeset[crtc]) {
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&dev->vbl_lock, irqflags);
-#else
-		mtx_lock(&dev->vbl_lock);
-#endif
 		dev->vblank_disable_allowed = 1;
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev->vbl_lock, irqflags);
-#else
-		mtx_unlock(&dev->vbl_lock);
-#endif
 
 		if (dev->vblank_inmodeset[crtc] & 0x2)
 			drm_vblank_put(dev, crtc);
