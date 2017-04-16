@@ -12,12 +12,6 @@ __FBSDID("$FreeBSD$");
 #include <sys/fbio.h>
 #include <sys/smp.h>
 
-#if _BYTE_ORDER == _BIG_ENDIAN
-#define	__BIG_ENDIAN 4321
-#else
-#define	__LITTLE_ENDIAN 1234
-#endif
-
 #ifdef __LP64__
 #define	BITS_PER_LONG	64
 #else
@@ -51,8 +45,6 @@ __FBSDID("$FreeBSD$");
 #define	cpu_to_be16(x)	htobe16(x)
 #define	be16_to_cpu(x)	be16toh(x)
 #define	cpu_to_be32(x)	htobe32(x)
-#define	be32_to_cpu(x)	be32toh(x)
-#define	be32_to_cpup(x)	be32toh(*x)
 
 #define	wait_queue_head_t atomic_t
 
@@ -75,21 +67,11 @@ typedef void			irqreturn_t;
 	unlikely(__ret_warn_on);				\
 })
 #endif
-#define	WARN_ONCE(condition, format, ...)			\
-	WARN(condition, format, ##__VA_ARGS__)
-#define	WARN_ON(cond)		WARN(cond, "WARN ON: " #cond)
 #define	WARN_ON_SMP(cond)	WARN_ON(cond)
-#define	BUG()			panic("BUG")
-#define	BUG_ON(cond)		KASSERT(!(cond), ("BUG ON: " #cond " -> 0x%jx", (uintmax_t)(cond)))
 #define	unlikely(x)            __builtin_expect(!!(x), 0)
 #define	likely(x)              __builtin_expect(!!(x), 1)
-#define	container_of(ptr, type, member) ({			\
-	__typeof( ((type *)0)->member ) *__mptr = (ptr);	\
-	(type *)( (char *)__mptr - offsetof(type,member) );})
 
 #define	KHZ2PICOS(a)	(1000000000UL/(a))
-
-#define ARRAY_SIZE(x)		(sizeof(x)/sizeof(x[0]))
 
 #define	HZ			hz
 #define	DRM_HZ			hz
@@ -170,7 +152,6 @@ typedef void			irqreturn_t;
 
 #define	VERIFY_READ	VM_PROT_READ
 #define	VERIFY_WRITE	VM_PROT_WRITE
-#define	access_ok(prot, p, l)	useracc((p), (l), (prot))
 
 /* XXXKIB what is the right code for the FreeBSD ? */
 /* kib@ used ENXIO here -- dumbbell@ */
@@ -194,21 +175,9 @@ typedef void			irqreturn_t;
 #define	PCI_VENDOR_ID_SONY		0x104d
 #define	PCI_VENDOR_ID_VIA		0x1106
 
-#define DIV_ROUND_UP(n,d) 	(((n) + (d) - 1) / (d))
-#define	DIV_ROUND_CLOSEST(n,d)	(((n) + (d) / 2) / (d))
 #define	div_u64(n, d)		((n) / (d))
 
-static inline unsigned long
-roundup_pow_of_two(unsigned long x)
-{
-
-	return (1UL << flsl(x - 1));
-}
-
-
 #define	IS_ALIGNED(x, y)	(((x) & ((y) - 1)) == 0)
-#define	round_down(x, y)	rounddown2((x), (y))
-#define	round_up(x, y)		roundup2((x), (y))
 #define	get_unaligned(ptr)                                              \
 	({ __typeof__(*(ptr)) __tmp;                                    \
 	  memcpy(&__tmp, (ptr), sizeof(*(ptr))); __tmp; })
@@ -247,20 +216,6 @@ get_unaligned_le32(const void *p)
 	return (__get_unaligned_le32((const u8 *)p));
 }
 #endif
-
-static inline unsigned long
-ilog2(unsigned long x)
-{
-
-	return (flsl(x) - 1);
-}
-
-static inline int64_t
-abs64(int64_t x)
-{
-
-	return (x < 0 ? -x : x);
-}
 
 int64_t		timeval_to_ns(const struct timeval *tv);
 struct timeval	ns_to_timeval(const int64_t nsec);
@@ -417,16 +372,11 @@ capable(enum __drm_capabilities cap)
 
 extern unsigned long drm_linux_timer_hz_mask;
 #define jiffies			ticks
-#define	jiffies_to_msecs(x)	(((int64_t)(x)) * 1000 / hz)
 #define	msecs_to_jiffies(x)	(((int64_t)(x)) * hz / 1000)
 #define	timespec_to_jiffies(x)	(((x)->tv_sec * 1000000 + (x)->tv_nsec) * hz / 1000000)
-#define	time_after(a,b)		((long)(b) - (long)(a) < 0)
-#define	time_after_eq(a,b)	((long)(b) - (long)(a) <= 0)
 #define	round_jiffies(j)	((unsigned long)(((j) + drm_linux_timer_hz_mask) & ~drm_linux_timer_hz_mask))
 #define	round_jiffies_up(j)		round_jiffies(j) /* TODO */
 #define	round_jiffies_up_relative(j)	round_jiffies_up(j) /* TODO */
-
-#define	getrawmonotonic(ts)	getnanouptime(ts)
 
 #define	wake_up(queue)				wakeup_one((void *)queue)
 #define	wake_up_interruptible(queue)		wakeup_one((void *)queue)
@@ -573,11 +523,7 @@ extern const char *fb_mode_option;
 #define	MODULE_DEVICE_TABLE(name, list)
 #define	module_param_named(name, var, type, perm)
 
-#define	printk		printf
-#define	pr_err		DRM_ERROR
-#define	pr_warn		DRM_WARNING
-#define	pr_warn_once	DRM_WARNING
-#define	KERN_DEBUG	""
+#define KBUILD_MODNAME
 
 /* I2C compatibility. */
 #define	I2C_M_RD	IIC_M_RD
@@ -594,10 +540,6 @@ void			framebuffer_release(struct fb_info *info);
 #define	PM_EVENT_SUSPEND	0x0002
 #define	PM_EVENT_QUIESCE	0x0008
 #define	PM_EVENT_PRETHAW	PM_EVENT_QUIESCE
-
-typedef struct pm_message {
-	int event;
-} pm_message_t;
 
 static inline int
 pci_read_config_byte(device_t kdev, int where, u8 *val)

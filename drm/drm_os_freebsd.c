@@ -29,38 +29,6 @@ MALLOC_DEFINE(DRM_MEM_KMS, "drm_kms", "DRM KMS Data Structures");
 
 const char *fb_mode_option = NULL;
 
-#define NSEC_PER_USEC	1000L
-#define NSEC_PER_SEC	1000000000L
-
-int64_t
-timeval_to_ns(const struct timeval *tv)
-{
-	return ((int64_t)tv->tv_sec * NSEC_PER_SEC) +
-		tv->tv_usec * NSEC_PER_USEC;
-}
-
-struct timeval
-ns_to_timeval(const int64_t nsec)
-{
-        struct timeval tv;
-	long rem;
-
-	if (nsec == 0) {
-		tv.tv_sec = 0;
-		tv.tv_usec = 0;
-		return (tv);
-	}
-
-        tv.tv_sec = nsec / NSEC_PER_SEC;
-	rem = nsec % NSEC_PER_SEC;
-        if (rem < 0) {
-                tv.tv_sec--;
-                rem += NSEC_PER_SEC;
-        }
-	tv.tv_usec = rem / 1000;
-        return (tv);
-}
-
 /* Copied from OFED. */
 unsigned long drm_linux_timer_hz_mask;
 

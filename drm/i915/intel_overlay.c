@@ -694,9 +694,7 @@ static int intel_overlay_do_put_image(struct intel_overlay *overlay,
 	int ret, tmp_width;
 	struct overlay_registers __iomem *regs;
 	bool scale_changed = false;
-#ifdef INVARIANTS
 	struct drm_device *dev = overlay->dev;
-#endif
 	u32 swidth, swidthsw, sheight, ostride;
 
 #ifdef FREEBSD_NOTYET
@@ -805,9 +803,7 @@ out_unpin:
 int intel_overlay_switch_off(struct intel_overlay *overlay)
 {
 	struct overlay_registers __iomem *regs;
-#ifdef INVARIANTS
 	struct drm_device *dev = overlay->dev;
-#endif
 	int ret;
 
 #ifdef FREEBSD_NOTYET

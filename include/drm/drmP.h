@@ -137,6 +137,12 @@
 #include <sys/selinfo.h>
 #include <sys/bus.h>
 
+#define _LINUX_COMPLETION_H_
+#define _LINUX_LIST_H_
+#define _LINUX_SCHED_H_
+#define _LINUX_WAIT_H_
+#include <linux/kernel.h>
+
 #include <linux/mutex.h>
 #define spin_is_locked(_l) mtx_owned(&(_l)->m)
 
