@@ -29,7 +29,6 @@
  * registers; newer ones are much simpler and we can use the new DRM plane
  * support.
  */
-
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_fourcc.h>
@@ -504,7 +503,11 @@ intel_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 	    (crtc_w == primary_w) && (crtc_h == primary_h))
 		disable_primary = true;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 
 	ret = intel_pin_and_fence_fb_obj(dev, obj, NULL);
 	if (ret)
@@ -534,15 +537,27 @@ intel_update_plane(struct drm_plane *plane, struct drm_crtc *crtc,
 		 * do the pin & ref bookkeeping.
 		 */
 		if (old_obj != obj) {
+#ifdef FREEBSD_NOTYET
+			mutex_unlock(&dev->struct_mutex);
+#else
 			DRM_UNLOCK(dev);
+#endif
 			intel_wait_for_vblank(dev, to_intel_crtc(crtc)->pipe);
+#ifdef FREEBSD_NOTYET
+			mutex_lock(&dev->struct_mutex);
+#else
 			DRM_LOCK(dev);
+#endif
 		}
 		intel_unpin_fb_obj(old_obj);
 	}
 
 out_unlock:
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 out:
 	return ret;
 }
@@ -561,10 +576,18 @@ intel_disable_plane(struct drm_plane *plane)
 	if (!intel_plane->obj)
 		goto out;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	intel_unpin_fb_obj(intel_plane->obj);
 	intel_plane->obj = NULL;
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 out:
 
 	return ret;
@@ -575,7 +598,11 @@ static void intel_destroy_plane(struct drm_plane *plane)
 	struct intel_plane *intel_plane = to_intel_plane(plane);
 	intel_disable_plane(plane);
 	drm_plane_cleanup(plane);
+#ifdef FREEBSD_NOTYET
+	kfree(intel_plane);
+#else
 	free(intel_plane, DRM_MEM_KMS);
+#endif
 }
 
 int intel_sprite_set_colorkey(struct drm_device *dev, void *data,
@@ -594,7 +621,11 @@ int intel_sprite_set_colorkey(struct drm_device *dev, void *data,
 	if ((set->flags & (I915_SET_COLORKEY_DESTINATION | I915_SET_COLORKEY_SOURCE)) == (I915_SET_COLORKEY_DESTINATION | I915_SET_COLORKEY_SOURCE))
 		return -EINVAL;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->mode_config.mutex);
+#else
 	sx_xlock(&dev->mode_config.mutex);
+#endif
 
 	obj = drm_mode_object_find(dev, set->plane_id, DRM_MODE_OBJECT_PLANE);
 	if (!obj) {
@@ -607,7 +638,11 @@ int intel_sprite_set_colorkey(struct drm_device *dev, void *data,
 	ret = intel_plane->update_colorkey(plane, set);
 
 out_unlock:
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->mode_config.mutex);
+#else
 	sx_xunlock(&dev->mode_config.mutex);
+#endif
 	return ret;
 }
 
@@ -623,7 +658,11 @@ int intel_sprite_get_colorkey(struct drm_device *dev, void *data,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -ENODEV;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->mode_config.mutex);
+#else
 	sx_xlock(&dev->mode_config.mutex);
+#endif
 
 	obj = drm_mode_object_find(dev, get->plane_id, DRM_MODE_OBJECT_PLANE);
 	if (!obj) {
@@ -636,7 +675,11 @@ int intel_sprite_get_colorkey(struct drm_device *dev, void *data,
 	intel_plane->get_colorkey(plane, get);
 
 out_unlock:
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->mode_config.mutex);
+#else
 	sx_xunlock(&dev->mode_config.mutex);
+#endif
 	return ret;
 }
 
@@ -675,7 +718,11 @@ intel_plane_init(struct drm_device *dev, enum pipe pipe)
 	if (INTEL_INFO(dev)->gen < 5)
 		return -ENODEV;
 
+#ifdef FREEBSD_NOTYET
+	intel_plane = kzalloc(sizeof(struct intel_plane), GFP_KERNEL);
+#else
 	intel_plane = malloc(sizeof(struct intel_plane), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_plane)
 		return -ENOMEM;
 
@@ -714,7 +761,11 @@ intel_plane_init(struct drm_device *dev, enum pipe pipe)
 		break;
 
 	default:
+#ifdef FREEBSD_NOTYET
+		kfree(intel_plane);
+#else
 		free(intel_plane, DRM_MEM_KMS);
+#endif
 		return -ENODEV;
 	}
 
@@ -725,7 +776,11 @@ intel_plane_init(struct drm_device *dev, enum pipe pipe)
 			     plane_formats, num_plane_formats,
 			     false);
 	if (ret)
+#ifdef FREEBSD_NOTYET
+		kfree(intel_plane);
+#else
 		free(intel_plane, DRM_MEM_KMS);
+#endif
 
 	return ret;
 }
