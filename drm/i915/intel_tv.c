@@ -1171,17 +1171,28 @@ intel_tv_detect_type(struct intel_tv *intel_tv,
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct drm_device *dev = encoder->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
+#ifdef FREEBSD_NOTYET
+	unsigned long irqflags;
+#endif
 	u32 tv_ctl, save_tv_ctl;
 	u32 tv_dac, save_tv_dac;
 	int type;
 
 	/* Disable TV interrupts around load detect or we'll recurse */
 	if (connector->polled & DRM_CONNECTOR_POLL_HPD) {
+#ifdef FREEBSD_NOTYET
+		spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
+#else
 		mtx_lock(&dev_priv->irq_lock);
+#endif
 		i915_disable_pipestat(dev_priv, 0,
 				      PIPE_HOTPLUG_INTERRUPT_ENABLE |
 				      PIPE_HOTPLUG_TV_INTERRUPT_ENABLE);
+#ifdef FREEBSD_NOTYET
+		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
+#else
 		mtx_unlock(&dev_priv->irq_lock);
+#endif
 	}
 
 	save_tv_dac = tv_dac = I915_READ(TV_DAC);
@@ -1254,11 +1265,19 @@ intel_tv_detect_type(struct intel_tv *intel_tv,
 
 	/* Restore interrupt config */
 	if (connector->polled & DRM_CONNECTOR_POLL_HPD) {
+#ifdef FREEBSD_NOTYET
+		spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
+#else
 		mtx_lock(&dev_priv->irq_lock);
+#endif
 		i915_enable_pipestat(dev_priv, 0,
 				     PIPE_HOTPLUG_INTERRUPT_ENABLE |
 				     PIPE_HOTPLUG_TV_INTERRUPT_ENABLE);
+#ifdef FREEBSD_NOTYET
+		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
+#else
 		mtx_unlock(&dev_priv->irq_lock);
+#endif
 	}
 
 	return type;
@@ -1426,8 +1445,15 @@ intel_tv_get_modes(struct drm_connector *connector)
 static void
 intel_tv_destroy(struct drm_connector *connector)
 {
+#ifdef __linux__
+	drm_sysfs_connector_remove(connector);
+#endif
 	drm_connector_cleanup(connector);
+#ifdef FREEBSD_NOTYET
+	kfree(connector);
+#ele
 	free(connector, DRM_MEM_KMS);
+#endif
 }
 
 
@@ -1589,14 +1615,26 @@ intel_tv_init(struct drm_device *dev)
 	    (tv_dac_off & TVDAC_STATE_CHG_EN) != 0)
 		return;
 
+#ifdef FREEBSD_NOTYET
+	intel_tv = kzalloc(sizeof(struct intel_tv), GFP_KERNEL);
+#else
 	intel_tv = malloc(sizeof(struct intel_tv), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_tv) {
 		return;
 	}
 
+#ifdef FREEBSD_NOTYET
+	intel_connector = kzalloc(sizeof(struct intel_connector), GFP_KERNEL);
+#else
 	intel_connector = malloc(sizeof(struct intel_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_connector) {
+#ifdef FREEBSD_NOTYET
+		kfree(intel_tv);
+#else
 		free(intel_tv, DRM_MEM_KMS);
+#endif
 		return;
 	}
 
@@ -1667,4 +1705,7 @@ intel_tv_init(struct drm_device *dev)
 	drm_object_attach_property(&connector->base,
 				   dev->mode_config.tv_bottom_margin_property,
 				   intel_tv->margin[TV_MARGIN_BOTTOM]);
+#ifdef __linux__
+	drm_sysfs_connector_add(connector);
+#endif
 }
