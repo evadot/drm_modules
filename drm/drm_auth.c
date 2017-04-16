@@ -34,7 +34,6 @@
  */
 
 #include <drm/drmP.h>
-#include <linux/slab.h>
 
 #ifdef __FreeBSD__
 static struct mtx drm_magic_lock;

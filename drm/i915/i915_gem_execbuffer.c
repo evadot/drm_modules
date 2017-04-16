@@ -211,12 +211,9 @@ i915_gem_execbuffer_relocate_entry(struct drm_i915_gem_object *obj,
 
 	reloc->delta += target_offset;
 	if (use_cpu_reloc(obj)) {
-#ifdef __linux__
 		uint32_t page_offset = reloc->offset & ~PAGE_MASK;
 		char *vaddr;
-#elif __FreeBSD__
-		uint32_t page_offset = reloc->offset & PAGE_MASK;
-		char *vaddr;
+#ifdef __FreeBSD__
 		struct sf_buf *sf;
 #endif
 
@@ -262,9 +259,9 @@ i915_gem_execbuffer_relocate_entry(struct drm_i915_gem_object *obj,
 		io_mapping_unmap_atomic(reloc_page);
 #elif __FreeBSD__
 		reloc_page = pmap_mapdev_attr(dev_priv->mm.gtt_base_addr + (reloc->offset &
-		    ~PAGE_MASK), PAGE_SIZE, PAT_WRITE_COMBINING);
+		    PAGE_MASK), PAGE_SIZE, PAT_WRITE_COMBINING);
 		reloc_entry = (uint32_t __iomem *)
-			(reloc_page + (reloc->offset & PAGE_MASK));
+			(reloc_page + (reloc->offset & ~PAGE_MASK));
 		*(volatile uint32_t *)reloc_entry = reloc->delta;
 		pmap_unmapdev((vm_offset_t)reloc_page, PAGE_SIZE);
 #endif

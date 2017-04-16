@@ -683,7 +683,7 @@ i915_gem_gtt_pwrite_fast(struct drm_device *dev,
 		 * page_offset = offset within page
 		 * page_length = bytes to copy for this page
 		 */
-		page_base = offset & ~PAGE_MASK;
+		page_base = offset & PAGE_MASK;
 		page_offset = offset_in_page(offset);
 		page_length = remain;
 		if ((page_offset + remain) > PAGE_SIZE)

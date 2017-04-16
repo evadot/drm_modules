@@ -256,16 +256,7 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 	if (map->type == _DRM_SHM)
 		map->size = PAGE_ALIGN(map->size);
 
-	/*
-	 * FreeBSD port note: FreeBSD's PAGE_MASK is the inverse of
-	 * Linux's one. That's why the test below doesn't inverse the
-	 * constant.
-	 */
-#ifdef __linux__
 	if ((map->offset & (~(resource_size_t)PAGE_MASK)) || (map->size & (~PAGE_MASK))) {
-#elif __FreeBSD__
-	if ((map->offset & ((resource_size_t)PAGE_MASK)) || (map->size & (PAGE_MASK))) {
-#endif
 #ifdef FREEBSD_NOTYET
 		kfree(map);
 #else

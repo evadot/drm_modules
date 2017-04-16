@@ -222,7 +222,7 @@ struct timeval	ns_to_timeval(const int64_t nsec);
 
 #define	PAGE_ALIGN(addr) round_page(addr)
 #define	page_to_phys(x) VM_PAGE_TO_PHYS(x)
-#define	offset_in_page(x) ((x) & PAGE_MASK)
+#define	offset_in_page(x) ((x) & ~PAGE_MASK)
 
 #define	drm_get_device_from_kdev(_kdev)	(((struct drm_minor *)(_kdev)->si_drv1)->dev)
 
@@ -310,8 +310,8 @@ fault_in_multipages_readable(const char __user *uaddr, int size)
 	}
 
 	/* Check whether the range spilled into the next page. */
-	if (((unsigned long)uaddr & ~PAGE_MASK) ==
-			((unsigned long)end & ~PAGE_MASK)) {
+	if (((unsigned long)uaddr & PAGE_MASK) ==
+			((unsigned long)end & PAGE_MASK)) {
 		ret = -copyin(end, &c, 1);
 	}
 
@@ -339,8 +339,8 @@ fault_in_multipages_writeable(char __user *uaddr, int size)
 	}
 
 	/* Check whether the range spilled into the next page. */
-	if (((unsigned long)uaddr & ~PAGE_MASK) ==
-			((unsigned long)end & ~PAGE_MASK))
+	if (((unsigned long)uaddr & PAGE_MASK) ==
+			((unsigned long)end & PAGE_MASK))
 		ret = subyte(end, 0);
 
 	return ret;

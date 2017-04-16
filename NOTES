@@ -8,3 +8,4 @@ device_attach: drmn0 attach returned 5
 
 
 !!!!! Including linux/slab.h in drmP.h break everything !!!!!
+Resolved, PAGE_MASK was to blame
