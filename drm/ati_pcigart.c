@@ -31,6 +31,9 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#ifdef __linux__
+#include <linux/export.h>
+#endif
 #include <drm/drmP.h>
 
 # define ATI_PCIGART_PAGE_SIZE		4096	/**< PCI GART page size */
@@ -38,8 +41,13 @@
 static int drm_ati_alloc_pcigart_table(struct drm_device *dev,
 				       struct drm_ati_pcigart_info *gart_info)
 {
+#ifdef __linux__
+	gart_info->table_handle = drm_pci_alloc(dev, gart_info->table_size,
+						PAGE_SIZE);
+#elif __FreeBSD__
 	gart_info->table_handle = drm_pci_alloc(dev, gart_info->table_size,
 						PAGE_SIZE, BUS_SPACE_MAXADDR);
+#endif
 	if (gart_info->table_handle == NULL)
 		return -ENOMEM;
 
