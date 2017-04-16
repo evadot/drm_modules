@@ -25,11 +25,20 @@
  *
  */
 
+#ifdef __linux__
+#include <linux/cpufreq.h>
+#elif __FreeBSD__
 #include <drm/drmP.h>
+#endif
 #include "i915_drv.h"
 #include "intel_drv.h"
+#ifdef __linux__
+#include "../../../platform/x86/intel_ips.h"
+#include <linux/module.h>
+#elif __FreeBSD__
 #include <sys/kdb.h>
 #include <machine/clock.h>
+#endif
 
 #define FORCEWAKE_ACK_TIMEOUT_MS 2
 
@@ -263,13 +272,25 @@ bool intel_fbc_enabled(struct drm_device *dev)
 	return dev_priv->display.fbc_enabled(dev);
 }
 
+#ifdef FREEBSD_NOTYET
+static void intel_fbc_work_fn(struct work_struct *__work)
+{
+	struct intel_fbc_work *work =
+		container_of(to_delayed_work(__work),
+			     struct intel_fbc_work, work);
+#else
 static void intel_fbc_work_fn(void *arg, int pending)
 {
 	struct intel_fbc_work *work = arg;
+#endif
 	struct drm_device *dev = work->crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	if (work == dev_priv->fbc_work) {
 		/* Double check that we haven't switched fb without cancelling
 		 * the prior work.
@@ -285,9 +306,15 @@ static void intel_fbc_work_fn(void *arg, int pending)
 
 		dev_priv->fbc_work = NULL;
 	}
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+
+	kfree(work);
+#else
 	DRM_UNLOCK(dev);
 
 	free(work, DRM_MEM_KMS);
+#endif
 }
 
 static void intel_cancel_fbc_work(struct drm_i915_private *dev_priv)
@@ -301,10 +328,16 @@ static void intel_cancel_fbc_work(struct drm_i915_private *dev_priv)
 	 * dev_priv->fbc_work, so we can perform the cancellation
 	 * entirely asynchronously.
 	 */
+#ifdef FREEBSD_NOTYET
+	if (cancel_delayed_work(&dev_priv->fbc_work->work))
+		/* tasklet was killed before being run, clean up */
+		kfree(dev_priv->fbc_work);
+#else
 	if (taskqueue_cancel_timeout(dev_priv->wq, &dev_priv->fbc_work->work,
 	    NULL) == 0)
 		/* tasklet was killed before being run, clean up */
 		free(dev_priv->fbc_work, DRM_MEM_KMS);
+#endif
 
 	/* Mark the work as no longer wanted so that if it does
 	 * wake-up (because the work was already running and waiting
@@ -325,7 +358,11 @@ void intel_enable_fbc(struct drm_crtc *crtc, unsigned long interval)
 
 	intel_cancel_fbc_work(dev_priv);
 
+#ifdef FREEBSD_NOTYET
+	work = kzalloc(sizeof *work, GFP_KERNEL);
+#else
 	work = malloc(sizeof *work, DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (work == NULL) {
 		dev_priv->display.enable_fbc(crtc, interval);
 		return;
@@ -334,8 +371,12 @@ void intel_enable_fbc(struct drm_crtc *crtc, unsigned long interval)
 	work->crtc = crtc;
 	work->fb = crtc->fb;
 	work->interval = interval;
+#ifdef FREEBSD_NOTYET
+	INIT_DELAYED_WORK(&work->work, intel_fbc_work_fn);
+#else
 	TIMEOUT_TASK_INIT(dev_priv->wq, &work->work, 0, intel_fbc_work_fn,
 	    work);
+#endif
 
 	dev_priv->fbc_work = work;
 
@@ -352,8 +393,12 @@ void intel_enable_fbc(struct drm_crtc *crtc, unsigned long interval)
 	 * and indeed performing the enable as a co-routine and not
 	 * waiting synchronously upon the vblank.
 	 */
+#ifdef FREEBSD_NOTYET
+	schedule_delayed_work(&work->work, msecs_to_jiffies(50));
+#else
 	taskqueue_enqueue_timeout(dev_priv->wq, &work->work,
 	    msecs_to_jiffies(50));
+#endif
 }
 
 void intel_disable_fbc(struct drm_device *dev)
@@ -484,7 +529,11 @@ void intel_update_fbc(struct drm_device *dev)
 	}
 
 	/* If the kernel debugger is active, always disable compression */
+#ifdef __linux__
+	if (in_dbg_master())
+#elif __FreeBSD__
 	if (kdb_active)
+#endif
 		goto out_disable;
 
 	/* If the scanout has not changed, don't modify the FBC settings.
@@ -1286,7 +1335,11 @@ static void vlv_update_drain_latency(struct drm_device *dev)
 	}
 }
 
+#ifdef __linux__
+#define single_plane_enabled(mask) is_power_of_2(mask)
+#elif __FreeBSD__
 #define single_plane_enabled(mask) ((mask) != 0 && powerof2(mask))
+#endif
 
 static void valleyview_update_wm(struct drm_device *dev)
 {
@@ -2261,7 +2314,11 @@ intel_alloc_context_page(struct drm_device *dev)
 	struct drm_i915_gem_object *ctx;
 	int ret;
 
+#ifdef FREEBSD_NOTYET
+	WARN_ON(!mutex_is_locked(&dev->struct_mutex));
+#else
 	DRM_LOCK_ASSERT(dev);
+#endif
 
 	ctx = i915_gem_alloc_object(dev, 4096);
 	if (!ctx) {
@@ -2287,15 +2344,23 @@ err_unpin:
 	i915_gem_object_unpin(ctx);
 err_unref:
 	drm_gem_object_unreference(&ctx->base);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 	return NULL;
 }
 
 /**
  * Lock protecting IPS related data structures
  */
+#ifdef FREEBSD_NOTYET
+DEFINE_SPINLOCK(mchdev_lock);
+#else
 struct mtx mchdev_lock;
 MTX_SYSINIT(mchdev, &mchdev_lock, "mchdev", MTX_DEF);
+#endif
 
 /* Global for IPS driver to get at the current i915 device. Protected by
  * mchdev_lock. */
@@ -2306,7 +2371,11 @@ bool ironlake_set_drps(struct drm_device *dev, u8 val)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u16 rgvswctl;
 
+#ifdef FREEBSD_NOTYET
+	assert_spin_locked(&mchdev_lock);
+#else
 	mtx_assert(&mchdev_lock, MA_OWNED);
+#endif
 
 	rgvswctl = I915_READ16(MEMSWCTL);
 	if (rgvswctl & MEMCTL_CMD_STS) {
@@ -2331,7 +2400,11 @@ static void ironlake_enable_drps(struct drm_device *dev)
 	u32 rgvmodectl = I915_READ(MEMMODECTL);
 	u8 fmax, fmin, fstart, vstart;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&mchdev_lock);
+#else
 	mtx_lock(&mchdev_lock);
+#endif
 
 	/* Enable temp reporting */
 	I915_WRITE16(PMMISC, I915_READ(PMMISC) | MCPPCE_EN);
@@ -2390,7 +2463,11 @@ static void ironlake_enable_drps(struct drm_device *dev)
 	dev_priv->ips.last_count2 = I915_READ(0x112f4);
 	getrawmonotonic(&dev_priv->ips.last_time2);
 
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&mchdev_lock);
+#else
 	mtx_unlock(&mchdev_lock);
+#endif
 }
 
 static void ironlake_disable_drps(struct drm_device *dev)
@@ -2398,7 +2475,11 @@ static void ironlake_disable_drps(struct drm_device *dev)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u16 rgvswctl;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&mchdev_lock);
+#else
 	mtx_lock(&mchdev_lock);
+#endif
 
 	rgvswctl = I915_READ16(MEMSWCTL);
 
@@ -2416,7 +2497,11 @@ static void ironlake_disable_drps(struct drm_device *dev)
 	I915_WRITE(MEMSWCTL, rgvswctl);
 	mdelay(1);
 
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&mchdev_lock);
+#else
 	mtx_unlock(&mchdev_lock);
+#endif
 }
 
 /* There's a funny hw issue where the hw returns all 0 when reading from
@@ -2453,7 +2538,11 @@ void gen6_set_rps(struct drm_device *dev, u8 val)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 limits = gen6_rps_limits(dev_priv, &val);
 
+#ifdef FREEBSD_NOTYET
+	WARN_ON(!mutex_is_locked(&dev_priv->rps.hw_lock));
+#else
 	sx_assert(&dev_priv->rps.hw_lock, SA_XLOCKED);
+#endif
 	WARN_ON(val > dev_priv->rps.max_delay);
 	WARN_ON(val < dev_priv->rps.min_delay);
 
@@ -2473,6 +2562,10 @@ void gen6_set_rps(struct drm_device *dev, u8 val)
 	POSTING_READ(GEN6_RPNSWREQ);
 
 	dev_priv->rps.cur_delay = val;
+
+#ifdef __linux__
+	trace_intel_gpu_freq_change(val * 50);
+#endif
 }
 
 static void gen6_disable_rps(struct drm_device *dev)
@@ -2488,9 +2581,17 @@ static void gen6_disable_rps(struct drm_device *dev)
 	 * register (PMIMR) to mask PM interrupts. The only risk is in leaving
 	 * stale bits in PMIIR and PMIMR which gen6_enable_rps will clean up. */
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&dev_priv->rps.lock);
+#else
 	mtx_lock(&dev_priv->rps.lock);
+#endif
 	dev_priv->rps.pm_iir = 0;
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&dev_priv->rps.lock);
+#else
 	mtx_unlock(&dev_priv->rps.lock);
+#endif
 
 	I915_WRITE(GEN6_PMIIR, I915_READ(GEN6_PMIIR));
 }
@@ -2531,7 +2632,11 @@ static void gen6_enable_rps(struct drm_device *dev)
 	int rc6_mode;
 	int i, ret;
 
+#ifdef FREEBSD_NOTYET
+	WARN_ON(!mutex_is_locked(&dev_priv->rps.hw_lock));
+#else
 	sx_assert(&dev_priv->rps.hw_lock, SA_XLOCKED);
+#endif
 
 	/* Here begins a magic sequence of register writes to enable
 	 * auto-downclocking.
@@ -2641,10 +2746,18 @@ static void gen6_enable_rps(struct drm_device *dev)
 
 	/* requires MSI enabled */
 	I915_WRITE(GEN6_PMIER, GEN6_PM_DEFERRED_EVENTS);
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&dev_priv->rps.lock);
+#else
 	mtx_lock(&dev_priv->rps.lock);
+#endif
 	WARN_ON(dev_priv->rps.pm_iir != 0);
 	I915_WRITE(GEN6_PMIMR, 0);
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&dev_priv->rps.lock);
+#else
 	mtx_unlock(&dev_priv->rps.lock);
+#endif
 	/* enable all PM interrupts */
 	I915_WRITE(GEN6_PMINTRMSK, 0);
 
@@ -2673,7 +2786,11 @@ static void gen6_update_ring_freq(struct drm_device *dev)
 	unsigned int ia_freq, max_ia_freq;
 	int scaling_factor = 180;
 
+#ifdef FREEBSD_NOTYET
+	WARN_ON(!mutex_is_locked(&dev_priv->rps.hw_lock));
+#else
 	sx_assert(&dev_priv->rps.hw_lock, SA_XLOCKED);
+#endif
 
 #ifdef FREEBSD_WIP
 	max_ia_freq = cpufreq_quick_get_max(0);
@@ -2785,7 +2902,11 @@ static void ironlake_enable_rc6(struct drm_device *dev)
 	if (!intel_enable_rc6(dev))
 		return;
 
+#ifdef FREEBSD_NOTYET
+	WARN_ON(!mutex_is_locked(&dev->struct_mutex));
+#else
 	DRM_LOCK_ASSERT(dev);
+#endif
 
 	ret = ironlake_setup_rc6(dev);
 	if (ret)
@@ -2870,7 +2991,11 @@ static unsigned long __i915_chipset_val(struct drm_i915_private *dev_priv)
 	unsigned long now = jiffies_to_msecs(jiffies), diff1;
 	int i;
 
+#ifdef FREEBSD_NOTYET
+	assert_spin_locked(&mchdev_lock);
+#else
 	mtx_assert(&mchdev_lock, MA_OWNED);
+#endif
 
 	diff1 = now - dev_priv->ips.last_time1;
 
@@ -2924,11 +3049,19 @@ unsigned long i915_chipset_val(struct drm_i915_private *dev_priv)
 	if (dev_priv->info->gen != 5)
 		return 0;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&mchdev_lock);
+#else
 	mtx_lock(&mchdev_lock);
+#endif
 
 	val = __i915_chipset_val(dev_priv);
 
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&mchdev_lock);
+#else
 	mtx_unlock(&mchdev_lock);
+#endif
 
 	return val;
 }
@@ -3096,11 +3229,20 @@ static void __i915_update_gfx_val(struct drm_i915_private *dev_priv)
 	unsigned long diffms;
 	u32 count;
 
+#ifdef FREEBSD_NOTYET
+	assert_spin_locked(&mchdev_lock);
+#else
 	mtx_assert(&mchdev_lock, MA_OWNED);
+#endif
 
+#ifdef __linux__
+	getrawmonotonic(&now);
+	diff1 = timespec_sub(now, dev_priv->ips.last_time2);
+#elif __FreeBSD__
 	nanotime(&now);
 	diff1 = now;
 	timespecsub(&diff1, &dev_priv->ips.last_time2);
+#endif
 
 	/* Don't divide by 0 */
 	diffms = diff1.tv_sec * 1000 + diff1.tv_nsec / 1000000;
@@ -3130,11 +3272,19 @@ void i915_update_gfx_val(struct drm_i915_private *dev_priv)
 	if (dev_priv->info->gen != 5)
 		return;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&mchdev_lock);
+#else
 	mtx_lock(&mchdev_lock);
+#endif
 
 	__i915_update_gfx_val(dev_priv);
 
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&mchdev_lock);
+#else
 	mtx_unlock(&mchdev_lock);
+#endif
 }
 
 static unsigned long __i915_gfx_val(struct drm_i915_private *dev_priv)
@@ -3142,7 +3292,11 @@ static unsigned long __i915_gfx_val(struct drm_i915_private *dev_priv)
 	unsigned long t, corr, state1, corr2, state2;
 	u32 pxvid, ext_v;
 
+#ifdef FREEBSD_NOTYET
+	assert_spin_locked(&mchdev_lock);
+#else
 	mtx_assert(&mchdev_lock, MA_OWNED);
+#endif
 
 	pxvid = I915_READ(PXVFREQ_BASE + (dev_priv->rps.cur_delay * 4));
 	pxvid = (pxvid >> 24) & 0x7f;
@@ -3181,11 +3335,19 @@ unsigned long i915_gfx_val(struct drm_i915_private *dev_priv)
 	if (dev_priv->info->gen != 5)
 		return 0;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&mchdev_lock);
+#else
 	mtx_lock(&mchdev_lock);
+#endif
 
 	val = __i915_gfx_val(dev_priv);
 
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&mchdev_lock);
+#else
 	mtx_unlock(&mchdev_lock);
+#endif
 
 	return val;
 }
@@ -3201,7 +3363,11 @@ unsigned long i915_read_mch_val(void)
 	struct drm_i915_private *dev_priv;
 	unsigned long chipset_val, graphics_val, ret = 0;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&mchdev_lock);
+#else
 	mtx_lock(&mchdev_lock);
+#endif
 	if (!i915_mch_dev)
 		goto out_unlock;
 	dev_priv = i915_mch_dev;
@@ -3212,7 +3378,11 @@ unsigned long i915_read_mch_val(void)
 	ret = chipset_val + graphics_val;
 
 out_unlock:
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&mchdev_lock);
+#else
 	mtx_unlock(&mchdev_lock);
+#endif
 
 	return ret;
 }
@@ -3228,7 +3398,11 @@ bool i915_gpu_raise(void)
 	struct drm_i915_private *dev_priv;
 	bool ret = true;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&mchdev_lock);
+#else
 	mtx_lock(&mchdev_lock);
+#endif
 	if (!i915_mch_dev) {
 		ret = false;
 		goto out_unlock;
@@ -3239,7 +3413,11 @@ bool i915_gpu_raise(void)
 		dev_priv->ips.max_delay--;
 
 out_unlock:
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&mchdev_lock);
+#else
 	mtx_unlock(&mchdev_lock);
+#endif
 
 	return ret;
 }
@@ -3256,7 +3434,11 @@ bool i915_gpu_lower(void)
 	struct drm_i915_private *dev_priv;
 	bool ret = true;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&mchdev_lock);
+#else
 	mtx_lock(&mchdev_lock);
+#endif
 	if (!i915_mch_dev) {
 		ret = false;
 		goto out_unlock;
@@ -3267,7 +3449,11 @@ bool i915_gpu_lower(void)
 		dev_priv->ips.max_delay++;
 
 out_unlock:
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&mchdev_lock);
+#else
 	mtx_unlock(&mchdev_lock);
+#endif
 
 	return ret;
 }
@@ -3285,7 +3471,11 @@ bool i915_gpu_busy(void)
 	bool ret = false;
 	int i;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&mchdev_lock);
+#else
 	mtx_lock(&mchdev_lock);
+#endif
 	if (!i915_mch_dev)
 		goto out_unlock;
 	dev_priv = i915_mch_dev;
@@ -3294,7 +3484,11 @@ bool i915_gpu_busy(void)
 		ret |= !list_empty(&ring->request_list);
 
 out_unlock:
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&mchdev_lock);
+#else
 	mtx_unlock(&mchdev_lock);
+#endif
 
 	return ret;
 }
@@ -3311,7 +3505,11 @@ bool i915_gpu_turbo_disable(void)
 	struct drm_i915_private *dev_priv;
 	bool ret = true;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&mchdev_lock);
+#else
 	mtx_lock(&mchdev_lock);
+#endif
 	if (!i915_mch_dev) {
 		ret = false;
 		goto out_unlock;
@@ -3324,7 +3522,11 @@ bool i915_gpu_turbo_disable(void)
 		ret = false;
 
 out_unlock:
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&mchdev_lock);
+#else
 	mtx_unlock(&mchdev_lock);
+#endif
 
 	return ret;
 }
@@ -3356,9 +3558,17 @@ void intel_gpu_ips_init(struct drm_i915_private *dev_priv)
 {
 	/* We only register the i915 ips part with intel-ips once everything is
 	 * set up, to avoid intel-ips sneaking in and reading bogus values. */
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&mchdev_lock);
+#else
 	mtx_lock(&mchdev_lock);
+#endif
 	i915_mch_dev = dev_priv;
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&mchdev_lock);
+#else
 	mtx_unlock(&mchdev_lock);
+#endif
 
 #ifdef FREEBSD_WIP
 	ips_ping_for_i915_load();
@@ -3367,9 +3577,17 @@ void intel_gpu_ips_init(struct drm_i915_private *dev_priv)
 
 void intel_gpu_ips_teardown(void)
 {
+#ifdef FREEBSD_NOTYET
+	spin_lock_irq(&mchdev_lock);
+#else
 	mtx_lock(&mchdev_lock);
+#endif
 	i915_mch_dev = NULL;
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irq(&mchdev_lock);
+#else
 	mtx_unlock(&mchdev_lock);
+#endif
 }
 static void intel_init_emon(struct drm_device *dev)
 {
@@ -3450,22 +3668,45 @@ void intel_disable_gt_powersave(struct drm_device *dev)
 		ironlake_disable_drps(dev);
 		ironlake_disable_rc6(dev);
 	} else if (INTEL_INFO(dev)->gen >= 6 && !IS_VALLEYVIEW(dev)) {
+#ifdef FREEBSD_NOTYET
+		cancel_delayed_work_sync(&dev_priv->rps.delayed_resume_work);
+		mutex_lock(&dev_priv->rps.hw_lock);
+		gen6_disable_rps(dev);
+		mutex_unlock(&dev_priv->rps.hw_lock);
+#else
 		taskqueue_cancel_timeout(dev_priv->wq, &dev_priv->rps.delayed_resume_work, NULL);
 		sx_xlock(&dev_priv->rps.hw_lock);
 		gen6_disable_rps(dev);
 		sx_xunlock(&dev_priv->rps.hw_lock);
+#endif
 	}
 }
 
+#ifdef FREEBSD_NOTYET
+static void intel_gen6_powersave_work(struct work_struct *work)
+{
+	struct drm_i915_private *dev_priv =
+		container_of(work, struct drm_i915_private,
+			     rps.delayed_resume_work.work);
+#else
 static void intel_gen6_powersave_work(void *arg, int pending)
 {
 	struct drm_i915_private *dev_priv = arg;
+#endif
 	struct drm_device *dev = dev_priv->dev;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev_priv->rps.hw_lock);
+#else
 	sx_xlock(&dev_priv->rps.hw_lock);
+#endif
 	gen6_enable_rps(dev);
 	gen6_update_ring_freq(dev);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev_priv->rps.hw_lock);
+#else
 	sx_xunlock(&dev_priv->rps.hw_lock);
+#endif
 }
 
 void intel_enable_gt_powersave(struct drm_device *dev)
@@ -3482,8 +3723,13 @@ void intel_enable_gt_powersave(struct drm_device *dev)
 		 * done at any specific time, so do this out of our fast path
 		 * to make resume and init faster.
 		 */
+#ifdef FREEBSD_NOTYET
+		schedule_delayed_work(&dev_priv->rps.delayed_resume_work,
+				      round_jiffies_up_relative(HZ));
+#else
 		taskqueue_enqueue_timeout(dev_priv->wq, &dev_priv->rps.delayed_resume_work,
 		    round_jiffies_up_relative(HZ));
+#endif
 	}
 }
 
@@ -4107,7 +4353,11 @@ void intel_init_power_wells(struct drm_device *dev)
 	if (!IS_HASWELL(dev))
 		return;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 
 	for (i = 0; i < ARRAY_SIZE(power_wells); i++) {
 		int well = I915_READ(power_wells[i]);
@@ -4119,7 +4369,11 @@ void intel_init_power_wells(struct drm_device *dev)
 		}
 	}
 
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 }
 
 /* Set up chip specific power management-related functions */
@@ -4330,11 +4584,22 @@ static void __gen6_gt_force_wake_mt_get(struct drm_i915_private *dev_priv)
  */
 void gen6_gt_force_wake_get(struct drm_i915_private *dev_priv)
 {
+#ifdef FREEBSD_NOTYET
+	unsigned long irqflags;
+#endif
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->gt_lock, irqflags);
+#else
 	mtx_lock(&dev_priv->gt_lock);
+#endif
 	if (dev_priv->forcewake_count++ == 0)
 		dev_priv->gt.force_wake_get(dev_priv);
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->gt_lock, irqflags);
+#else
 	mtx_unlock(&dev_priv->gt_lock);
+#endif
 }
 
 void gen6_gt_check_fifodbg(struct drm_i915_private *dev_priv)
@@ -4367,11 +4632,22 @@ static void __gen6_gt_force_wake_mt_put(struct drm_i915_private *dev_priv)
  */
 void gen6_gt_force_wake_put(struct drm_i915_private *dev_priv)
 {
+#ifdef FREEBSD_NOTYET
+	unsigned long irqflags;
+#endif
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->gt_lock, irqflags);
+#else
 	mtx_lock(&dev_priv->gt_lock);
+#endif
 	if (--dev_priv->forcewake_count == 0)
 		dev_priv->gt.force_wake_put(dev_priv);
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->gt_lock, irqflags);
+#else
 	mtx_unlock(&dev_priv->gt_lock);
+#endif
 }
 
 int __gen6_gt_wait_for_fifo(struct drm_i915_private *dev_priv)
@@ -4441,7 +4717,11 @@ void intel_gt_init(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_init(&dev_priv->gt_lock);
+#else
 	mtx_init(&dev_priv->gt_lock, "i915_gt_lock", NULL, MTX_DEF);
+#endif
 
 	intel_gt_reset(dev);
 
@@ -4455,13 +4735,22 @@ void intel_gt_init(struct drm_device *dev)
 		dev_priv->gt.force_wake_get = __gen6_gt_force_wake_get;
 		dev_priv->gt.force_wake_put = __gen6_gt_force_wake_put;
 	}
+#ifdef FREEBSD_NOTYET
+	INIT_DELAYED_WORK(&dev_priv->rps.delayed_resume_work,
+			  intel_gen6_powersave_work);
+#else
 	TIMEOUT_TASK_INIT(dev_priv->wq, &dev_priv->rps.delayed_resume_work, 0,
 	    intel_gen6_powersave_work, dev_priv);
+#endif
 }
 
 int sandybridge_pcode_read(struct drm_i915_private *dev_priv, u8 mbox, u32 *val)
 {
+#ifdef FREEBSD_NOTYET
+	WARN_ON(!mutex_is_locked(&dev_priv->rps.hw_lock));
+#else
 	sx_assert(&dev_priv->rps.hw_lock, SA_XLOCKED);
+#endif
 
 	if (I915_READ(GEN6_PCODE_MAILBOX) & GEN6_PCODE_READY) {
 		DRM_DEBUG_DRIVER("warning: pcode (read) mailbox access failed\n");
@@ -4485,7 +4774,11 @@ int sandybridge_pcode_read(struct drm_i915_private *dev_priv, u8 mbox, u32 *val)
 
 int sandybridge_pcode_write(struct drm_i915_private *dev_priv, u8 mbox, u32 val)
 {
+#ifdef FREEBSD_NOTYET
+	WARN_ON(!mutex_is_locked(&dev_priv->rps.hw_lock));
+#else
 	sx_assert(&dev_priv->rps.hw_lock, SA_XLOCKED);
+#endif
 
 	if (I915_READ(GEN6_PCODE_MAILBOX) & GEN6_PCODE_READY) {
 		DRM_DEBUG_DRIVER("warning: pcode (write) mailbox access failed\n");
