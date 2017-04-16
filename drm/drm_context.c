@@ -504,18 +504,12 @@ int drm_addctx(struct drm_device *dev, void *data,
 	ctx_entry->handle = ctx->handle;
 	ctx_entry->tag = file_priv;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->ctxlist_mutex);
-#else
 	DRM_LOCK(dev);
-#endif
 	list_add(&ctx_entry->head, &dev->ctxlist);
 	++dev->ctx_count;
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->ctxlist_mutex);
-#else
 	DRM_UNLOCK(dev);
-#endif
 
 	return 0;
 }
@@ -610,11 +604,8 @@ int drm_rmctx(struct drm_device *dev, void *data,
 		drm_ctxbitmap_free(dev, ctx->handle);
 	}
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->ctxlist_mutex);
-#else
 	DRM_LOCK(dev);
-#endif
 	if (!list_empty(&dev->ctxlist)) {
 		struct drm_ctx_list *pos, *n;
 
@@ -630,11 +621,8 @@ int drm_rmctx(struct drm_device *dev, void *data,
 			}
 		}
 	}
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->ctxlist_mutex);
-#else
 	DRM_UNLOCK(dev);
-#endif
 
 	return 0;
 }

@@ -1260,11 +1260,7 @@ struct drm_device {
 	/*@{ */
 	struct list_head ctxlist;	/**< Linked list of context handles */
 	int ctx_count;			/**< Number of context handles */
-#ifdef FREEBSD_NOTYET
 	struct mutex ctxlist_mutex;	/**< For ctxlist */
-#else
-	struct mtx ctxlist_mutex;	/**< For ctxlist */
-#endif
 
 #ifdef FREEBSD_NOTYET
 	struct idr ctx_idr;
