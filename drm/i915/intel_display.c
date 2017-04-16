@@ -24,13 +24,28 @@
  *	Eric Anholt <eric@anholt.net>
  */
 
+#ifdef __linux__
+#include <linux/dmi.h>
+#include <linux/module.h>
+#include <linux/input.h>
+#include <linux/i2c.h>
+#include <linux/kernel.h>
+#include <linux/slab.h>
+#include <linux/vgaarb.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_edid.h>
 #include "intel_drv.h"
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
+#ifdef __linux__
+#include "i915_trace.h"
+#endif
 #include <drm/drm_dp_helper.h>
 #include <drm/drm_crtc_helper.h>
+#ifdef __linux_
+#include <linux/dma_remapping.h>
+#endif
 
 bool intel_pipe_has_type(struct drm_crtc *crtc, int type);
 static void intel_increase_pllclock(struct drm_crtc *crtc);
@@ -407,9 +422,16 @@ static const intel_limit_t intel_limits_vlv_dp = {
 
 u32 intel_dpio_read(struct drm_i915_private *dev_priv, int reg)
 {
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 	u32 val = 0;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->dpio_lock, flags);
+#else
 	sx_xlock(&dev_priv->dpio_lock);
+#endif
 	if (wait_for_atomic_us((I915_READ(DPIO_PKT) & DPIO_BUSY) == 0, 100)) {
 		DRM_ERROR("DPIO idle wait timed out\n");
 		goto out_unlock;
@@ -425,15 +447,26 @@ u32 intel_dpio_read(struct drm_i915_private *dev_priv, int reg)
 	val = I915_READ(DPIO_DATA);
 
 out_unlock:
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->dpio_lock, flags);
+#else
 	sx_xunlock(&dev_priv->dpio_lock);
+#endif
 	return val;
 }
 
 static void intel_dpio_write(struct drm_i915_private *dev_priv, int reg,
 			     u32 val)
 {
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->dpio_lock, flags);
+#else
 	sx_xlock(&dev_priv->dpio_lock);
+#endif
 	if (wait_for_atomic_us((I915_READ(DPIO_PKT) & DPIO_BUSY) == 0, 100)) {
 		DRM_ERROR("DPIO idle wait timed out\n");
 		goto out_unlock;
@@ -447,7 +480,11 @@ static void intel_dpio_write(struct drm_i915_private *dev_priv, int reg,
 		DRM_ERROR("DPIO write wait timed out\n");
 
 out_unlock:
+#ifdef FREEBSD_NOTYET
+       spin_unlock_irqrestore(&dev_priv->dpio_lock, flags);
+#else
        sx_xunlock(&dev_priv->dpio_lock);
+#endif
 }
 
 static void vlv_init_dpio(struct drm_device *dev)
@@ -1498,9 +1535,16 @@ static void
 intel_sbi_write(struct drm_i915_private *dev_priv, u16 reg, u32 value,
 		enum intel_sbi_destination destination)
 {
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 	u32 tmp;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->dpio_lock, flags);
+#else
 	sx_xlock(&dev_priv->dpio_lock);
+#endif
 	if (wait_for((I915_READ(SBI_CTL_STAT) & SBI_BUSY) == 0, 100)) {
 		DRM_ERROR("timeout waiting for SBI to become ready\n");
 		goto out_unlock;
@@ -1522,16 +1566,27 @@ intel_sbi_write(struct drm_i915_private *dev_priv, u16 reg, u32 value,
 	}
 
 out_unlock:
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->dpio_lock, flags);
+#else
 	sx_xunlock(&dev_priv->dpio_lock);
+#endif
 }
 
 static u32
 intel_sbi_read(struct drm_i915_private *dev_priv, u16 reg,
 	       enum intel_sbi_destination destination)
 {
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 	u32 value = 0;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->dpio_lock, flags);
+#else
 	sx_xlock(&dev_priv->dpio_lock);
+#endif
 	if (wait_for((I915_READ(SBI_CTL_STAT) & SBI_BUSY) == 0, 100)) {
 		DRM_ERROR("timeout waiting for SBI to become ready\n");
 		goto out_unlock;
@@ -1554,7 +1609,11 @@ intel_sbi_read(struct drm_i915_private *dev_priv, u16 reg,
 	value = I915_READ(SBI_DATA);
 
 out_unlock:
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->dpio_lock, flags);
+#else
 	sx_xunlock(&dev_priv->dpio_lock);
+#endif
 	return value;
 }
 
@@ -2241,13 +2300,19 @@ intel_finish_fb(struct drm_framebuffer *old_fb)
 	bool was_interruptible = dev_priv->mm.interruptible;
 	int ret;
 
+#ifdef FREEBSD_NOTYET
+	wait_event(dev_priv->pending_flip_queue,
+		   atomic_read(&dev_priv->mm.wedged) ||
+		   atomic_read(&obj->pending_flip) == 0);
+#else
 	mtx_lock(&dev->event_lock);
 	while (!(atomic_read(&dev_priv->mm.wedged) ||
-	         atomic_read(&obj->pending_flip) == 0)) {
+		 atomic_read(&obj->pending_flip) == 0)) {
 		msleep(&dev_priv->pending_flip_queue, &dev->event_lock,
 		    0, "915flp", 0);
 	}
 	mtx_unlock(&dev->event_lock);
+#endif
 
 	/* Big Hammer, we also need to ensure that any pending
 	 * MI_WAIT_FOR_EVENT inside a user batch buffer on the
@@ -2314,12 +2379,20 @@ intel_pipe_set_base(struct drm_crtc *crtc, int x, int y,
 		return -EINVAL;
 	}
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	ret = intel_pin_and_fence_fb_obj(dev,
 					 to_intel_framebuffer(fb)->obj,
 					 NULL);
 	if (ret != 0) {
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 		DRM_ERROR("pin & fence failed\n");
 		return ret;
 	}
@@ -2330,7 +2403,11 @@ intel_pipe_set_base(struct drm_crtc *crtc, int x, int y,
 	ret = dev_priv->display.update_plane(crtc, fb, x, y);
 	if (ret) {
 		intel_unpin_fb_obj(to_intel_framebuffer(fb)->obj);
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 		DRM_ERROR("failed to update base address\n");
 		return ret;
 	}
@@ -2346,7 +2423,11 @@ intel_pipe_set_base(struct drm_crtc *crtc, int x, int y,
 	}
 
 	intel_update_fbc(dev);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	intel_crtc_update_sarea_pos(crtc, x, y);
 
@@ -2932,16 +3013,25 @@ static bool intel_crtc_has_pending_flip(struct drm_crtc *crtc)
 {
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 	bool pending;
 
 	if (atomic_read(&dev_priv->mm.wedged))
 		return false;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev->event_lock, flags);
+#endif
 	/*
 	 * NOTE Linux<->FreeBSD dev->event_lock is already locked in
 	 * intel_crtc_wait_for_pending_flips().
 	 */
 	pending = to_intel_crtc(crtc)->unpin_work != NULL;
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev->event_lock, flags);
+#endif
 
 	return pending;
 }
@@ -2954,16 +3044,29 @@ static void intel_crtc_wait_for_pending_flips(struct drm_crtc *crtc)
 	if (crtc->fb == NULL)
 		return;
 
+#ifdef FREEBSD_NOTYET
+	wait_event(dev_priv->pending_flip_queue,
+		   !intel_crtc_has_pending_flip(crtc));
+#else
 	mtx_lock(&dev->event_lock);
 	while (intel_crtc_has_pending_flip(crtc)) {
 		msleep(&dev_priv->pending_flip_queue, &dev->event_lock,
 		    0, "915flp", 0);
 	}
 	mtx_unlock(&dev->event_lock);
+#endif
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	intel_finish_fb(crtc->fb);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 }
 
 static bool ironlake_crtc_driving_pch(struct drm_crtc *crtc)
@@ -3384,9 +3487,17 @@ static void ironlake_crtc_enable(struct drm_crtc *crtc)
 	if (is_pch_port)
 		ironlake_pch_enable(crtc);
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	intel_update_fbc(dev);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	intel_crtc_update_cursor(crtc, true);
 
@@ -3464,9 +3575,17 @@ static void haswell_crtc_enable(struct drm_crtc *crtc)
 	if (is_pch_port)
 		lpt_pch_enable(crtc);
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	intel_update_fbc(dev);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	intel_crtc_update_cursor(crtc, true);
 
@@ -3559,9 +3678,17 @@ static void ironlake_crtc_disable(struct drm_crtc *crtc)
 	intel_crtc->active = false;
 	intel_update_watermarks(dev);
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	intel_update_fbc(dev);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 }
 
 static void haswell_crtc_disable(struct drm_crtc *crtc)
@@ -3614,9 +3741,17 @@ static void haswell_crtc_disable(struct drm_crtc *crtc)
 	intel_crtc->active = false;
 	intel_update_watermarks(dev);
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	intel_update_fbc(dev);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 }
 
 static void ironlake_crtc_off(struct drm_crtc *crtc)
@@ -3642,11 +3777,19 @@ static void intel_crtc_dpms_overlay(struct intel_crtc *intel_crtc, bool enable)
 		struct drm_device *dev = intel_crtc->base.dev;
 		struct drm_i915_private *dev_priv = dev->dev_private;
 
+#ifdef FREEBSD_NOTYET
+		mutex_lock(&dev->struct_mutex);
+#else
 		DRM_LOCK(dev);
+#endif
 		dev_priv->mm.interruptible = false;
 		(void) intel_overlay_switch_off(intel_crtc->overlay);
 		dev_priv->mm.interruptible = true;
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 	}
 
 	/* Let userspace switch the overlay on again. In most cases userspace
@@ -3804,9 +3947,17 @@ static void intel_crtc_disable(struct drm_crtc *crtc)
 	assert_pipe_disabled(dev->dev_private, to_intel_crtc(crtc)->pipe);
 
 	if (crtc->fb) {
+#ifdef FREEBSD_NOTYET
+		mutex_lock(&dev->struct_mutex);
+#else
 		DRM_LOCK(dev);
+#endif
 		intel_unpin_fb_obj(to_intel_framebuffer(crtc->fb)->obj);
+#ifdef FREEBSD_NOTYET
+		mutex_unlock(&dev->struct_mutex);
+#else
 		DRM_UNLOCK(dev);
+#endif
 		crtc->fb = NULL;
 	}
 
@@ -3842,7 +3993,11 @@ void intel_encoder_destroy(struct drm_encoder *encoder)
 	struct intel_encoder *intel_encoder = to_intel_encoder(encoder);
 
 	drm_encoder_cleanup(encoder);
+#ifdef FREEBSD_NOTYET
+	kfree(intel_encoder);
+#else
 	free(intel_encoder, DRM_MEM_KMS);
+#endif
 }
 
 /* Simple dpms helper for encodres with just one connector, no cloning and only
@@ -3983,7 +4138,11 @@ static int i915gm_get_display_clock_speed(struct drm_device *dev)
 {
 	u16 gcfgc = 0;
 
+#ifdef __linux__
+	pci_read_config_word(dev->pdev, GCFGC, &gcfgc);
+#elif __FreeBSD__
 	pci_read_config_word(dev->dev, GCFGC, &gcfgc);
+#endif
 
 	if (gcfgc & GC_LOW_FREQUENCY_ENABLE)
 		return 133000;
@@ -6444,7 +6603,11 @@ static int intel_crtc_cursor_set(struct drm_crtc *crtc,
 		DRM_DEBUG_KMS("cursor off\n");
 		addr = 0;
 		obj = NULL;
+#ifdef FREEBSD_NOTYET
+		mutex_lock(&dev->struct_mutex);
+#else
 		DRM_LOCK(dev);
+#endif
 		goto finish;
 	}
 
@@ -6465,7 +6628,11 @@ static int intel_crtc_cursor_set(struct drm_crtc *crtc,
 	}
 
 	/* we only need to pin inside GTT if cursor is non-phy */
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	if (!dev_priv->info->cursor_needs_physical) {
 		if (obj->tiling_mode) {
 			DRM_ERROR("cursor cannot be tiled\n");
@@ -6511,7 +6678,11 @@ static int intel_crtc_cursor_set(struct drm_crtc *crtc,
 		drm_gem_object_unreference(&intel_crtc->cursor_bo->base);
 	}
 
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	intel_crtc->cursor_addr = addr;
 	intel_crtc->cursor_bo = obj;
@@ -6524,7 +6695,11 @@ static int intel_crtc_cursor_set(struct drm_crtc *crtc,
 fail_unpin:
 	i915_gem_object_unpin(obj);
 fail_locked:
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 fail:
 	drm_gem_object_unreference_unlocked(&obj->base);
 	return ret;
@@ -6598,51 +6773,90 @@ static struct drm_display_mode load_detect_mode = {
 		 704, 832, 0, 480, 489, 491, 520, 0, DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC),
 };
 
+#ifdef FREEBSD_NOTYET
+static struct drm_framebuffer *
+intel_framebuffer_create(struct drm_device *dev,
+			 struct drm_mode_fb_cmd2 *mode_cmd,
+			 struct drm_i915_gem_object *obj)
+#else
 static int
 intel_framebuffer_create(struct drm_device *dev,
 			 struct drm_mode_fb_cmd2 *mode_cmd,
 			 struct drm_i915_gem_object *obj,
 			 struct drm_framebuffer **res)
+#endif
 {
 	struct intel_framebuffer *intel_fb;
 	int ret;
 
+#ifdef FREEBSD_NOTYET
+	intel_fb = kzalloc(sizeof(*intel_fb), GFP_KERNEL);
+#else
 	intel_fb = malloc(sizeof(*intel_fb), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_fb) {
 		drm_gem_object_unreference_unlocked(&obj->base);
+#ifdef FREEBSD_NOTYET
+		return ERR_PTR(-ENOMEM);
+#else
 		return -ENOMEM;
+#endif
 	}
 
 	ret = intel_framebuffer_init(dev, intel_fb, mode_cmd, obj);
 	if (ret) {
 		drm_gem_object_unreference_unlocked(&obj->base);
+#ifdef FREEBSD_NOTYET
+		kfree(intel_fb);
+		return ERR_PTR(ret);
+#else
 		free(intel_fb, DRM_MEM_KMS);
 		return ret;
+#endif
 	}
 
+#ifdef FREEBSD_NOTYET
+	return &intel_fb->base;
+#else
 	*res = &intel_fb->base;
 	return 0;
+#endif
 }
 
 static u32
 intel_framebuffer_pitch_for_width(int width, int bpp)
 {
 	u32 pitch = DIV_ROUND_UP(width * bpp, 8);
+#ifdef FREEBSD_NOTYET
+	return ALIGN(pitch, 64);
+#else
 	return roundup2(pitch, 64);
+#endif
 }
 
 static u32
 intel_framebuffer_size_for_mode(struct drm_display_mode *mode, int bpp)
 {
 	u32 pitch = intel_framebuffer_pitch_for_width(mode->hdisplay, bpp);
+#ifdef FREEBSD_NOTYET
+	return ALIGN(pitch * mode->vdisplay, PAGE_SIZE);
+#else
 	return roundup2(pitch * mode->vdisplay, PAGE_SIZE);
+#endif
 }
 
+#ifdef FREEBSD_NOTYET
+static struct drm_framebuffer *
+intel_framebuffer_create_for_mode(struct drm_device *dev,
+				  struct drm_display_mode *mode,
+				  int depth, int bpp)
+#else
 static int
 intel_framebuffer_create_for_mode(struct drm_device *dev,
 				  struct drm_display_mode *mode,
 				  int depth, int bpp,
 				  struct drm_framebuffer **res)
+#endif
 {
 	struct drm_i915_gem_object *obj;
 	struct drm_mode_fb_cmd2 mode_cmd = { 0 };
@@ -6650,7 +6864,11 @@ intel_framebuffer_create_for_mode(struct drm_device *dev,
 	obj = i915_gem_alloc_object(dev,
 				    intel_framebuffer_size_for_mode(mode, bpp));
 	if (obj == NULL)
+#ifdef FREEBSD_NOTYET
+		return ERR_PTR(-ENOMEM);
+#else
 		return -ENOMEM;
+#endif
 
 	mode_cmd.width = mode->hdisplay;
 	mode_cmd.height = mode->vdisplay;
@@ -6658,7 +6876,11 @@ intel_framebuffer_create_for_mode(struct drm_device *dev,
 								bpp);
 	mode_cmd.pixel_format = drm_mode_legacy_fb_format(bpp, depth);
 
+#ifdef FREEBSD_NOTYET
+	return intel_framebuffer_create(dev, &mode_cmd, obj);
+#else
 	return intel_framebuffer_create(dev, &mode_cmd, obj, res);
+#endif
 }
 
 static struct drm_framebuffer *
@@ -6921,7 +7143,11 @@ struct drm_display_mode *intel_crtc_mode_get(struct drm_device *dev,
 	int vtot = I915_READ(VTOTAL(cpu_transcoder));
 	int vsync = I915_READ(VSYNC(cpu_transcoder));
 
+#ifdef FREEBSD_NOTYET
+	mode = kzalloc(sizeof(*mode), GFP_KERNEL);
+#else
 	mode = malloc(sizeof(*mode), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!mode)
 		return NULL;
 
@@ -7048,23 +7274,45 @@ static void intel_crtc_destroy(struct drm_crtc *crtc)
 {
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct drm_device *dev = crtc->dev;
+#ifndef FREEBSD_NOTYET
 	struct drm_i915_private *dev_priv = dev->dev_private;
+#endif
 	struct intel_unpin_work *work;
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev->event_lock, flags);
+#else
 	mtx_lock(&dev->event_lock);
+#endif
 	work = intel_crtc->unpin_work;
 	intel_crtc->unpin_work = NULL;
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev->event_lock, flags);
+#else
 	mtx_unlock(&dev->event_lock);
+#endif
 
 	if (work) {
+#ifdef FREEBSD_NOTYET
+		cancel_work_sync(&work->work);
+		kfree(work);
+#else
 		taskqueue_cancel(dev_priv->wq, &work->work, NULL);
 		taskqueue_drain(dev_priv->wq, &work->work);
 		free(work, DRM_MEM_KMS);
+#endif
 	}
 
 	drm_crtc_cleanup(crtc);
 
+#ifdef FREEBSD_NOTYET
+	kfree(intel_crtc);
+#else
 	free(intel_crtc, DRM_MEM_KMS);
+#endif
 }
 
 static void intel_unpin_work_fn(void *arg, int pending)
@@ -7073,18 +7321,30 @@ static void intel_unpin_work_fn(void *arg, int pending)
 		arg;
 	struct drm_device *dev = work->crtc->dev;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	intel_unpin_fb_obj(work->old_fb_obj);
 	drm_gem_object_unreference(&work->pending_flip_obj->base);
 	drm_gem_object_unreference(&work->old_fb_obj->base);
 
 	intel_update_fbc(dev);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	BUG_ON(atomic_read(&to_intel_crtc(work->crtc)->unpin_work_count) == 0);
 	atomic_dec(&to_intel_crtc(work->crtc)->unpin_work_count);
 
+#ifdef FREEBSD_NOTYET
+	kfree(work);
+#else
 	free(work, DRM_MEM_KMS);
+#endif
 }
 
 static void do_intel_finish_page_flip(struct drm_device *dev,
@@ -7094,19 +7354,30 @@ static void do_intel_finish_page_flip(struct drm_device *dev,
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_unpin_work *work;
 	struct drm_i915_gem_object *obj;
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 
 	/* Ignore early vblank irqs */
 	if (intel_crtc == NULL)
 		return;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev->event_lock, flags);
+#else
 	mtx_lock(&dev->event_lock);
+#endif
 	work = intel_crtc->unpin_work;
 
 	/* Ensure we don't miss a work->pending update ... */
 	smp_rmb();
 
 	if (work == NULL || atomic_read(&work->pending) < INTEL_FLIP_COMPLETE) {
+#ifdef FREEBSD_NOTYET
+		spin_unlock_irqrestore(&dev->event_lock, flags);
+#else
 		mtx_unlock(&dev->event_lock);
+#endif
 		return;
 	}
 
@@ -7120,18 +7391,33 @@ static void do_intel_finish_page_flip(struct drm_device *dev,
 
 	drm_vblank_put(dev, intel_crtc->pipe);
 
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev->event_lock, flags);
+#else
 	mtx_unlock(&dev->event_lock);
+#endif
 
 	obj = work->old_fb_obj;
 
+#ifdef FREEBSD_NOTYET
+	atomic_clear_mask(1 << intel_crtc->plane,
+			  &obj->pending_flip.counter);
+#else
 	atomic_clear_mask(1 << intel_crtc->plane,
 			  &obj->pending_flip);
+#endif
 	wake_up(&dev_priv->pending_flip_queue);
 
+#ifdef FREEBSD_NOTYET
+	queue_work(dev_priv->wq, &work->work);
+
+	trace_i915_flip_complete(intel_crtc->plane, work->pending_flip_obj);
+#else
 	taskqueue_enqueue(dev_priv->wq, &work->work);
 
 	CTR2(KTR_DRM, "i915_flip_complete %d %p", intel_crtc->plane,
 	    work->pending_flip_obj);
+#endif
 }
 
 void intel_finish_page_flip(struct drm_device *dev, int pipe)
@@ -7155,15 +7441,26 @@ void intel_prepare_page_flip(struct drm_device *dev, int plane)
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	struct intel_crtc *intel_crtc =
 		to_intel_crtc(dev_priv->plane_to_crtc_mapping[plane]);
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 
 	/* NB: An MMIO update of the plane base pointer will also
 	 * generate a page-flip completion irq, i.e. every modeset
 	 * is also accompanied by a spurious intel_prepare_page_flip().
 	 */
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev->event_lock, flags);
+#else
 	mtx_lock(&dev->event_lock);
+#endif
 	if (intel_crtc->unpin_work)
 		atomic_inc_not_zero(&intel_crtc->unpin_work->pending);
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev->event_lock, flags);
+#else
 	mtx_unlock(&dev->event_lock);
+#endif
 }
 
 inline static void intel_mark_page_flip_active(struct intel_crtc *intel_crtc)
@@ -7426,6 +7723,9 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	struct drm_i915_gem_object *obj = to_intel_framebuffer(fb)->obj;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_unpin_work *work;
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 	int ret;
 
 	/* Can't change pixel format via MI display flips. */
@@ -7441,34 +7741,59 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	     fb->pitches[0] != crtc->fb->pitches[0]))
 		return -EINVAL;
 
+#ifdef FREEBSD_NOTYET
+	work = kzalloc(sizeof *work, GFP_KERNEL);
+#else
 	work = malloc(sizeof *work, DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (work == NULL)
 		return -ENOMEM;
 
 	work->event = event;
 	work->crtc = crtc;
 	work->old_fb_obj = to_intel_framebuffer(old_fb)->obj;
+#ifdef FREEBSD_NOTYET
+	INIT_WORK(&work->work, intel_unpin_work_fn);
+#else
 	TASK_INIT(&work->work, 0, intel_unpin_work_fn, work);
+#endif
 
 	ret = drm_vblank_get(dev, intel_crtc->pipe);
 	if (ret)
 		goto free_work;
 
 	/* We borrow the event spin lock for protecting unpin_work */
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev->event_lock, flags);
+#else
 	mtx_lock(&dev->event_lock);
+#endif
 	if (intel_crtc->unpin_work) {
+#ifdef FREEBSD_NOTYET
+		spin_unlock_irqrestore(&dev->event_lock, flags);
+		kfree(work);
+#else
 		mtx_unlock(&dev->event_lock);
 		free(work, DRM_MEM_KMS);
+#endif
 		drm_vblank_put(dev, intel_crtc->pipe);
 
 		DRM_DEBUG_DRIVER("flip queue: crtc already busy\n");
 		return -EBUSY;
 	}
 	intel_crtc->unpin_work = work;
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev->event_lock, flags);
+#else
 	mtx_unlock(&dev->event_lock);
+#endif
 
 	if (atomic_read(&intel_crtc->unpin_work_count) >= 2)
+#ifdef FREEBSD_NOTYET
+		flush_workqueue(dev_priv->wq);
+#else
 		taskqueue_drain_all(dev_priv->wq);
+#endif
 
 	ret = i915_mutex_lock_interruptible(dev);
 	if (ret)
@@ -7496,9 +7821,17 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 
 	intel_disable_fbc(dev);
 	intel_mark_fb_busy(obj);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
+#ifdef __linux__
+	trace_i915_flip_request(intel_crtc->plane, obj);
+#else
 	CTR2(KTR_DRM, "i915_flip_request %d %p", intel_crtc->plane, obj);
+#endif
 
 	return 0;
 
@@ -7508,16 +7841,32 @@ cleanup_pending:
 	atomic_sub(1 << intel_crtc->plane, &work->old_fb_obj->pending_flip);
 	drm_gem_object_unreference(&work->old_fb_obj->base);
 	drm_gem_object_unreference(&obj->base);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 cleanup:
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev->event_lock, flags);
+#else
 	mtx_lock(&dev->event_lock);
+#endif
 	intel_crtc->unpin_work = NULL;
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev->event_lock, flags);
+#else
 	mtx_unlock(&dev->event_lock);
+#endif
 
 	drm_vblank_put(dev, intel_crtc->pipe);
 free_work:
+#ifdef FREEBSD_NOTYET
+	kfree(work);
+#else
 	free(work, DRM_MEM_KMS);
+#endif
 
 	return ret;
 }
@@ -8020,9 +8369,15 @@ static void intel_set_config_free(struct intel_set_config *config)
 	if (!config)
 		return;
 
+#ifdef FREEBSD_NOTYET
+	kfree(config->save_connector_encoders);
+	kfree(config->save_encoder_crtcs);
+	kfree(config);
+#else
 	free(config->save_connector_encoders, DRM_MEM_KMS);
 	free(config->save_encoder_crtcs, DRM_MEM_KMS);
 	free(config, DRM_MEM_KMS);
+#endif
 }
 
 static int intel_set_config_save_state(struct drm_device *dev,
@@ -8032,15 +8387,27 @@ static int intel_set_config_save_state(struct drm_device *dev,
 	struct drm_connector *connector;
 	int count;
 
+#ifdef FREEBSD_NOTYET
+	config->save_encoder_crtcs =
+		kcalloc(dev->mode_config.num_encoder,
+			sizeof(struct drm_crtc *), GFP_KERNEL);
+#else
 	config->save_encoder_crtcs =
 		malloc(dev->mode_config.num_encoder *
 			sizeof(struct drm_crtc *), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 	if (!config->save_encoder_crtcs)
 		return -ENOMEM;
 
+#ifdef FREEBSD_NOTYET
+	config->save_connector_encoders =
+		kcalloc(dev->mode_config.num_connector,
+			sizeof(struct drm_encoder *), GFP_KERNEL);
+#else
 	config->save_connector_encoders =
 		malloc(dev->mode_config.num_connector *
 			sizeof(struct drm_encoder *), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 	if (!config->save_connector_encoders)
 		return -ENOMEM;
 
@@ -8247,7 +8614,11 @@ static int intel_crtc_set_config(struct drm_mode_set *set)
 	dev = set->crtc->dev;
 
 	ret = -ENOMEM;
+#ifdef FREEBSD_NOYET
+	config = kzalloc(sizeof(*config), GFP_KERNEL);
+#else
 	config = malloc(sizeof(*config), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 	if (!config)
 		goto out_config;
 
@@ -8346,7 +8717,11 @@ static void intel_crtc_init(struct drm_device *dev, int pipe)
 	struct intel_crtc *intel_crtc;
 	int i;
 
+#ifdef FREEBSD_NOTYET
+	intel_crtc = kzalloc(sizeof(struct intel_crtc) + (INTELFB_CONN_LIMIT * sizeof(struct drm_connector *)), GFP_KERNEL);
+#else
 	intel_crtc = malloc(sizeof(struct intel_crtc) + (INTELFB_CONN_LIMIT * sizeof(struct drm_connector *)), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (intel_crtc == NULL)
 		return;
 
@@ -8589,7 +8964,11 @@ static void intel_user_framebuffer_destroy(struct drm_framebuffer *fb)
 	drm_framebuffer_cleanup(fb);
 	drm_gem_object_unreference_unlocked(&intel_fb->obj->base);
 
+#ifdef FREEBSD_NOTYET
+	kfree(intel_fb);
+#else
 	free(intel_fb, DRM_MEM_KMS);
+#endif
 }
 
 static int intel_user_framebuffer_create_handle(struct drm_framebuffer *fb,
@@ -8923,17 +9302,29 @@ static struct intel_quirk intel_quirks[] = {
 
 static void intel_init_quirks(struct drm_device *dev)
 {
+#ifdef __linux__
+	struct pci_dev *d = dev->pdev;
+#endif
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(intel_quirks); i++) {
 		struct intel_quirk *q = &intel_quirks[i];
 
+#ifdef __linux__
+		if (d->device == q->device &&
+		    (d->subsystem_vendor == q->subsystem_vendor ||
+		     q->subsystem_vendor == PCI_ANY_ID) &&
+		    (d->subsystem_device == q->subsystem_device ||
+		     q->subsystem_device == PCI_ANY_ID))
+			q->hook(dev);
+#elif __FreeBSD__
 		if (pci_get_device(dev->dev) == q->device &&
 		    (pci_get_subvendor(dev->dev) == q->subsystem_vendor ||
 		     q->subsystem_vendor == PCI_ANY_ID) &&
 		    (pci_get_subdevice(dev->dev) == q->subsystem_device ||
 		     q->subsystem_device == PCI_ANY_ID))
 			q->hook(dev);
+#endif
 	}
 	for (i = 0; i < ARRAY_SIZE(intel_dmi_quirks); i++) {
 		if (dmi_check_system(*intel_dmi_quirks[i].dmi_id_list) != 0)
@@ -8979,9 +9370,17 @@ void intel_modeset_init_hw(struct drm_device *dev)
 
 	intel_init_clock_gating(dev);
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 	intel_enable_gt_powersave(dev);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 }
 
 void intel_modeset_init(struct drm_device *dev)
@@ -9366,7 +9765,11 @@ void intel_modeset_cleanup(struct drm_device *dev)
 	struct intel_crtc *intel_crtc;
 
 	drm_kms_helper_poll_fini(dev);
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 
 	intel_unregister_dsm_handler();
 
@@ -9389,18 +9792,31 @@ void intel_modeset_cleanup(struct drm_device *dev)
 	if (IS_VALLEYVIEW(dev))
 		vlv_init_dpio(dev);
 
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 
 	/* Disable the irq before mode object teardown, for the irq might
 	 * enqueue unpin/hotplug work. */
 	drm_irq_uninstall(dev);
+#ifdef FREEBSD_NOTYET
+	cancel_work_sync(&dev_priv->hotplug_work);
+	cancel_work_sync(&dev_priv->rps.work);
+#else
 	if (taskqueue_cancel(dev_priv->wq, &dev_priv->hotplug_work, NULL))
 		taskqueue_drain(dev_priv->wq, &dev_priv->hotplug_work);
 	if (taskqueue_cancel(dev_priv->wq, &dev_priv->rps.work, NULL))
 		taskqueue_drain(dev_priv->wq, &dev_priv->rps.work);
+#endif
 
 	/* flush any delayed tasks or pending work */
+#ifdef FREEBSD_NOTYET
+	flush_scheduled_work();
+#else
 	taskqueue_drain_all(dev_priv->wq);
+#endif
 
 	/* destroy backlight, if any, before the connectors */
 	intel_panel_destroy_backlight(dev);
@@ -9483,7 +9899,11 @@ intel_display_capture_error_state(struct drm_device *dev)
 	enum transcoder cpu_transcoder;
 	int i;
 
+#ifdef FREEBSD_NOTYET
+	error = kmalloc(sizeof(*error), GFP_ATOMIC);
+#else
 	error = malloc(sizeof(*error), DRM_MEM_KMS, M_NOWAIT);
+#endif
 	if (error == NULL)
 		return NULL;
 
