@@ -35,10 +35,6 @@
 
 #include <drm/drmP.h>
 
-#ifdef __FreeBSD__
-static struct mtx drm_magic_lock;
-#endif
-
 /**
  * Find the file with the given magic number.
  *
@@ -174,9 +170,7 @@ int drm_remove_magic(struct drm_master *master, drm_magic_t magic)
 int drm_getmagic(struct drm_device *dev, void *data, struct drm_file *file_priv)
 {
 	static drm_magic_t sequence = 0;
-#ifdef FREEBSD_NOTYET
 	static DEFINE_SPINLOCK(lock);
-#endif
 	struct drm_auth *auth = data;
 
 	/* Find unique magic */
@@ -184,19 +178,11 @@ int drm_getmagic(struct drm_device *dev, void *data, struct drm_file *file_priv)
 		auth->magic = file_priv->magic;
 	} else {
 		do {
-#ifdef FREEBSD_NOTYET
 			spin_lock(&lock);
-#else
-			mtx_lock(&drm_magic_lock);
-#endif
 			if (!sequence)
 				++sequence;	/* reserve 0 */
 			auth->magic = sequence++;
-#ifdef FREEBSD_NOTYET
 			spin_unlock(&lock);
-#else
-			mtx_unlock(&drm_magic_lock);
-#endif
 		} while (drm_find_file(file_priv->master, auth->magic));
 		file_priv->magic = auth->magic;
 		drm_add_magic(file_priv->master, file_priv, auth->magic);
@@ -234,23 +220,3 @@ int drm_authmagic(struct drm_device *dev, void *data,
 	}
 	return -EINVAL;
 }
-
-#ifndef FREEBSD_NOTYET
-static int
-drm_magic_init(void *arg)
-{
-
-	mtx_init(&drm_magic_lock, "drm_getmagic__lock", NULL, MTX_DEF);
-	return (0);
-}
-
-static void
-drm_magic_fini(void *arg)
-{
-
-	mtx_destroy(&drm_magic_lock);
-}
-
-SYSINIT(drm_magic_init, SI_SUB_KLD, SI_ORDER_MIDDLE, drm_magic_init, NULL);
-SYSUNINIT(drm_magic_fini, SI_SUB_KLD, SI_ORDER_MIDDLE, drm_magic_fini, NULL);
-#endif
