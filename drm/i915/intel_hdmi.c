@@ -26,6 +26,11 @@
  *	Jesse Barnes <jesse.barnes@intel.com>
  */
 
+#ifdef __linux__
+#include <linux/i2c.h>
+#include <linux/slab.h>
+#include <linux/delay.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_edid.h>
@@ -33,7 +38,9 @@
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
 
+#ifdef __FreeBSD__
 #define	mmiowb()	barrier()
+#endif
 
 static struct drm_device *intel_hdmi_to_dev(struct intel_hdmi *intel_hdmi)
 {
@@ -721,7 +728,11 @@ static void intel_disable_hdmi(struct intel_encoder *encoder)
 			if (crtc)
 				intel_wait_for_vblank(dev, pipe);
 			else
+#ifdef FREEBSD_NOTYET
+				msleep(50);
+#else
 				DRM_MSLEEP(50);
+#endif
 		}
 	}
 
@@ -817,7 +828,11 @@ intel_hdmi_detect(struct drm_connector *connector, bool force)
 						drm_detect_hdmi_monitor(edid);
 			intel_hdmi->has_audio = drm_detect_monitor_audio(edid);
 		}
+#ifdef FREEBSD_NOTYET
+		kfree(edid);
+#else
 		free(edid, DRM_MEM_KMS);
+#endif
 	}
 
 	if (status == connector_status_connected) {
@@ -858,7 +873,11 @@ intel_hdmi_detect_audio(struct drm_connector *connector)
 	if (edid) {
 		if (edid->input & DRM_EDID_INPUT_DIGITAL)
 			has_audio = drm_detect_monitor_audio(edid);
+#ifdef FREEBSD_NOTYET
+		kfree(edid);
+#else
 		free(edid, DRM_MEM_KMS);
+#endif
 	}
 
 	return has_audio;
@@ -922,8 +941,15 @@ done:
 
 static void intel_hdmi_destroy(struct drm_connector *connector)
 {
+#ifdef __linux__
+	drm_sysfs_connector_remove(connector);
+#endif
 	drm_connector_cleanup(connector);
+#ifdef FREEBSD_NOTYET
+	kfree(connector);
+#else
 	free(connector, DRM_MEM_KMS);
+#endif
 }
 
 static const struct drm_encoder_helper_funcs intel_hdmi_helper_funcs = {
@@ -1019,6 +1045,9 @@ void intel_hdmi_init_connector(struct intel_digital_port *intel_dig_port,
 	intel_hdmi_add_properties(intel_hdmi, connector);
 
 	intel_connector_attach_encoder(intel_connector, intel_encoder);
+#ifdef __linux__
+	drm_sysfs_connector_add(connector);
+#endif
 
 	/* For G4X desktop chip, PEG_BAND_GAP_DATA 3:0 must first be written
 	 * 0xd.  Failure to do so will result in spurious interrupts being
@@ -1037,13 +1066,25 @@ void intel_hdmi_init(struct drm_device *dev, int sdvox_reg, enum port port)
 	struct drm_encoder *encoder;
 	struct intel_connector *intel_connector;
 
+#ifdef FREEBSD_NOTYET
+	intel_dig_port = kzalloc(sizeof(struct intel_digital_port), GFP_KERNEL);
+#else
 	intel_dig_port = malloc(sizeof(struct intel_digital_port), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_dig_port)
 		return;
 
+#ifdef FREEBSD_NOTYET
+	intel_connector = kzalloc(sizeof(struct intel_connector), GFP_KERNEL);
+#else
 	intel_connector = malloc(sizeof(struct intel_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_connector) {
+#ifdef FREEBSD_NOTYET
+		kfree(intel_dig_port);
+#else
 		free(intel_dig_port, DRM_MEM_KMS);
+#endif
 		return;
 	}
 
