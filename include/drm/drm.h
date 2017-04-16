@@ -8,7 +8,7 @@
  * Dec 1999, Richard Henderson <rth@twiddle.net>, move to generic \c cmpxchg.
  */
 
-/*-
+/*
  * Copyright 1999 Precision Insight, Inc., Cedar Park, Texas.
  * Copyright 2000 VA Linux Systems, Inc., Sunnyvale, California.
  * All rights reserved.
@@ -33,9 +33,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
 #ifndef _DRM_H_
 #define _DRM_H_
 
@@ -51,7 +48,6 @@ typedef unsigned int drm_handle_t;
 #include <sys/types.h>
 typedef unsigned long drm_handle_t;
 
-#include <drm/drm_os_freebsd.h>
 #endif
 
 #define DRM_NAME	"drm"	  /**< Name in kernel, /dev, and /proc */
