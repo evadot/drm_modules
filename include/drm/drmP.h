@@ -137,6 +137,7 @@
 #include <sys/selinfo.h>
 #include <sys/bus.h>
 
+#include <linux/mutex.h>
 #include <linux/types.h>
 
 #include <drm/drm.h>
@@ -1223,11 +1224,10 @@ struct drm_device {
 
 	/** \name Locks */
 	/*@{ */
-#ifdef FREEBSD_NOTYET
 	spinlock_t count_lock;		/**< For inuse, drm_device::open_count, drm_device::buf_use */
+#ifdef FREEBSD_NOTYET
 	struct mutex struct_mutex;	/**< For others */
 #else
-	struct mtx count_lock;		/**< For inuse, drm_device::open_count, drm_device::buf_use */
 	struct sx dev_struct_lock;	/**< For others */
 #endif
 	/*@} */

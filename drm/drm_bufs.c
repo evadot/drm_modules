@@ -939,25 +939,13 @@ int drm_addbufs_agp(struct drm_device * dev, struct drm_buf_desc * request)
 		DRM_DEBUG("zone invalid\n");
 		return -EINVAL;
 	}
-#ifdef FREEBSD_NOTYET
 	spin_lock(&dev->count_lock);
-#else
-	mtx_lock(&dev->count_lock);
-#endif
 	if (dev->buf_use) {
-#ifdef FREEBSD_NOTYET
 		spin_unlock(&dev->count_lock);
-#else
-		mtx_unlock(&dev->count_lock);
-#endif
 		return -EBUSY;
 	}
 	atomic_inc(&dev->buf_alloc);
-#ifdef FREEBSD_NOTYET
 	spin_unlock(&dev->count_lock);
-#else
-	mtx_unlock(&dev->count_lock);
-#endif
 
 #ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
@@ -1148,25 +1136,13 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 	page_order = order - PAGE_SHIFT > 0 ? order - PAGE_SHIFT : 0;
 	total = PAGE_SIZE << page_order;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock(&dev->count_lock);
-#else
-	mtx_lock(&dev->count_lock);
-#endif
 	if (dev->buf_use) {
-#ifdef FREEBSD_NOTYET
 		spin_unlock(&dev->count_lock);
-#else
-		mtx_unlock(&dev->count_lock);
-#endif
 		return -EBUSY;
 	}
 	atomic_inc(&dev->buf_alloc);
-#ifdef FREEBSD_NOTYET
 	spin_unlock(&dev->count_lock);
-#else
-	mtx_unlock(&dev->count_lock);
-#endif
 
 #ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
@@ -1454,27 +1430,17 @@ static int drm_addbufs_sg(struct drm_device * dev, struct drm_buf_desc * request
 	if (order < DRM_MIN_ORDER || order > DRM_MAX_ORDER)
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock(&dev->count_lock);
-#else
-	mtx_lock(&dev->count_lock);
-#endif
 	if (dev->buf_use) {
-#ifdef FREEBSD_NOTYET
 		spin_unlock(&dev->count_lock);
-#else
-		mtx_unlock(&dev->count_lock);
-#endif
 		return -EBUSY;
 	}
 	atomic_inc(&dev->buf_alloc);
-#ifdef FREEBSD_NOTYET
 	spin_unlock(&dev->count_lock);
 
+#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
 #else
-	mtx_unlock(&dev->count_lock);
-
 	DRM_LOCK(dev);
 #endif
 	entry = &dma->bufs[order];
@@ -1672,27 +1638,17 @@ static int drm_addbufs_fb(struct drm_device * dev, struct drm_buf_desc * request
 	if (order < DRM_MIN_ORDER || order > DRM_MAX_ORDER)
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock(&dev->count_lock);
-#else
-	mtx_lock(&dev->count_lock);
-#endif
 	if (dev->buf_use) {
-#ifdef FREEBSD_NOTYET
 		spin_unlock(&dev->count_lock);
-#else
-		mtx_unlock(&dev->count_lock);
-#endif
 		return -EBUSY;
 	}
 	atomic_inc(&dev->buf_alloc);
-#ifdef FREEBSD_NOTYET
 	spin_unlock(&dev->count_lock);
 
+#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
 #else
-	mtx_unlock(&dev->count_lock);
-
 	DRM_LOCK(dev);
 #endif
 	entry = &dma->bufs[order];
@@ -1901,25 +1857,13 @@ int drm_infobufs(struct drm_device *dev, void *data,
 	if (!dma)
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock(&dev->count_lock);
-#else
-	mtx_lock(&dev->count_lock);
-#endif
 	if (atomic_read(&dev->buf_alloc)) {
-#ifdef FREEBSD_NOTYET
 		spin_unlock(&dev->count_lock);
-#else
-		mtx_unlock(&dev->count_lock);
-#endif
 		return -EBUSY;
 	}
 	++dev->buf_use;		/* Can't allocate more after this call */
-#ifdef FREEBSD_NOTYET
 	spin_unlock(&dev->count_lock);
-#else
-	mtx_unlock(&dev->count_lock);
-#endif
 
 	for (i = 0, count = 0; i < DRM_MAX_ORDER + 1; i++) {
 		if (dma->bufs[i].buf_count)
@@ -2100,25 +2044,13 @@ int drm_mapbufs(struct drm_device *dev, void *data,
 	if (!dma)
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock(&dev->count_lock);
-#else
-	mtx_lock(&dev->count_lock);
-#endif
 	if (atomic_read(&dev->buf_alloc)) {
-#ifdef FREEBSD_NOTYET
 		spin_unlock(&dev->count_lock);
-#else
-		mtx_unlock(&dev->count_lock);
-#endif
 		return -EBUSY;
 	}
 	dev->buf_use++;		/* Can't allocate more after this call */
-#ifdef FREEBSD_NOTYET
 	spin_unlock(&dev->count_lock);
-#else
-	mtx_unlock(&dev->count_lock);
-#endif
 
 	vms = DRM_CURPROC->td_proc->p_vmspace;
 
