@@ -219,11 +219,7 @@ static void drm_master_destroy(struct kref *kref)
 	list_for_each_entry_safe(pt, next, &master->magicfree, head) {
 		list_del(&pt->head);
 		drm_ht_remove_item(&master->magiclist, &pt->hash_item);
-#ifdef FREEBSD_NOTYET
 		kfree(pt);
-#else
-		free(pt, DRM_MEM_MAGIC);
-#endif
 	}
 
 	drm_ht_remove(&master->magiclist);

@@ -5,3 +5,6 @@ drmn0: <Intel Haswell (ULT GT2 mobile)> on vgapci0
 info: [drm] Memory usable by graphics device = 2048M
 error: [drm:pid833:i915_driver_load] *ERROR* failed to map registers
 device_attach: drmn0 attach returned 5
+
+
+!!!!! Including linux/slab.h in drmP.h break everything !!!!!

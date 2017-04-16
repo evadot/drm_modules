@@ -34,6 +34,7 @@
  */
 
 #include <drm/drmP.h>
+#include <linux/slab.h>
 
 #ifdef __FreeBSD__
 static struct mtx drm_magic_lock;
@@ -91,11 +92,7 @@ static int drm_add_magic(struct drm_master *master, struct drm_file *priv,
 	struct drm_device *dev = master->minor->dev;
 	DRM_DEBUG("%d\n", magic);
 
-#ifdef FREEBSD_NOTYET
 	entry = kzalloc(sizeof(*entry), GFP_KERNEL);
-#else
-	entry = malloc(sizeof(*entry), DRM_MEM_MAGIC, M_ZERO | M_NOWAIT);
-#endif
 	if (!entry)
 		return -ENOMEM;
 	entry->priv = priv;
@@ -151,12 +148,11 @@ int drm_remove_magic(struct drm_master *master, drm_magic_t magic)
 	list_del(&pt->head);
 #ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-
-	kfree(pt);
 #else
 	DRM_UNLOCK(dev);
-	free(pt, DRM_MEM_MAGIC);
 #endif
+
+	kfree(pt);
 
 	return 0;
 }
