@@ -23,11 +23,18 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#ifdef __linux__
+#include <linux/slab.h>
+#include <linux/i2c.h>
+#include <linux/fb.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_edid.h>
 #include "intel_drv.h"
 #include "i915_drv.h"
+#ifdef __FreeBSD__
 #include <dev/iicbus/iiconf.h>
+#endif
 
 /**
  * intel_connector_update_modes - update connector from edid
@@ -64,7 +71,11 @@ int intel_ddc_get_modes(struct drm_connector *connector,
 		return 0;
 
 	ret = intel_connector_update_modes(connector, edid);
+#ifdef FREEBSD_NOTYET
+	kfree(edid);
+#else
 	free(edid, DRM_MEM_KMS);
+#endif
 
 	return ret;
 }
