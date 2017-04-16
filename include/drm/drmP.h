@@ -435,10 +435,17 @@ struct drm_freelist {
 };
 
 typedef struct drm_dma_handle {
+#ifdef __linux__
+	dma_addr_t busaddr;
+#endif
 	void *vaddr;
+#ifdef __linux__
+	size_t size;
+#elif __FreeBSD__
 	bus_addr_t busaddr;
 	bus_dma_tag_t tag;
 	bus_dmamap_t map;
+#endif
 } drm_dma_handle_t;
 
 /**
@@ -475,6 +482,7 @@ struct drm_prime_file_private {
 #endif
 };
 
+/** File private data */
 struct drm_file {
 	int authenticated;
 #ifdef __linux__
@@ -612,9 +620,17 @@ struct drm_agp_head {
  * Scatter-gather memory.
  */
 struct drm_sg_mem {
+#ifdef __linux__
+	unsigned long handle;
+	void *virtual;
+	int pages;
+	struct page **pagelist;
+	dma_addr_t *busaddr;
+#elif __FreeBSD__
 	vm_offset_t vaddr;
 	vm_paddr_t *busaddr;
 	vm_pindex_t pages;
+#endif
 };
 
 struct drm_sigdata {
@@ -714,12 +730,20 @@ struct drm_gem_object {
 	/** Related drm device */
 	struct drm_device *dev;
 
+#ifdef FREEBSD_NOTYET
+	/** File representing the shmem storage */
+	struct file *filp;
+
+	/* Mapping info for this object */
+	struct drm_map_list map_list;
+#else
 	/** File representing the shmem storage: filp in Linux parlance */
 	vm_object_t vm_obj;
 
 	/* Mapping info for this object */
 	bool on_map;
 	struct drm_hash_item map_list;
+#endif
 
 	/**
 	 * Size of the object, in bytes.  Immutable over the object's
@@ -983,6 +1007,10 @@ struct drm_driver {
 	void (*master_drop)(struct drm_device *dev, struct drm_file *file_priv,
 			    bool from_release);
 
+#ifdef __linux__
+	int (*debugfs_init)(struct drm_minor *minor);
+	void (*debugfs_cleanup)(struct drm_minor *minor);
+#endif
 	/**
 	 * Driver-specific constructor for drm_gem_objects, to set up
 	 * obj->driver_private.
@@ -1008,6 +1036,9 @@ struct drm_driver {
 	/* import dmabuf -> GEM */
 	struct drm_gem_object * (*gem_prime_import)(struct drm_device *dev,
 				struct dma_buf *dma_buf);
+
+	/* vga arb irq handler */
+	void (*vgaarb_irq)(struct drm_device *dev, bool state);
 #endif /* defined(FREEBSD_NOTYET) */
 
 	/* dumb alloc support */
@@ -1022,11 +1053,15 @@ struct drm_driver {
 			    uint32_t handle);
 
 	/* Driver private ops for this object */
+#ifdef __linux__
+	const struct vm_operations_struct *gem_vm_ops;
+#elif __FreeBSD__
 	struct cdev_pager_ops *gem_pager_ops;
 
 	int	(*sysctl_init)(struct drm_device *dev,
 		    struct sysctl_ctx_list *ctx, struct sysctl_oid *top);
 	void	(*sysctl_cleanup)(struct drm_device *dev);
+#endif
 
 	int major;
 	int minor;
@@ -1039,13 +1074,29 @@ struct drm_driver {
 	int dev_priv_size;
 	struct drm_ioctl_desc *ioctls;
 	int num_ioctls;
+#ifdef __linux__
+	const struct file_operations *fops;
+	union {
+		struct pci_driver *pci;
+		struct platform_device *platform_device;
+		struct usb_driver *usb;
+	} kdriver;
+#endif
 	struct drm_bus *bus;
+
+#ifdef FREEBSD_NOTYET
+	/* List of devices hanging off this driver */
+	struct list_head device_list;
+#endif
+
+#ifdef __FreeBSD__
 #ifdef COMPAT_FREEBSD32
 	struct drm_ioctl_desc *compat_ioctls;
 	int *num_compat_ioctls;
 #endif
 
 	int	buf_priv_size;
+#endif
 };
 
 #define DRM_MINOR_UNASSIGNED 0
@@ -1053,21 +1104,82 @@ struct drm_driver {
 #define DRM_MINOR_CONTROL 2
 #define DRM_MINOR_RENDER 3
 
+
+#ifdef __linux__
+/**
+ * debugfs node list. This structure represents a debugfs file to
+ * be created by the drm core
+ */
+struct drm_debugfs_list {
+	const char *name; /** file name */
+	int (*show)(struct seq_file*, void*); /** show callback */
+	u32 driver_features; /**< Required driver features for this entry */
+};
+
+/**
+ * debugfs node structure. This structure represents a debugfs file.
+ */
+struct drm_debugfs_node {
+	struct list_head list;
+	struct drm_minor *minor;
+	struct drm_debugfs_list *debugfs_ent;
+	struct dentry *dent;
+};
+
+/**
+ * Info file list entry. This structure represents a debugfs or proc file to
+ * be created by the drm core
+ */
+struct drm_info_list {
+	const char *name; /** file name */
+	int (*show)(struct seq_file*, void*); /** show callback */
+	u32 driver_features; /**< Required driver features for this entry */
+	void *data;
+};
+
+/**
+ * debugfs node structure. This structure represents a debugfs file.
+ */
+struct drm_info_node {
+	struct list_head list;
+	struct drm_minor *minor;
+	struct drm_info_list *info_ent;
+	struct dentry *dent;
+};
+#endif
+
 /**
  * DRM minor structure. This structure represents a drm minor number.
  */
 struct drm_minor {
 	int index;			/**< Minor device number */
 	int type;                       /**< Control or render */
+#ifdef __linux__
+	dev_t device;			/**< Device number for mknod */
+	struct device kdev;		/**< Linux device */
+#elif __FreeBSD__
 	struct cdev *device;		/**< Device number for mknod */
 	device_t kdev;			/**< OS device */
+#endif
 	struct drm_device *dev;
+
+#ifdef __linux__
+
+	struct proc_dir_entry *proc_root;  /**< proc directory entry */
+	struct drm_info_node proc_nodes;
+	struct dentry *debugfs_root;
+
+	struct list_head debugfs_list;
+	struct mutex debugfs_lock; /* Protects debugfs_list. */
+#endif
 
 	struct drm_master *master; /* currently active master for this node */
 	struct list_head master_list;
 	struct drm_mode_group mode_group;
 
+#ifdef __FreeBSD__
 	struct sigio *buf_sigio;	/* Processes waiting for SIGIO     */
+#endif
 };
 
 /* mode specified on the command line */
