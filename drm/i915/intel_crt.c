@@ -24,6 +24,11 @@
  *	Eric Anholt <eric@anholt.net>
  */
 
+#ifdef __linux__
+#include <linux/dmi.h>
+#include <linux/i2c.h>
+#include <linux/slab.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
@@ -409,7 +414,11 @@ static int intel_crt_ddc_get_modes(struct drm_connector *connector,
 		return 0;
 
 	ret = intel_connector_update_modes(connector, edid);
+#ifdef FREEBSD_NOTYET
+	kfree(edid);
+#else
 	free(edid, DRM_MEM_KMS);
+#endif
 
 	return ret;
 }
@@ -447,7 +456,11 @@ static bool intel_crt_detect_ddc(struct drm_connector *connector)
 	}
 
 out:
+#ifdef FREEBSD_NOTYET
+	kfree(edid);
+#else
 	free(edid, DRM_MEM_KMS);
+#endif
 
 	return res;
 }
@@ -620,8 +633,15 @@ intel_crt_detect(struct drm_connector *connector, bool force)
 
 static void intel_crt_destroy(struct drm_connector *connector)
 {
+#ifdef __linux__
+	drm_sysfs_connector_remove(connector);
+#endif
 	drm_connector_cleanup(connector);
+#ifdef FREEBSD_NOTYET
+	kfree(connector);
+#else
 	free(connector, DRM_MEM_KMS);
+#endif
 }
 
 static int intel_crt_get_modes(struct drm_connector *connector)
@@ -727,13 +747,25 @@ void intel_crt_init(struct drm_device *dev)
 	if (dmi_check_system(intel_no_crt))
 		return;
 
+#ifdef FREEBSD_NOTYET
+	crt = kzalloc(sizeof(struct intel_crt), GFP_KERNEL);
+#else
 	crt = malloc(sizeof(struct intel_crt), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!crt)
 		return;
 
+#ifdef FREEBSD_NOTYET
+	intel_connector = kzalloc(sizeof(struct intel_connector), GFP_KERNEL);
+#else
 	intel_connector = malloc(sizeof(struct intel_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_connector) {
+#ifdef FREEBSD_NOTYET
+		kfree(crt);
+#else
 		free(crt, DRM_MEM_KMS);
+#endif
 		return;
 	}
 
@@ -778,6 +810,10 @@ void intel_crt_init(struct drm_device *dev)
 	drm_encoder_helper_add(&crt->base.base, &crt_encoder_funcs);
 	drm_connector_helper_add(connector, &intel_crt_connector_helper_funcs);
 
+#ifdef __linux__
+	drm_sysfs_connector_add(connector);
+#endif
+
 	if (I915_HAS_HOTPLUG(dev))
 		connector->polled = DRM_CONNECTOR_POLL_HPD;
 	else
@@ -791,7 +827,7 @@ void intel_crt_init(struct drm_device *dev)
 	dev_priv->hotplug_supported_mask |= CRT_HOTPLUG_INT_STATUS;
 
 	/*
-	 * TODO: find a proper way to discover whether we need to set the
+	 * TODO: find a proper way to discover whether we need to set the the
 	 * polarity and link reversal bits or not, instead of relying on the
 	 * BIOS.
 	 */
