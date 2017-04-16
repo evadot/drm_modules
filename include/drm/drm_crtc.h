@@ -21,12 +21,17 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
- *
- * $FreeBSD$
  */
 #ifndef __DRM_CRTC_H__
 #define __DRM_CRTC_H__
 
+#ifdef __linux__
+#include <linux/i2c.h>
+#include <linux/spinlock.h>
+#include <linux/types.h>
+#include <linux/idr.h>
+#include <linux/fb.h>
+#endif
 #include <drm/drm_mode.h>
 
 #include <drm/drm_fourcc.h>
@@ -250,7 +255,11 @@ struct drm_framebuffer {
 	 * hold a ref to the fb even though it has already been removed from
 	 * userspace perspective.
 	 */
+#ifdef FREEBSD_NOTYET
+	struct kref refcount;
+#else
 	unsigned int refcount;
+#endif
 	struct list_head head;
 	struct drm_mode_object base;
 	const struct drm_framebuffer_funcs *funcs;
@@ -710,10 +719,16 @@ struct drm_mode_set {
  * involve drivers.
  */
 struct drm_mode_config_funcs {
+#ifdef FREEBSD_NOTYET
+	struct drm_framebuffer *(*fb_create)(struct drm_device *dev,
+					     struct drm_file *file_priv,
+					     struct drm_mode_fb_cmd2 *mode_cmd);
+#else
 	int (*fb_create)(struct drm_device *dev,
 					     struct drm_file *file_priv,
 					     struct drm_mode_fb_cmd2 *mode_cmd,
 					     struct drm_framebuffer **fb);
+#endif
 	void (*output_poll_changed)(struct drm_device *dev);
 };
 
@@ -767,8 +782,14 @@ struct drm_mode_group {
  * global restrictions are also here, e.g. dimension restrictions.
  */
 struct drm_mode_config {
+#ifdef FREEBSD_NOTYET
+	struct mutex mutex; /* protects configuration (mode lists etc.) */
+	struct mutex idr_mutex; /* for IDR management */
+	struct idr crtc_idr; /* use this idr for all IDs, fb, crtc, connector, modes - just makes life easier */
+#else
 	struct sx mutex; /* protects configuration (mode lists etc.) */
 	struct drm_gem_names crtc_names; /* use this idr for all IDs, fb, crtc, connector, modes - just makes life easier */
+#endif
 	/* this is limited to one for now */
 	int num_fb;
 	struct list_head fb_list;
@@ -792,7 +813,11 @@ struct drm_mode_config {
 	/* output poll support */
 	bool poll_enabled;
 	bool poll_running;
+#ifdef FREEBSD_NOTYET
+	struct delayed_work output_poll_work;
+#else
 	struct timeout_task output_poll_work;
+#endif
 
 	/* pointers to standard properties */
 	struct list_head property_blob_list;

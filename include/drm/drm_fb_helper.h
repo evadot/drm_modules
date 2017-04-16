@@ -26,13 +26,15 @@
  * Authors:
  *      Dave Airlie <airlied@linux.ie>
  *      Jesse Barnes <jesse.barnes@intel.com>
- *
- * $FreeBSD$
  */
 #ifndef DRM_FB_HELPER_H
 #define DRM_FB_HELPER_H
 
 struct drm_fb_helper;
+
+#ifdef __linux__
+#include <linux/kgdb.h>
+#endif
 
 struct drm_fb_helper_crtc {
 	struct drm_mode_set mode_set;

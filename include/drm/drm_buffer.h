@@ -32,9 +32,6 @@
  * Pauli Nieminen <suokkos-at-gmail-dot-com>
  */
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
 #ifndef _DRM_BUFFER_H_
 #define _DRM_BUFFER_H_
 

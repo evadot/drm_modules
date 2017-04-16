@@ -26,9 +26,6 @@
  *
  **************************************************************************/
 
-#include <sys/cdefs.h>
-__FBSDID("$FreeBSD$");
-
 /*
  * Simple open hash tab implementation.
  *
@@ -38,6 +35,10 @@ __FBSDID("$FreeBSD$");
 
 #ifndef DRM_HASHTAB_H
 #define DRM_HASHTAB_H
+
+#ifdef __linux__
+#include <linux/list.h>
+#endif
 
 #define drm_hash_entry(_ptr, _type, _member) container_of(_ptr, _type, _member)
 

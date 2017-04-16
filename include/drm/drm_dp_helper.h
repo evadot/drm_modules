@@ -18,12 +18,16 @@
  * DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
  * TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE
  * OF THIS SOFTWARE.
- *
- * $FreeBSD$
  */
 
 #ifndef _DRM_DP_HELPER_H_
 #define _DRM_DP_HELPER_H_
+
+#ifdef __linux__
+#include <linux/types.h>
+#include <linux/i2c.h>
+#include <linux/delay.h>
+#endif
 
 /*
  * Unless otherwise noted, all values are from the DP 1.1a spec.  Note that

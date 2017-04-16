@@ -21,8 +21,6 @@
  * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
- *
- * $FreeBSD$
  */
 
 /*
@@ -34,6 +32,15 @@
 
 #ifndef __DRM_CRTC_HELPER_H__
 #define __DRM_CRTC_HELPER_H__
+
+#ifdef __linux__
+
+#include <linux/spinlock.h>
+#include <linux/types.h>
+#include <linux/idr.h>
+
+#include <linux/fb.h>
+#endif
 
 enum mode_set_atomic {
 	LEAVE_ATOMIC_MODE_SET,
@@ -164,4 +171,5 @@ extern void drm_kms_helper_hotplug_event(struct drm_device *dev);
 
 extern void drm_kms_helper_poll_disable(struct drm_device *dev);
 extern void drm_kms_helper_poll_enable(struct drm_device *dev);
+
 #endif
