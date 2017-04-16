@@ -337,11 +337,10 @@ int drm_fill_in_dev(struct drm_device *dev,
 
 	spin_lock_init(&dev->count_lock);
 #ifdef FREEBSD_NOTYET
-	spin_lock_init(&dev->event_lock);
 	mutex_init(&dev->struct_mutex);
 #else
 	mtx_init(&dev->irq_lock, "drmirq", NULL, MTX_DEF);
-	mtx_init(&dev->event_lock, "drmev", NULL, MTX_DEF);
+	spin_lock_init(&dev->event_lock);
 	sx_init(&dev->dev_struct_lock, "drmslk");
 	mutex_init(&dev->ctxlist_mutex);
 	mtx_init(&dev->pcir_lock, "drmpcir", NULL, MTX_DEF);
@@ -432,7 +431,7 @@ void drm_cancel_fill_in_dev(struct drm_device *dev)
 
 	mtx_destroy(&dev->irq_lock);
 	spin_lock_destroy(&dev->count_lock);
-	mtx_destroy(&dev->event_lock);
+	spin_lock_destroy(&dev->event_lock);
 	sx_destroy(&dev->dev_struct_lock);
 	mutex_destroy(&dev->ctxlist_mutex);
 	mtx_destroy(&dev->pcir_lock);
@@ -611,7 +610,7 @@ void drm_put_dev(struct drm_device *dev)
 
 	mtx_destroy(&dev->irq_lock);
 	spin_lock_destroy(&dev->count_lock);
-	mtx_destroy(&dev->event_lock);
+	spin_lock_destroy(&dev->event_lock);
 	sx_destroy(&dev->dev_struct_lock);
 	mutex_destroy(&dev->ctxlist_mutex);
 	mtx_destroy(&dev->pcir_lock);

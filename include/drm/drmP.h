@@ -138,6 +138,8 @@
 #include <sys/bus.h>
 
 #include <linux/mutex.h>
+#define spin_is_locked(_l) mtx_owned(&(_l)->m)
+
 #include <linux/types.h>
 
 #include <drm/drm.h>
@@ -1339,11 +1341,7 @@ struct drm_device {
 	 * List of events
 	 */
 	struct list_head vblank_event_list;
-#ifdef FREEBSD_NOTYET
 	spinlock_t event_lock;
-#else
-	struct mtx event_lock;
-#endif
 
 	/*@} */
 #ifdef FREEBSD_NOTYET
@@ -1943,17 +1941,8 @@ SYSCTL_DECL(_hw_drm);
 
 #define DRM_CURPROC		curthread
 #define DRM_STRUCTPROC		struct thread
-#define DRM_SPINTYPE		struct mtx
-#define DRM_SPININIT(l,name)	mtx_init(l, name, NULL, MTX_DEF)
-#define DRM_SPINUNINIT(l)	mtx_destroy(l)
 #define DRM_SPINLOCK(l)		mtx_lock(l)
 #define DRM_SPINUNLOCK(u)	mtx_unlock(u)
-#define DRM_SPINLOCK_IRQSAVE(l, irqflags) do {		\
-	mtx_lock(l);					\
-	(void)irqflags;					\
-} while (0)
-#define DRM_SPINUNLOCK_IRQRESTORE(u, irqflags) mtx_unlock(u)
-#define DRM_SPINLOCK_ASSERT(l)	mtx_assert(l, MA_OWNED)
 #define	DRM_LOCK_SLEEP(dev, chan, flags, msg, timeout)			\
     (sx_sleep((chan), &(dev)->dev_struct_lock, (flags), (msg), (timeout)))
 #if defined(INVARIANTS)

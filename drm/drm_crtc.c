@@ -3985,9 +3985,7 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 	struct drm_crtc *crtc;
 	struct drm_framebuffer *fb;
 	struct drm_pending_vblank_event *e = NULL;
-#ifdef __linux__
 	unsigned long flags;
-#endif
 	int hdisplay, vdisplay;
 	int ret = -EINVAL;
 
@@ -4050,25 +4048,13 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 
 	if (page_flip->flags & DRM_MODE_PAGE_FLIP_EVENT) {
 		ret = -ENOMEM;
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&dev->event_lock, flags);
-#else
-		mtx_lock(&dev->event_lock);
-#endif
 		if (file_priv->event_space < sizeof e->event) {
-#ifdef FREEBSD_NOTYET
 			spin_unlock_irqrestore(&dev->event_lock, flags);
-#else
-			mtx_unlock(&dev->event_lock);
-#endif
 			goto out;
 		}
 		file_priv->event_space -= sizeof e->event;
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev->event_lock, flags);
-#else
-		mtx_unlock(&dev->event_lock);
-#endif
 
 #ifdef FREEBSD_NOTYET
 		e = kzalloc(sizeof *e, GFP_KERNEL);
@@ -4076,17 +4062,9 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 		e = malloc(sizeof *e, DRM_MEM_KMS, M_WAITOK | M_ZERO);
 #endif
 		if (e == NULL) {
-#ifdef FREEBSD_NOTYET
 			spin_lock_irqsave(&dev->event_lock, flags);
-#else
-			mtx_lock(&dev->event_lock);
-#endif
 			file_priv->event_space += sizeof e->event;
-#ifdef FREEBSD_NOTYET
 			spin_unlock_irqrestore(&dev->event_lock, flags);
-#else
-			mtx_unlock(&dev->event_lock);
-#endif
 			goto out;
 		}
 
@@ -4107,17 +4085,12 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 	ret = crtc->funcs->page_flip(crtc, fb, e);
 	if (ret) {
 		if (page_flip->flags & DRM_MODE_PAGE_FLIP_EVENT) {
-#ifdef FREEBSD_NOTYET
 			spin_lock_irqsave(&dev->event_lock, flags);
-#else
-			mtx_lock(&dev->event_lock);
-#endif
 			file_priv->event_space += sizeof e->event;
-#ifdef FREEBSD_NOTYET
 			spin_unlock_irqrestore(&dev->event_lock, flags);
+#ifdef FREEBSD_NOTYET
 			kfree(e);
 #else
-			mtx_unlock(&dev->event_lock);
 			free(e, DRM_MEM_KMS);
 #endif
 		}

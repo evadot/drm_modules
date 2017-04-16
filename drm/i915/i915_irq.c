@@ -1805,31 +1805,21 @@ static void i915_pageflip_stall_check(struct drm_device *dev, int pipe)
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct drm_i915_gem_object *obj;
 	struct intel_unpin_work *work;
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 	bool stall_detected;
 
 	/* Ignore early vblank irqs */
 	if (intel_crtc == NULL)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev->event_lock, flags);
-#else
-	mtx_lock(&dev->event_lock);
-#endif
 	work = intel_crtc->unpin_work;
 
 	if (work == NULL ||
 	    atomic_read(&work->pending) >= INTEL_FLIP_COMPLETE ||
 	    !work->enable_stall_check) {
 		/* Either the pending flip IRQ arrived, or we're too early. Don't check */
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev->event_lock, flags);
-#else
-		mtx_unlock(&dev->event_lock);
-#endif
 		return;
 	}
 
@@ -1846,11 +1836,7 @@ static void i915_pageflip_stall_check(struct drm_device *dev, int pipe)
 							crtc->x * crtc->fb->bits_per_pixel/8);
 	}
 
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev->event_lock, flags);
-#else
-	mtx_unlock(&dev->event_lock);
-#endif
 
 	if (stall_detected) {
 		DRM_DEBUG_DRIVER("Pageflip stall detected\n");

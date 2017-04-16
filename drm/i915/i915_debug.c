@@ -296,7 +296,7 @@ static int i915_gem_pageflip_info(struct drm_device *dev, struct sbuf *m, void *
 		const char plane = plane_name(crtc->plane);
 		struct intel_unpin_work *work;
 
-		mtx_lock(&dev->event_lock);
+		spin_lock(&dev->event_lock);
 		work = crtc->unpin_work;
 		if (work == NULL) {
 			seq_printf(m, "No flip due on pipe %c (plane %c)\n",
@@ -326,7 +326,7 @@ static int i915_gem_pageflip_info(struct drm_device *dev, struct sbuf *m, void *
 					seq_printf(m, "New framebuffer gtt_offset 0x%08x\n", obj->gtt_offset);
 			}
 		}
-		mtx_unlock(&dev->event_lock);
+		spin_unlock(&dev->event_lock);
 	}
 
 	return 0;

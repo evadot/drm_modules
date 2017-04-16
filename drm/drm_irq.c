@@ -975,7 +975,7 @@ static void send_vblank_event(struct drm_device *dev,
 		struct drm_pending_vblank_event *e,
 		unsigned long seq, struct timeval *now)
 {
-	WARN_ON_SMP(!mtx_owned(&dev->event_lock));
+	WARN_ON_SMP(!spin_is_locked(&dev->event_lock));
 	e->event.sequence = seq;
 	e->event.tv_sec = now->tv_sec;
 	e->event.tv_usec = now->tv_usec;
@@ -1176,7 +1176,7 @@ void drm_vblank_off(struct drm_device *dev, int crtc)
 	/* Send any queued vblank events, lest the natives grow disquiet */
 	seq = drm_vblank_count_and_time(dev, crtc, &now);
 
-	mtx_lock(&dev->event_lock);
+	spin_lock(&dev->event_lock);
 	list_for_each_entry_safe(e, t, &dev->vblank_event_list, base.link) {
 		if (e->pipe != crtc)
 			continue;
@@ -1187,7 +1187,7 @@ void drm_vblank_off(struct drm_device *dev, int crtc)
 		drm_vblank_put(dev, e->pipe);
 		send_vblank_event(dev, e, seq, &now);
 	}
-	mtx_unlock(&dev->event_lock);
+	spin_unlock(&dev->event_lock);
 
 	spin_unlock_irqrestore(&dev->vbl_lock, irqflags);
 }
@@ -1297,6 +1297,7 @@ static int drm_queue_vblank_event(struct drm_device *dev, int pipe,
 {
 	struct drm_pending_vblank_event *e;
 	struct timeval now;
+	unsigned long flags;
 	unsigned int seq;
 	int ret;
 
@@ -1319,7 +1320,7 @@ static int drm_queue_vblank_event(struct drm_device *dev, int pipe,
 	e->base.file_priv = file_priv;
 	e->base.destroy = drm_vblank_event_destroy;
 
-	mtx_lock(&dev->event_lock);
+	spin_lock_irqsave(&dev->event_lock, flags);
 
 	if (file_priv->event_space < sizeof e->event) {
 		ret = -EBUSY;
@@ -1352,12 +1353,12 @@ static int drm_queue_vblank_event(struct drm_device *dev, int pipe,
 		vblwait->reply.sequence = vblwait->request.sequence;
 	}
 
-	mtx_unlock(&dev->event_lock);
+	spin_unlock_irqrestore(&dev->event_lock, flags);
 
 	return 0;
 
 err_unlock:
-	mtx_unlock(&dev->event_lock);
+	spin_unlock_irqrestore(&dev->event_lock, flags);
 #ifdef FREEBSD_NOTYET
 	kfree(e);
 #else
@@ -1498,11 +1499,12 @@ static void drm_handle_vblank_events(struct drm_device *dev, int crtc)
 {
 	struct drm_pending_vblank_event *e, *t;
 	struct timeval now;
+	unsigned long flags;
 	unsigned int seq;
 
 	seq = drm_vblank_count_and_time(dev, crtc, &now);
 
-	mtx_lock(&dev->event_lock);
+	spin_lock_irqsave(&dev->event_lock, flags);
 
 	list_for_each_entry_safe(e, t, &dev->vblank_event_list, base.link) {
 		if (e->pipe != crtc)
@@ -1518,7 +1520,7 @@ static void drm_handle_vblank_events(struct drm_device *dev, int crtc)
 		send_vblank_event(dev, e, seq, &now);
 	}
 
-	mtx_unlock(&dev->event_lock);
+	spin_unlock_irqrestore(&dev->event_lock, flags);
 
 	CTR2(KTR_DRM, "drm_handle_vblank_events %d %d", seq, crtc);
 }

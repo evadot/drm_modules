@@ -2305,13 +2305,13 @@ intel_finish_fb(struct drm_framebuffer *old_fb)
 		   atomic_read(&dev_priv->mm.wedged) ||
 		   atomic_read(&obj->pending_flip) == 0);
 #else
-	mtx_lock(&dev->event_lock);
+	spin_lock(&dev->event_lock);
 	while (!(atomic_read(&dev_priv->mm.wedged) ||
 		 atomic_read(&obj->pending_flip) == 0)) {
-		msleep(&dev_priv->pending_flip_queue, &dev->event_lock,
+		msleep(&dev_priv->pending_flip_queue, &(dev->event_lock).m,
 		    0, "915flp", 0);
 	}
-	mtx_unlock(&dev->event_lock);
+	spin_unlock(&dev->event_lock);
 #endif
 
 	/* Big Hammer, we also need to ensure that any pending
@@ -3013,25 +3013,19 @@ static bool intel_crtc_has_pending_flip(struct drm_crtc *crtc)
 {
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 	bool pending;
 
 	if (atomic_read(&dev_priv->mm.wedged))
 		return false;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev->event_lock, flags);
-#endif
 	/*
 	 * NOTE Linux<->FreeBSD dev->event_lock is already locked in
 	 * intel_crtc_wait_for_pending_flips().
 	 */
 	pending = to_intel_crtc(crtc)->unpin_work != NULL;
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev->event_lock, flags);
-#endif
 
 	return pending;
 }
@@ -3048,12 +3042,10 @@ static void intel_crtc_wait_for_pending_flips(struct drm_crtc *crtc)
 	wait_event(dev_priv->pending_flip_queue,
 		   !intel_crtc_has_pending_flip(crtc));
 #else
-	mtx_lock(&dev->event_lock);
 	while (intel_crtc_has_pending_flip(crtc)) {
-		msleep(&dev_priv->pending_flip_queue, &dev->event_lock,
+		msleep(&dev_priv->pending_flip_queue, &(dev->event_lock).m,
 		    0, "915flp", 0);
 	}
-	mtx_unlock(&dev->event_lock);
 #endif
 
 #ifdef FREEBSD_NOTYET
@@ -7278,22 +7270,12 @@ static void intel_crtc_destroy(struct drm_crtc *crtc)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 #endif
 	struct intel_unpin_work *work;
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev->event_lock, flags);
-#else
-	mtx_lock(&dev->event_lock);
-#endif
 	work = intel_crtc->unpin_work;
 	intel_crtc->unpin_work = NULL;
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev->event_lock, flags);
-#else
-	mtx_unlock(&dev->event_lock);
-#endif
 
 	if (work) {
 #ifdef FREEBSD_NOTYET
@@ -7354,30 +7336,20 @@ static void do_intel_finish_page_flip(struct drm_device *dev,
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_unpin_work *work;
 	struct drm_i915_gem_object *obj;
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 
 	/* Ignore early vblank irqs */
 	if (intel_crtc == NULL)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev->event_lock, flags);
-#else
-	mtx_lock(&dev->event_lock);
-#endif
 	work = intel_crtc->unpin_work;
 
 	/* Ensure we don't miss a work->pending update ... */
 	smp_rmb();
 
 	if (work == NULL || atomic_read(&work->pending) < INTEL_FLIP_COMPLETE) {
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev->event_lock, flags);
-#else
-		mtx_unlock(&dev->event_lock);
-#endif
 		return;
 	}
 
@@ -7391,11 +7363,7 @@ static void do_intel_finish_page_flip(struct drm_device *dev,
 
 	drm_vblank_put(dev, intel_crtc->pipe);
 
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev->event_lock, flags);
-#else
-	mtx_unlock(&dev->event_lock);
-#endif
 
 	obj = work->old_fb_obj;
 
@@ -7441,26 +7409,16 @@ void intel_prepare_page_flip(struct drm_device *dev, int plane)
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	struct intel_crtc *intel_crtc =
 		to_intel_crtc(dev_priv->plane_to_crtc_mapping[plane]);
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 
 	/* NB: An MMIO update of the plane base pointer will also
 	 * generate a page-flip completion irq, i.e. every modeset
 	 * is also accompanied by a spurious intel_prepare_page_flip().
 	 */
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev->event_lock, flags);
-#else
-	mtx_lock(&dev->event_lock);
-#endif
 	if (intel_crtc->unpin_work)
 		atomic_inc_not_zero(&intel_crtc->unpin_work->pending);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev->event_lock, flags);
-#else
-	mtx_unlock(&dev->event_lock);
-#endif
 }
 
 inline static void intel_mark_page_flip_active(struct intel_crtc *intel_crtc)
@@ -7723,9 +7681,7 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	struct drm_i915_gem_object *obj = to_intel_framebuffer(fb)->obj;
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct intel_unpin_work *work;
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 	int ret;
 
 	/* Can't change pixel format via MI display flips. */
@@ -7763,17 +7719,12 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 		goto free_work;
 
 	/* We borrow the event spin lock for protecting unpin_work */
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev->event_lock, flags);
-#else
-	mtx_lock(&dev->event_lock);
-#endif
 	if (intel_crtc->unpin_work) {
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev->event_lock, flags);
+#ifdef FREEBSD_NOTYET
 		kfree(work);
 #else
-		mtx_unlock(&dev->event_lock);
 		free(work, DRM_MEM_KMS);
 #endif
 		drm_vblank_put(dev, intel_crtc->pipe);
@@ -7782,11 +7733,7 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 		return -EBUSY;
 	}
 	intel_crtc->unpin_work = work;
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev->event_lock, flags);
-#else
-	mtx_unlock(&dev->event_lock);
-#endif
 
 	if (atomic_read(&intel_crtc->unpin_work_count) >= 2)
 #ifdef FREEBSD_NOTYET
@@ -7848,17 +7795,9 @@ cleanup_pending:
 #endif
 
 cleanup:
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev->event_lock, flags);
-#else
-	mtx_lock(&dev->event_lock);
-#endif
 	intel_crtc->unpin_work = NULL;
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev->event_lock, flags);
-#else
-	mtx_unlock(&dev->event_lock);
-#endif
 
 	drm_vblank_put(dev, intel_crtc->pipe);
 free_work:
