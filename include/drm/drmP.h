@@ -720,11 +720,7 @@ struct drm_gem_mm {
  */
 struct drm_gem_object {
 	/** Reference count of this object */
-#ifdef FREEBSD_NOTYET
 	struct kref refcount;
-#else
-	u_int refcount;
-#endif
 
 	/** Handle count of this object. Each handle also holds a reference */
 	atomic_t handle_count; /* number of handles on this object */
@@ -1734,7 +1730,7 @@ extern void drm_pci_free(struct drm_device *dev, drm_dma_handle_t * dmah);
 int drm_gem_init(struct drm_device *dev);
 void drm_gem_destroy(struct drm_device *dev);
 void drm_gem_object_release(struct drm_gem_object *obj);
-void drm_gem_object_free(struct drm_gem_object *obj);
+void drm_gem_object_free(struct kref *kref);
 struct drm_gem_object *drm_gem_object_alloc(struct drm_device *dev,
 					    size_t size);
 int drm_gem_object_init(struct drm_device *dev,
@@ -1751,26 +1747,14 @@ void drm_gem_pager_dtr(void *obj);
 static inline void
 drm_gem_object_reference(struct drm_gem_object *obj)
 {
-#ifdef FREEBSD_NOTYET
 	kref_get(&obj->refcount);
-#else
-	KASSERT(obj->refcount > 0, ("Dangling obj %p", obj));
-	refcount_acquire(&obj->refcount);
-#endif
 }
 
 static inline void
 drm_gem_object_unreference(struct drm_gem_object *obj)
 {
-#ifdef FREEBSD_NOTYET
 	if (obj != NULL)
 		kref_put(&obj->refcount, drm_gem_object_free);
-#else
-	if (obj == NULL)
-		return;
-	if (refcount_release(&obj->refcount))
-		drm_gem_object_free(obj);
-#endif
 }
 
 static inline void
@@ -1780,11 +1764,12 @@ drm_gem_object_unreference_unlocked(struct drm_gem_object *obj)
 		struct drm_device *dev = obj->dev;
 #ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
-		kref_put(&obj->refcount, drm_gem_object_free);
-		mutex_unlock(&dev->struct_mutex);
 #else
 		DRM_LOCK(dev);
-		drm_gem_object_unreference(obj);
+#endif
+		kref_put(&obj->refcount, drm_gem_object_free);
+#ifdef FREEBSD_NOTYET
+#else
 		DRM_UNLOCK(dev);
 #endif
 	}
