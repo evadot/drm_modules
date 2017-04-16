@@ -34,8 +34,8 @@
 #ifdef __linux__
 #include <linux/module.h>
 #include <linux/moduleparam.h>
-#include <linux/slab.h>
 #endif
+#include <linux/slab.h>
 #include <drm/drmP.h>
 #include <drm/drm_core.h>
 
@@ -427,7 +427,7 @@ void drm_cancel_fill_in_dev(struct drm_device *dev)
 				  DRM_MTRR_WC);
 		DRM_DEBUG("mtrr_del=%d\n", retval);
 	}
-	free(dev->agp, DRM_MEM_AGPLISTS);
+	kfree(dev->agp);
 	dev->agp = NULL;
 
 	drm_ht_remove(&dev->map_hash);
@@ -591,7 +591,7 @@ void drm_put_dev(struct drm_device *dev)
 	drm_sysctl_cleanup(dev);
 
 	if (drm_core_has_AGP(dev) && dev->agp) {
-		free(dev->agp, DRM_MEM_AGPLISTS);
+		kfree(dev->agp);
 		dev->agp = NULL;
 	}
 

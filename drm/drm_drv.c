@@ -48,9 +48,9 @@
 
 #ifdef __linux__
 #include <linux/debugfs.h>
-#include <linux/slab.h>
 #include <linux/export.h>
 #endif
+#include <linux/slab.h>
 #include <drm/drmP.h>
 #include <drm/drm_core.h>
 #include <drm/drm_global.h>
@@ -229,11 +229,7 @@ int drm_lastclose(struct drm_device * dev)
 			if (entry->bound)
 				drm_unbind_agp(entry->memory);
 			drm_free_agp(entry->memory, entry->pages);
-#ifdef FREEBSD_NOTYET
 			kfree(entry);
-#else
-			free(entry, DRM_MEM_AGPLISTS);
-#endif
 		}
 		INIT_LIST_HEAD(&dev->agp->memory);
 
