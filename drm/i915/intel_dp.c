@@ -25,6 +25,11 @@
  *
  */
 
+#ifdef __linux__
+#include <linux/i2c.h>
+#include <linux/slab.h>
+#include <linux/export.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_crtc_helper.h>
@@ -399,7 +404,11 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 		status = I915_READ(ch_ctl);
 		if ((status & DP_AUX_CH_CTL_SEND_BUSY) == 0)
 			break;
+#ifdef FREEBSD_NOTYET
+		msleep(1);
+#else
 		DRM_MSLEEP(1);
+#endif
 	}
 
 	if (try == 3) {
@@ -662,6 +671,19 @@ intel_dp_i2c_init(struct intel_dp *intel_dp,
 	int	ret;
 
 	DRM_DEBUG_KMS("i2c_init %s\n", name);
+#ifdef __linux__
+	intel_dp->algo.running = false;
+	intel_dp->algo.address = 0;
+	intel_dp->algo.aux_ch = intel_dp_i2c_aux_ch;
+
+	memset(&intel_dp->adapter, '\0', sizeof(intel_dp->adapter));
+	intel_dp->adapter.owner = THIS_MODULE;
+	intel_dp->adapter.class = I2C_CLASS_DDC;
+	strncpy(intel_dp->adapter.name, name, sizeof(intel_dp->adapter.name) - 1);
+	intel_dp->adapter.name[sizeof(intel_dp->adapter.name) - 1] = '\0';
+	intel_dp->adapter.algo_data = &intel_dp->algo;
+	intel_dp->adapter.dev.parent = &intel_connector->base.kdev;
+#endif
 
 	ironlake_edp_panel_vdd_on(intel_dp);
 	ret = iic_dp_aux_add_bus(intel_connector->base.dev->dev, name,
@@ -1043,7 +1065,11 @@ void ironlake_edp_panel_vdd_on(struct intel_dp *intel_dp)
 	 */
 	if (!ironlake_edp_have_panel_power(intel_dp)) {
 		DRM_DEBUG_KMS("eDP was not running\n");
+#ifdef FREEBSD_NOTYET
+		msleep(intel_dp->panel_power_up_delay);
+#else
 		DRM_MSLEEP(intel_dp->panel_power_up_delay);
+#endif
 	}
 }
 
@@ -1063,18 +1089,37 @@ static void ironlake_panel_vdd_off_sync(struct intel_dp *intel_dp)
 		DRM_DEBUG_KMS("PCH_PP_STATUS: 0x%08x PCH_PP_CONTROL: 0x%08x\n",
 			      I915_READ(PCH_PP_STATUS), I915_READ(PCH_PP_CONTROL));
 
+#ifdef FREEBSD_NOTYET
+		msleep(intel_dp->panel_power_down_delay);
+#else
 		DRM_MSLEEP(intel_dp->panel_power_down_delay);
+#endif
 	}
 }
 
+#ifdef FREEBSD_NOTYET
+static void ironlake_panel_vdd_work(struct work_struct *__work)
+{
+	struct intel_dp *intel_dp = container_of(to_delayed_work(__work),
+						 struct intel_dp, panel_vdd_work);
+#else
 static void ironlake_panel_vdd_work(void *arg, int pending __unused)
 {
 	struct intel_dp *intel_dp = arg;
+#endif
 	struct drm_device *dev = intel_dp_to_dev(intel_dp);
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->mode_config.mutex);
+#else
 	sx_xlock(&dev->mode_config.mutex);
+#endif
 	ironlake_panel_vdd_off_sync(intel_dp);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->mode_config.mutex);
+#else
 	sx_xunlock(&dev->mode_config.mutex);
+#endif
 }
 
 void ironlake_edp_panel_vdd_off(struct intel_dp *intel_dp, bool sync)
@@ -1095,12 +1140,17 @@ void ironlake_edp_panel_vdd_off(struct intel_dp *intel_dp, bool sync)
 		 * time from now (relative to the power down delay)
 		 * to keep the panel power up across a sequence of operations
 		 */
+#ifdef FREEBSD_NOTYET
+		schedule_delayed_work(&intel_dp->panel_vdd_work,
+				      msecs_to_jiffies(intel_dp->panel_power_cycle_delay * 5));
+#else
 		struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
 		struct drm_device *dev = intel_dig_port->base.base.dev;
 		struct drm_i915_private *dev_priv = dev->dev_private;
 		taskqueue_enqueue_timeout(dev_priv->wq,
 		    &intel_dp->panel_vdd_work,
 		    msecs_to_jiffies(intel_dp->panel_power_cycle_delay * 5));
+#endif
 	}
 }
 
@@ -1189,7 +1239,11 @@ void ironlake_edp_backlight_on(struct intel_dp *intel_dp)
 	 * link.  So delay a bit to make sure the image is solid before
 	 * allowing it to appear.
 	 */
+#ifdef FREEBSD_NOTYET
+	msleep(intel_dp->backlight_on_delay);
+#else
 	DRM_MSLEEP(intel_dp->backlight_on_delay);
+#endif
 	pp = ironlake_get_pp_control(dev_priv);
 	pp |= EDP_BLC_ENABLE;
 	I915_WRITE(PCH_PP_CONTROL, pp);
@@ -1214,7 +1268,11 @@ void ironlake_edp_backlight_off(struct intel_dp *intel_dp)
 	pp &= ~EDP_BLC_ENABLE;
 	I915_WRITE(PCH_PP_CONTROL, pp);
 	POSTING_READ(PCH_PP_CONTROL);
+#ifdef FREEBSD_NOTYET
+	msleep(intel_dp->backlight_off_delay);
+#else
 	DRM_MSLEEP(intel_dp->backlight_off_delay);
+#endif
 }
 
 static void ironlake_edp_pll_on(struct intel_dp *intel_dp)
@@ -1293,7 +1351,11 @@ void intel_dp_sink_dpms(struct intel_dp *intel_dp, int mode)
 							  DP_SET_POWER_D0);
 			if (ret == 1)
 				break;
+#ifdef FREEBSD_NOTYET
+			msleep(1);
+#else
 			DRM_MSLEEP(1);
+#endif
 		}
 	}
 }
@@ -1419,7 +1481,11 @@ intel_dp_aux_native_read_retry(struct intel_dp *intel_dp, uint16_t address,
 					       recv_bytes);
 		if (ret == recv_bytes)
 			return true;
+#ifdef FREEBSD_NOTYET
+		msleep(1);
+#else
 		DRM_MSLEEP(1);
+#endif
 	}
 
 	return false;
@@ -2001,7 +2067,11 @@ intel_dp_link_down(struct intel_dp *intel_dp)
 	}
 	POSTING_READ(intel_dp->output_reg);
 
+#ifdef FREEBSD_NOTYET
+	msleep(17);
+#else
 	DRM_MSLEEP(17);
+#endif
 
 	if (HAS_PCH_IBX(dev) &&
 	    I915_READ(intel_dp->output_reg) & DP_PIPEB_SELECT) {
@@ -2031,7 +2101,11 @@ intel_dp_link_down(struct intel_dp *intel_dp)
 			 * continuing.
 			 */
 			POSTING_READ(intel_dp->output_reg);
+#ifdef FREEBSD_NOTYET
+			msleep(50);
+#else
 			DRM_MSLEEP(50);
+#endif
 		} else
 			intel_wait_for_vblank(dev, to_intel_crtc(crtc)->pipe);
 	}
@@ -2039,7 +2113,11 @@ intel_dp_link_down(struct intel_dp *intel_dp)
 	DP &= ~DP_AUDIO_OUTPUT_ENABLE;
 	I915_WRITE(intel_dp->output_reg, DP & ~DP_PORT_EN);
 	POSTING_READ(intel_dp->output_reg);
+#ifdef FREEBSD_NOTYET
+	msleep(intel_dp->panel_power_down_delay);
+#else
 	DRM_MSLEEP(intel_dp->panel_power_down_delay);
+#endif
 }
 
 static bool
@@ -2264,7 +2342,11 @@ intel_dp_get_edid(struct drm_connector *connector, device_t adapter)
 			return NULL;
 
 		size = (intel_connector->edid->extensions + 1) * EDID_LENGTH;
+#ifdef FREEBSD_NOTYET
+		edid = kmalloc(size, GFP_KERNEL);
+#else
 		edid = malloc(size, DRM_MEM_KMS, M_WAITOK);
+#endif
 		if (!edid)
 			return NULL;
 
@@ -2333,7 +2415,11 @@ intel_dp_detect(struct drm_connector *connector, bool force)
 		edid = intel_dp_get_edid(connector, intel_dp->adapter);
 		if (edid) {
 			intel_dp->has_audio = drm_detect_monitor_audio(edid);
+#ifdef FREEBSD_NOTYET
+			kfree(edid);
+#else
 			free(edid, DRM_MEM_KMS);
+#endif
 		}
 	}
 
@@ -2379,7 +2465,11 @@ intel_dp_detect_audio(struct drm_connector *connector)
 	edid = intel_dp_get_edid(connector, intel_dp->adapter);
 	if (edid) {
 		has_audio = drm_detect_monitor_audio(edid);
+#ifdef FREEBSD_NOTYET
+		kfree(edid);
+#else
 		free(edid, DRM_MEM_KMS);
+#endif
 	}
 
 	return has_audio;
@@ -2463,13 +2553,22 @@ intel_dp_destroy(struct drm_connector *connector)
 	struct intel_dp *intel_dp = intel_attached_dp(connector);
 	struct intel_connector *intel_connector = to_intel_connector(connector);
 
+#ifdef FREEBSD_NOTYET
+	if (!IS_ERR_OR_NULL(intel_connector->edid))
+		kfree(intel_connector->edid);
+#else
 	free(intel_connector->edid, DRM_MEM_KMS);
+#endif
 
 	if (is_edp(intel_dp))
 		intel_panel_fini(&intel_connector->panel);
 
 	drm_connector_cleanup(connector);
+#ifdef FREEBSD_NOTYET
+	kfree(connector);
+#else
 	free(connector, DRM_MEM_KMS);
+#endif
 }
 
 void intel_dp_encoder_destroy(struct drm_encoder *encoder)
@@ -2487,15 +2586,23 @@ void intel_dp_encoder_destroy(struct drm_encoder *encoder)
 	}
 	drm_encoder_cleanup(encoder);
 	if (is_edp(intel_dp)) {
+#ifdef FREEBSD_NOTYET
+		cancel_delayed_work_sync(&intel_dp->panel_vdd_work);
+#else
 		struct drm_i915_private *dev_priv = dev->dev_private;
 
 		taskqueue_cancel_timeout(dev_priv->wq,
 		    &intel_dp->panel_vdd_work, NULL);
 		taskqueue_drain_timeout(dev_priv->wq,
 		    &intel_dp->panel_vdd_work);
+#endif
 		ironlake_panel_vdd_off_sync(intel_dp);
 	}
+#ifdef FREEBSD_NOTYET
+	kfree(intel_dig_port);
+#else
 	free(intel_dig_port, DRM_MEM_KMS);
+#endif
 }
 
 static const struct drm_encoder_helper_funcs intel_dp_helper_funcs = {
@@ -2759,10 +2866,18 @@ intel_dp_init_connector(struct intel_digital_port *intel_dig_port,
 	connector->interlace_allowed = true;
 	connector->doublescan_allowed = 0;
 
+#ifdef FREEBSD_NOTYET
+	INIT_DELAYED_WORK(&intel_dp->panel_vdd_work,
+			  ironlake_panel_vdd_work);
+#else
 	TIMEOUT_TASK_INIT(dev_priv->wq, &intel_dp->panel_vdd_work, 0,
 	    ironlake_panel_vdd_work, intel_dp);
+#endif
 
 	intel_connector_attach_encoder(intel_connector, intel_encoder);
+#ifdef __linux__
+	drm_sysfs_connector_add(connector);
+#endif
 
 	if (IS_HASWELL(dev))
 		intel_connector->get_hw_state = intel_ddi_connector_get_hw_state;
@@ -2832,13 +2947,22 @@ intel_dp_init_connector(struct intel_digital_port *intel_dig_port,
 				drm_mode_connector_update_edid_property(connector, edid);
 				drm_edid_to_eld(connector, edid);
 			} else {
+#ifdef FREEBSD_NOTYET
+				kfree(edid);
+				edid = ERR_PTR(-EINVAL);
+#else
 				free(edid, DRM_MEM_KMS);
 				edid = NULL;
 				edid_err = -EINVAL;
+#endif
 			}
 		} else {
+#ifdef FREEBSD_NOTYET
+			edid = ERR_PTR(-ENOENT);
+#else
 			edid = NULL;
 			edid_err = -ENOENT;
+#endif
 		}
 		intel_connector->edid = edid;
 		intel_connector->edid_err = edid_err;
@@ -2886,13 +3010,25 @@ intel_dp_init(struct drm_device *dev, int output_reg, enum port port)
 	struct drm_encoder *encoder;
 	struct intel_connector *intel_connector;
 
+#ifdef FREEBSD_NOTYET
+	intel_dig_port = kzalloc(sizeof(struct intel_digital_port), GFP_KERNEL);
+#else
 	intel_dig_port = malloc(sizeof(struct intel_digital_port), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_dig_port)
 		return;
 
+#ifdef FREEBSD_NOTYET
+	intel_connector = kzalloc(sizeof(struct intel_connector), GFP_KERNEL);
+#else
 	intel_connector = malloc(sizeof(struct intel_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_connector) {
+#ifdef FREEBSD_NOTYET
+		kfree(intel_dig_port);
+#else
 		free(intel_dig_port, DRM_MEM_KMS);
+#endif
 		return;
 	}
 
