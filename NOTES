@@ -1,0 +1,7 @@
+Failed attempts:
+
+Removing DRM_MEM_MAPS seems to fail when loading i915kms:
+drmn0: <Intel Haswell (ULT GT2 mobile)> on vgapci0
+info: [drm] Memory usable by graphics device = 2048M
+error: [drm:pid833:i915_driver_load] *ERROR* failed to map registers
+device_attach: drmn0 attach returned 5
