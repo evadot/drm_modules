@@ -12,40 +12,6 @@ __FBSDID("$FreeBSD$");
 #include <sys/fbio.h>
 #include <sys/smp.h>
 
-#ifdef __LP64__
-#define	BITS_PER_LONG	64
-#else
-#define	BITS_PER_LONG	32
-#endif
-
-#ifndef __user
-#define	__user
-#endif
-#ifndef __iomem
-#define	__iomem
-#endif
-#ifndef __always_unused
-#define	__always_unused
-#endif
-#ifndef __must_check
-#define	__must_check
-#endif
-#ifndef __force
-#define	__force
-#endif
-#ifndef uninitialized_var
-#define	uninitialized_var(x) x
-#endif
-
-#define	cpu_to_le16(x)	htole16(x)
-#define	le16_to_cpu(x)	le16toh(x)
-#define	cpu_to_le32(x)	htole32(x)
-#define	le32_to_cpu(x)	le32toh(x)
-
-#define	cpu_to_be16(x)	htobe16(x)
-#define	be16_to_cpu(x)	be16toh(x)
-#define	cpu_to_be32(x)	htobe32(x)
-
 #define	wait_queue_head_t atomic_t
 
 #define	DRM_IRQ_ARGS		void *arg
@@ -53,23 +19,7 @@ typedef void			irqreturn_t;
 #define	IRQ_HANDLED		/* nothing */
 #define	IRQ_NONE		/* nothing */
 
-#define	__init
-#define	__exit
-
-#define	BUILD_BUG_ON(x)		CTASSERT(!(x))
 #define	BUILD_BUG_ON_NOT_POWER_OF_2(x)
-
-#ifndef WARN
-#define WARN(condition, format, ...) ({				\
-	int __ret_warn_on = !!(condition);			\
-	if (unlikely(__ret_warn_on))				\
-	DRM_ERROR(format, ##__VA_ARGS__);			\
-	unlikely(__ret_warn_on);				\
-})
-#endif
-#define	WARN_ON_SMP(cond)	WARN_ON(cond)
-#define	unlikely(x)            __builtin_expect(!!(x), 0)
-#define	likely(x)              __builtin_expect(!!(x), 1)
 
 #define	KHZ2PICOS(a)	(1000000000UL/(a))
 
@@ -84,7 +34,6 @@ typedef void			irqreturn_t;
 #define	DRM_UDELAY(udelay)	DELAY(udelay)
 #define	drm_msleep(x, msg)	pause((msg), ((int64_t)(x)) * hz / 1000)
 #define	DRM_MSLEEP(msecs)	drm_msleep((msecs), "drm_msleep")
-#define	get_seconds()		time_second
 
 #define ioread8(addr)		*(volatile uint8_t *)((char *)addr)
 #define ioread16(addr)		*(volatile uint16_t *)((char *)addr)
@@ -119,13 +68,6 @@ typedef void			irqreturn_t;
 	*(volatile u_int64_t *)(((vm_offset_t)(map)->handle) +		\
 	    (vm_offset_t)(offset)) = htole64(val)
 
-/* DRM_READMEMORYBARRIER() prevents reordering of reads.
- * DRM_WRITEMEMORYBARRIER() prevents reordering of writes.
- * DRM_MEMORYBARRIER() prevents reordering of reads and writes.
- */
-#define	DRM_READMEMORYBARRIER()		rmb()
-#define	DRM_WRITEMEMORYBARRIER()	wmb()
-#define	DRM_MEMORYBARRIER()		mb()
 #define	smp_rmb()			rmb()
 #define	smp_wmb()			wmb()
 #define	smp_mb__before_atomic_inc()	mb()
@@ -149,9 +91,6 @@ typedef void			irqreturn_t;
 #define	memset_io(a, b, c)	memset((a), (b), (c))
 #define	memcpy_fromio(a, b, c)	memcpy((a), (b), (c))
 #define	memcpy_toio(a, b, c)	memcpy((a), (b), (c))
-
-#define	VERIFY_READ	VM_PROT_READ
-#define	VERIFY_WRITE	VM_PROT_WRITE
 
 /* XXXKIB what is the right code for the FreeBSD ? */
 /* kib@ used ENXIO here -- dumbbell@ */
@@ -178,47 +117,6 @@ typedef void			irqreturn_t;
 #define	div_u64(n, d)		((n) / (d))
 
 #define	IS_ALIGNED(x, y)	(((x) & ((y) - 1)) == 0)
-#define	get_unaligned(ptr)                                              \
-	({ __typeof__(*(ptr)) __tmp;                                    \
-	  memcpy(&__tmp, (ptr), sizeof(*(ptr))); __tmp; })
-
-#if _BYTE_ORDER == _LITTLE_ENDIAN
-/* Taken from linux/include/linux/unaligned/le_struct.h. */
-struct __una_u32 { u32 x; } __packed;
-
-static inline u32
-__get_unaligned_cpu32(const void *p)
-{
-	const struct __una_u32 *ptr = (const struct __una_u32 *)p;
-
-	return (ptr->x);
-}
-
-static inline u32
-get_unaligned_le32(const void *p)
-{
-
-	return (__get_unaligned_cpu32((const u8 *)p));
-}
-#else
-/* Taken from linux/include/linux/unaligned/le_byteshift.h. */
-static inline u32
-__get_unaligned_le32(const u8 *p)
-{
-
-	return (p[0] | p[1] << 8 | p[2] << 16 | p[3] << 24);
-}
-
-static inline u32
-get_unaligned_le32(const void *p)
-{
-
-	return (__get_unaligned_le32((const u8 *)p));
-}
-#endif
-
-int64_t		timeval_to_ns(const struct timeval *tv);
-struct timeval	ns_to_timeval(const int64_t nsec);
 
 #define	PAGE_ALIGN(addr) round_page(addr)
 #define	page_to_phys(x) VM_PAGE_TO_PHYS(x)
