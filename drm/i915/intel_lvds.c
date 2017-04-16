@@ -27,12 +27,21 @@
  *      Jesse Barnes <jesse.barnes@intel.com>
  */
 
+#ifdef __linux__
+#include <acpi/button.h>
+#include <linux/dmi.h>
+#include <linux/i2c.h>
+#include <linux/slab.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_edid.h>
 #include "intel_drv.h"
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
+#ifdef __linux__
+#include <linux/acpi.h>
+#endif
 
 /* Private structure for the integrated LVDS support */
 struct intel_lvds_connector {
@@ -554,12 +563,21 @@ static void intel_lvds_destroy(struct drm_connector *connector)
 		acpi_lid_notifier_unregister(&lvds_connector->lid_notifier);
 #endif /* FREEBSD_WIP */
 
+#ifdef FREEBSD_NOTYET
+	if (!IS_ERR_OR_NULL(lvds_connector->base.edid))
+		kfree(lvds_connector->base.edid);
+#else
 	free(lvds_connector->base.edid, DRM_MEM_KMS);
+#endif
 
 	intel_panel_fini(&lvds_connector->base.panel);
 
 	drm_connector_cleanup(connector);
+#ifdef FREEBSD_NOTYET
+	kfree(connector);
+#else
 	free(connector, DRM_MEM_KMS);
+#endif
 }
 
 static int intel_lvds_set_property(struct drm_connector *connector,
@@ -960,13 +978,25 @@ bool intel_lvds_init(struct drm_device *dev)
 		}
 	}
 
+#ifdef FREEBSD_NOTYET
+	lvds_encoder = kzalloc(sizeof(struct intel_lvds_encoder), GFP_KERNEL);
+#else
 	lvds_encoder = malloc(sizeof(struct intel_lvds_encoder), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!lvds_encoder)
 		return false;
 
+#ifdef FREEBSD_NOTYET
+	lvds_connector = kzalloc(sizeof(struct intel_lvds_connector), GFP_KERNEL);
+#else
 	lvds_connector = malloc(sizeof(struct intel_lvds_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!lvds_connector) {
+#ifdef FREEBSD_NOTYET
+		kfree(lvds_encoder);
+#else
 		free(lvds_encoder, DRM_MEM_KMS);
+#endif
 		return false;
 	}
 
@@ -1034,13 +1064,22 @@ bool intel_lvds_init(struct drm_device *dev)
 			drm_mode_connector_update_edid_property(connector,
 								edid);
 		} else {
+#ifdef FREEBSD_NOTYET
+			kfree(edid);
+			edid = ERR_PTR(-EINVAL);
+#else
 			free(edid, DRM_MEM_KMS);
 			edid = NULL;
 			edid_err = -EINVAL;
+#endif
 		}
 	} else {
+#ifdef FREEBSD_NOTYET
+		edid = ERR_PTR(-ENOENT);
+#else
 		edid = NULL;
 		edid_err = -ENOENT;
+#endif
 	}
 	lvds_connector->base.edid = edid;
 	lvds_connector->base.edid_err = edid_err;
@@ -1141,7 +1180,12 @@ failed:
 	drm_encoder_cleanup(encoder);
 	if (fixed_mode)
 		drm_mode_destroy(dev, fixed_mode);
+#ifdef FREEBSD_NOTYET
+	kfree(lvds_encoder);
+	kfree(lvds_connector);
+#else
 	free(lvds_encoder, DRM_MEM_KMS);
 	free(lvds_connector, DRM_MEM_KMS);
+#endif
 	return false;
 }
