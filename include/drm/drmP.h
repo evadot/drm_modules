@@ -148,6 +148,7 @@
 
 #include <linux/bitops.h>
 #include <linux/types.h>
+#include <linux/kref.h>
 #include <asm/atomic.h>
 
 #include <drm/drm.h>
@@ -792,11 +793,7 @@ struct drm_gem_object {
 /* per-master structure */
 struct drm_master {
 
-#ifdef FREEBSD_NOTYET
 	struct kref refcount; /* refcount for this master */
-#else
-	u_int refcount; /* refcount for this master */
-#endif
 
 	struct list_head head; /**< each minor contains a list of masters */
 	struct drm_minor *minor; /**< link back to minor we are a master for */

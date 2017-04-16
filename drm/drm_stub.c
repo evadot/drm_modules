@@ -159,11 +159,10 @@ struct drm_master *drm_master_create(struct drm_minor *minor)
 	if (!master)
 		return NULL;
 
-#ifdef FREEBSD_NOTYET
 	kref_init(&master->refcount);
+#ifdef FREEBSD_NOTYET
 	init_waitqueue_head(&master->lock.lock_queue);
 #else
-	refcount_init(&master->refcount, 1);
 	spin_lock_init(&master->lock.spinlock);
 	DRM_INIT_WAITQUEUE(&master->lock.lock_queue);
 #endif
@@ -178,23 +177,14 @@ struct drm_master *drm_master_create(struct drm_minor *minor)
 
 struct drm_master *drm_master_get(struct drm_master *master)
 {
-#ifdef FREEBSD_NOTYET
 	kref_get(&master->refcount);
-#else
-	refcount_acquire(&master->refcount);
-#endif
 	return master;
 }
 EXPORT_SYMBOL(drm_master_get);
 
-#ifdef FREEBSD_NOTYET
 static void drm_master_destroy(struct kref *kref)
 {
 	struct drm_master *master = container_of(kref, struct drm_master, refcount);
-#else
-	static void drm_master_destroy(struct drm_master *master)
-{
-#endif
 	struct drm_magic_entry *pt, *next;
 	struct drm_device *dev = master->minor->dev;
 	struct drm_map_list *r_list, *list_temp;
@@ -247,12 +237,7 @@ static void drm_master_destroy(struct kref *kref)
 
 void drm_master_put(struct drm_master **master)
 {
-#ifdef FREEBSD_NOTYET
 	kref_put(&(*master)->refcount, drm_master_destroy);
-#else
-	if (refcount_release(&(*master)->refcount))
-		drm_master_destroy(*master);
-#endif
 	*master = NULL;
 }
 EXPORT_SYMBOL(drm_master_put);
