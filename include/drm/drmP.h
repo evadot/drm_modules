@@ -1924,10 +1924,6 @@ SYSCTL_DECL(_hw_drm);
 
 #define DRM_CURPROC		curthread
 #define DRM_STRUCTPROC		struct thread
-#define DRM_SPINLOCK(l)		mtx_lock(l)
-#define DRM_SPINUNLOCK(u)	mtx_unlock(u)
-#define	DRM_LOCK_SLEEP(dev, chan, flags, msg, timeout)			\
-    (sx_sleep((chan), &(dev)->dev_struct_lock, (flags), (msg), (timeout)))
 #if defined(INVARIANTS)
 #define	DRM_LOCK_ASSERT(dev)	sx_assert(&(dev)->dev_struct_lock, SA_XLOCKED)
 #define	DRM_UNLOCK_ASSERT(dev)	sx_assert(&(dev)->dev_struct_lock, SA_UNLOCKED)
