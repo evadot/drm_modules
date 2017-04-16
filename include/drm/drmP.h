@@ -417,10 +417,8 @@ struct drm_waitlist {
 	struct drm_buf **rp;			/**< Read pointer */
 	struct drm_buf **wp;			/**< Write pointer */
 	struct drm_buf **end;		/**< End pointer */
-#ifdef FREEBSD_NOTYET
 	spinlock_t read_lock;
 	spinlock_t write_lock;
-#endif
 };
 
 struct drm_freelist {
@@ -433,10 +431,8 @@ struct drm_freelist {
 #endif /* defined(FREEBSD_NOTYET) */
 	int low_mark;		       /**< Low water mark */
 	int high_mark;		       /**< High water mark */
-#ifdef FREEBSD_NOTYET
 	atomic_t wfh;		       /**< If waiting for high mark */
 	spinlock_t lock;
-#endif /* defined(FREEBSD_NOTYET) */
 };
 
 typedef struct drm_dma_handle {
@@ -553,11 +549,7 @@ struct drm_lock_data {
 	struct drm_file *file_priv;
 	wait_queue_head_t lock_queue;	/**< Queue of blocked processes */
 	unsigned long lock_time;	/**< Time of last lock in jiffies */
-#ifdef FREEBSD_NOTYET
 	spinlock_t spinlock;
-#else
-	struct mtx spinlock;
-#endif
 	uint32_t kernel_waiters;
 	uint32_t user_waiters;
 	int idle_has_lock;

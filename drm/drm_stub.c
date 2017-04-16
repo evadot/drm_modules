@@ -161,12 +161,10 @@ struct drm_master *drm_master_create(struct drm_minor *minor)
 
 #ifdef FREEBSD_NOTYET
 	kref_init(&master->refcount);
-	spin_lock_init(&master->lock.spinlock);
 	init_waitqueue_head(&master->lock.lock_queue);
 #else
 	refcount_init(&master->refcount, 1);
-	mtx_init(&master->lock.spinlock, "drm_master__lock__spinlock",
-	    NULL, MTX_DEF);
+	spin_lock_init(&master->lock.spinlock);
 	DRM_INIT_WAITQUEUE(&master->lock.lock_queue);
 #endif
 	drm_ht_create(&master->magiclist, DRM_MAGIC_HASH_ORDER);

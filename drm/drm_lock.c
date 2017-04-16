@@ -70,9 +70,9 @@ int drm_lock(struct drm_device *dev, void *data, struct drm_file *file_priv)
 		  lock->context, DRM_CURRENTPID,
 		  master->lock.hw_lock->lock, lock->flags);
 
-	mtx_lock(&master->lock.spinlock);
+	spin_lock_bh(&master->lock.spinlock);
 	master->lock.user_waiters++;
-	mtx_unlock(&master->lock.spinlock);
+	spin_unlock_bh(&master->lock.spinlock);
 
 	for (;;) {
 #if defined(__linux__)
@@ -99,9 +99,9 @@ int drm_lock(struct drm_device *dev, void *data, struct drm_file *file_priv)
 		if (ret != 0)
 			break;
 	}
-	mtx_lock(&master->lock.spinlock);
+	spin_lock_bh(&master->lock.spinlock);
 	master->lock.user_waiters--;
-	mtx_unlock(&master->lock.spinlock);
+	spin_unlock_bh(&master->lock.spinlock);
 
 	DRM_DEBUG("%d %s\n", lock->context,
 		  ret ? "interrupted" : "has lock");
@@ -185,7 +185,7 @@ int drm_lock_take(struct drm_lock_data *lock_data,
 	unsigned int old, new, prev;
 	volatile unsigned int *lock = &lock_data->hw_lock->lock;
 
-	mtx_lock(&lock_data->spinlock);
+	spin_lock_bh(&lock_data->spinlock);
 	do {
 		old = *lock;
 		if (old & _DRM_LOCK_HELD)
@@ -197,7 +197,7 @@ int drm_lock_take(struct drm_lock_data *lock_data,
 		}
 		prev = cmpxchg(lock, old, new);
 	} while (prev != old);
-	mtx_unlock(&lock_data->spinlock);
+	spin_unlock_bh(&lock_data->spinlock);
 
 	if (_DRM_LOCKING_CONTEXT(old) == context) {
 		if (old & _DRM_LOCK_HELD) {
@@ -259,14 +259,14 @@ int drm_lock_free(struct drm_lock_data *lock_data, unsigned int context)
 	unsigned int old, new, prev;
 	volatile unsigned int *lock = &lock_data->hw_lock->lock;
 
-	mtx_lock(&lock_data->spinlock);
+	spin_lock_bh(&lock_data->spinlock);
 	if (lock_data->kernel_waiters != 0) {
 		drm_lock_transfer(lock_data, 0);
 		lock_data->idle_has_lock = 1;
-		mtx_unlock(&lock_data->spinlock);
+		spin_unlock_bh(&lock_data->spinlock);
 		return 1;
 	}
-	mtx_unlock(&lock_data->spinlock);
+	spin_unlock_bh(&lock_data->spinlock);
 
 	do {
 		old = *lock;
@@ -333,18 +333,18 @@ void drm_idlelock_take(struct drm_lock_data *lock_data)
 {
 	int ret;
 
-	mtx_lock(&lock_data->spinlock);
+	spin_lock_bh(&lock_data->spinlock);
 	lock_data->kernel_waiters++;
 	if (!lock_data->idle_has_lock) {
 
-		mtx_unlock(&lock_data->spinlock);
+		spin_unlock_bh(&lock_data->spinlock);
 		ret = drm_lock_take(lock_data, DRM_KERNEL_CONTEXT);
-		mtx_lock(&lock_data->spinlock);
+		spin_lock_bh(&lock_data->spinlock);
 
 		if (ret == 1)
 			lock_data->idle_has_lock = 1;
 	}
-	mtx_unlock(&lock_data->spinlock);
+	spin_unlock_bh(&lock_data->spinlock);
 }
 EXPORT_SYMBOL(drm_idlelock_take);
 
@@ -353,7 +353,7 @@ void drm_idlelock_release(struct drm_lock_data *lock_data)
 	unsigned int old, prev;
 	volatile unsigned int *lock = &lock_data->hw_lock->lock;
 
-	mtx_lock(&lock_data->spinlock);
+	spin_lock_bh(&lock_data->spinlock);
 	if (--lock_data->kernel_waiters == 0) {
 		if (lock_data->idle_has_lock) {
 			do {
@@ -364,7 +364,7 @@ void drm_idlelock_release(struct drm_lock_data *lock_data)
 			lock_data->idle_has_lock = 0;
 		}
 	}
-	mtx_unlock(&lock_data->spinlock);
+	spin_unlock_bh(&lock_data->spinlock);
 }
 EXPORT_SYMBOL(drm_idlelock_release);
 
