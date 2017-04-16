@@ -30,9 +30,14 @@
 #include <drm/drmP.h>
 #include "i915_drv.h"
 #include <drm/i915_drm.h>
+#ifdef __linux__
+#include "i915_trace.h"
+#endif
 #include "intel_drv.h"
+#ifdef __FreeBSD__
 #include <sys/sched.h>
 #include <sys/sf_buf.h>
+#endif
 
 /*
  * 965+ support PIPE_CONTROL commands, which provide finer grained control
@@ -446,7 +451,11 @@ init_pipe_control(struct intel_ring_buffer *ring)
 	if (ring->private)
 		return 0;
 
+#ifdef FREEBSD_NOTYET
+	pc = kmalloc(sizeof(*pc), GFP_KERNEL);
+#else
 	pc = malloc(sizeof(*pc), DRM_I915_GEM, M_WAITOK);
+#endif
 	if (!pc)
 		return -ENOMEM;
 
@@ -464,12 +473,18 @@ init_pipe_control(struct intel_ring_buffer *ring)
 		goto err_unref;
 
 	pc->gtt_offset = obj->gtt_offset;
+#ifdef __linux__
+	pc->cpu_page =  kmap(sg_page(obj->pages->sgl));
+#elif __FreeBSD__
 	pc->cpu_page = (uint32_t *)kva_alloc(PAGE_SIZE);
+#endif
 	if (pc->cpu_page == NULL)
 		goto err_unpin;
+#ifdef __FreeBSD__
 	pmap_qenter((uintptr_t)pc->cpu_page, &obj->pages[0], 1);
 	pmap_invalidate_cache_range((vm_offset_t)pc->cpu_page,
 	    (vm_offset_t)pc->cpu_page + PAGE_SIZE, FALSE);
+#endif
 
 	pc->obj = obj;
 	ring->private = pc;
@@ -480,7 +495,11 @@ err_unpin:
 err_unref:
 	drm_gem_object_unreference(&obj->base);
 err:
+#ifdef FREEBSD_NOTYET
+	kfree(pc);
+#else
 	free(pc, DRM_I915_GEM);
+#endif
 	return ret;
 }
 
@@ -495,12 +514,20 @@ cleanup_pipe_control(struct intel_ring_buffer *ring)
 
 	obj = pc->obj;
 
+#ifdef __linux__
+	kunmap(sg_page(obj->pages->sgl));
+#elif __FreeBSD__
 	pmap_qremove((vm_offset_t)pc->cpu_page, 1);
 	kva_free((uintptr_t)pc->cpu_page, PAGE_SIZE);
+#endif
 	i915_gem_object_unpin(obj);
 	drm_gem_object_unreference(&obj->base);
 
+#ifdef FREEBSD_NOTYET
+	kfree(pc);
+#else
 	free(pc, DRM_I915_GEM);
+#endif
 	ring->private = NULL;
 }
 
@@ -745,17 +772,28 @@ gen5_ring_get_irq(struct intel_ring_buffer *ring)
 {
 	struct drm_device *dev = ring->dev;
 	drm_i915_private_t *dev_priv = dev->dev_private;
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 
 	if (!dev->irq_enabled)
 		return false;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+#else
 	mtx_lock(&dev_priv->irq_lock);
+#endif
 	if (ring->irq_refcount++ == 0) {
 		dev_priv->gt_irq_mask &= ~ring->irq_enable_mask;
 		I915_WRITE(GTIMR, dev_priv->gt_irq_mask);
 		POSTING_READ(GTIMR);
 	}
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+#else
 	mtx_unlock(&dev_priv->irq_lock);
+#endif
 
 	return true;
 }
@@ -765,14 +803,25 @@ gen5_ring_put_irq(struct intel_ring_buffer *ring)
 {
 	struct drm_device *dev = ring->dev;
 	drm_i915_private_t *dev_priv = dev->dev_private;
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+#else
 	mtx_lock(&dev_priv->irq_lock);
+#endif
 	if (--ring->irq_refcount == 0) {
 		dev_priv->gt_irq_mask |= ring->irq_enable_mask;
 		I915_WRITE(GTIMR, dev_priv->gt_irq_mask);
 		POSTING_READ(GTIMR);
 	}
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+#else
 	mtx_unlock(&dev_priv->irq_lock);
+#endif
 }
 
 static bool
@@ -780,17 +829,28 @@ i9xx_ring_get_irq(struct intel_ring_buffer *ring)
 {
 	struct drm_device *dev = ring->dev;
 	drm_i915_private_t *dev_priv = dev->dev_private;
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 
 	if (!dev->irq_enabled)
 		return false;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+#else
 	mtx_lock(&dev_priv->irq_lock);
+#endif
 	if (ring->irq_refcount++ == 0) {
 		dev_priv->irq_mask &= ~ring->irq_enable_mask;
 		I915_WRITE(IMR, dev_priv->irq_mask);
 		POSTING_READ(IMR);
 	}
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+#else
 	mtx_unlock(&dev_priv->irq_lock);
+#endif
 
 	return true;
 }
@@ -800,14 +860,25 @@ i9xx_ring_put_irq(struct intel_ring_buffer *ring)
 {
 	struct drm_device *dev = ring->dev;
 	drm_i915_private_t *dev_priv = dev->dev_private;
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+#else
 	mtx_lock(&dev_priv->irq_lock);
+#endif
 	if (--ring->irq_refcount == 0) {
 		dev_priv->irq_mask |= ring->irq_enable_mask;
 		I915_WRITE(IMR, dev_priv->irq_mask);
 		POSTING_READ(IMR);
 	}
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+#else
 	mtx_unlock(&dev_priv->irq_lock);
+#endif
 }
 
 static bool
@@ -815,17 +886,28 @@ i8xx_ring_get_irq(struct intel_ring_buffer *ring)
 {
 	struct drm_device *dev = ring->dev;
 	drm_i915_private_t *dev_priv = dev->dev_private;
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 
 	if (!dev->irq_enabled)
 		return false;
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+#else
 	mtx_lock(&dev_priv->irq_lock);
+#endif
 	if (ring->irq_refcount++ == 0) {
 		dev_priv->irq_mask &= ~ring->irq_enable_mask;
 		I915_WRITE16(IMR, dev_priv->irq_mask);
 		POSTING_READ16(IMR);
 	}
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+#else
 	mtx_unlock(&dev_priv->irq_lock);
+#endif
 
 	return true;
 }
@@ -835,14 +917,25 @@ i8xx_ring_put_irq(struct intel_ring_buffer *ring)
 {
 	struct drm_device *dev = ring->dev;
 	drm_i915_private_t *dev_priv = dev->dev_private;
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+#else
 	mtx_lock(&dev_priv->irq_lock);
+#endif
 	if (--ring->irq_refcount == 0) {
 		dev_priv->irq_mask |= ring->irq_enable_mask;
 		I915_WRITE16(IMR, dev_priv->irq_mask);
 		POSTING_READ16(IMR);
 	}
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+#else
 	mtx_unlock(&dev_priv->irq_lock);
+#endif
 }
 
 void intel_ring_setup_status_page(struct intel_ring_buffer *ring)
@@ -916,6 +1009,9 @@ gen6_ring_get_irq(struct intel_ring_buffer *ring)
 {
 	struct drm_device *dev = ring->dev;
 	drm_i915_private_t *dev_priv = dev->dev_private;
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 
 	if (!dev->irq_enabled)
 	       return false;
@@ -925,7 +1021,11 @@ gen6_ring_get_irq(struct intel_ring_buffer *ring)
 	 * blt/bsd rings on ivb. */
 	gen6_gt_force_wake_get(dev_priv);
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+#else
 	mtx_lock(&dev_priv->irq_lock);
+#endif
 	if (ring->irq_refcount++ == 0) {
 		if (HAS_L3_GPU_CACHE(dev) && ring->id == RCS)
 			I915_WRITE_IMR(ring, ~(ring->irq_enable_mask |
@@ -936,7 +1036,11 @@ gen6_ring_get_irq(struct intel_ring_buffer *ring)
 		I915_WRITE(GTIMR, dev_priv->gt_irq_mask);
 		POSTING_READ(GTIMR);
 	}
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+#else
 	mtx_unlock(&dev_priv->irq_lock);
+#endif
 
 	return true;
 }
@@ -946,8 +1050,15 @@ gen6_ring_put_irq(struct intel_ring_buffer *ring)
 {
 	struct drm_device *dev = ring->dev;
 	drm_i915_private_t *dev_priv = dev->dev_private;
+#ifdef FREEBSD_NOTYET
+	unsigned long flags;
+#endif
 
+#ifdef FREEBSD_NOTYET
+	spin_lock_irqsave(&dev_priv->irq_lock, flags);
+#else
 	mtx_lock(&dev_priv->irq_lock);
+#endif
 	if (--ring->irq_refcount == 0) {
 		if (HAS_L3_GPU_CACHE(dev) && ring->id == RCS)
 			I915_WRITE_IMR(ring, ~GEN6_RENDER_L3_PARITY_ERROR);
@@ -957,7 +1068,11 @@ gen6_ring_put_irq(struct intel_ring_buffer *ring)
 		I915_WRITE(GTIMR, dev_priv->gt_irq_mask);
 		POSTING_READ(GTIMR);
 	}
+#ifdef FREEBSD_NOTYET
+	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
+#else
 	mtx_unlock(&dev_priv->irq_lock);
+#endif
 
 	gen6_gt_force_wake_put(dev_priv);
 }
@@ -1063,9 +1178,13 @@ static void cleanup_status_page(struct intel_ring_buffer *ring)
 	if (obj == NULL)
 		return;
 
+#ifdef __linux__
+	kunmap(sg_page(obj->pages->sgl));
+#elif __FreeBSD__
 	pmap_qremove((vm_offset_t)ring->status_page.page_addr, 1);
 	kva_free((vm_offset_t)ring->status_page.page_addr,
 	    PAGE_SIZE);
+#endif
 	i915_gem_object_unpin(obj);
 	drm_gem_object_unreference(&obj->base);
 	ring->status_page.obj = NULL;
@@ -1092,15 +1211,21 @@ static int init_status_page(struct intel_ring_buffer *ring)
 	}
 
 	ring->status_page.gfx_addr = obj->gtt_offset;
+#ifdef __linux__
+	ring->status_page.page_addr = kmap(sg_page(obj->pages->sgl));
+#elif __FreeBSD__
 	ring->status_page.page_addr = (void *)kva_alloc(PAGE_SIZE);
+#endif
 	if (ring->status_page.page_addr == NULL) {
 		ret = -ENOMEM;
 		goto err_unpin;
 	}
+#ifdef __FreeBSD__
 	pmap_qenter((vm_offset_t)ring->status_page.page_addr, &obj->pages[0],
 	    1);
 	pmap_invalidate_cache_range((vm_offset_t)ring->status_page.page_addr,
 	    (vm_offset_t)ring->status_page.page_addr + PAGE_SIZE, FALSE);
+#endif
 	ring->status_page.obj = obj;
 	memset(ring->status_page.page_addr, 0, PAGE_SIZE);
 
@@ -1124,8 +1249,13 @@ static int init_phys_hws_pga(struct intel_ring_buffer *ring)
 	u32 addr;
 
 	if (!dev_priv->status_page_dmah) {
+#ifdef __linux__
+		dev_priv->status_page_dmah =
+			drm_pci_alloc(ring->dev, PAGE_SIZE, PAGE_SIZE);
+#elif __FreeBSD__
 		dev_priv->status_page_dmah =
 			drm_pci_alloc(ring->dev, PAGE_SIZE, PAGE_SIZE, BUS_SPACE_MAXADDR);
+#endif
 		if (!dev_priv->status_page_dmah)
 			return -ENOMEM;
 	}
@@ -1186,10 +1316,16 @@ static int intel_init_ring_buffer(struct drm_device *dev,
 	if (ret)
 		goto err_unpin;
 
+#ifdef __linux__
+	ring->virtual_start =
+		ioremap_wc(dev_priv->mm.gtt->gma_bus_addr + obj->gtt_offset,
+			   ring->size);
+#elif __FreeBSD__
 	ring->virtual_start =
 		pmap_mapdev_attr(
 		    dev_priv->mm.gtt->gma_bus_addr + obj->gtt_offset, ring->size,
 		    VM_MEMATTR_WRITE_COMBINING);
+#endif
 	if (ring->virtual_start == NULL) {
 		DRM_ERROR("Failed to map ringbuffer.\n");
 		ret = -EINVAL;
@@ -1211,7 +1347,11 @@ static int intel_init_ring_buffer(struct drm_device *dev,
 	return 0;
 
 err_unmap:
+#ifdef __linux__
+	iounmap(ring->virtual_start);
+#elif __FreeBSD__
 	pmap_unmapdev((vm_offset_t)ring->virtual_start, ring->size);
+#endif
 err_unpin:
 	i915_gem_object_unpin(obj);
 err_unref:
@@ -1239,7 +1379,11 @@ void intel_cleanup_ring_buffer(struct intel_ring_buffer *ring)
 
 	I915_WRITE_CTL(ring, 0);
 
+#ifdef __linux__
+	iounmap(ring->virtual_start);
+#elif __FreeBSD__
 	pmap_unmapdev((vm_offset_t)ring->virtual_start, ring->size);
+#endif
 
 	i915_gem_object_unpin(ring->obj);
 	drm_gem_object_unreference(&ring->obj->base);
@@ -1330,7 +1474,11 @@ static int ring_wait_for_space(struct intel_ring_buffer *ring, int n)
 	if (ret != -ENOSPC)
 		return ret;
 
+#ifdef __linux__
+	trace_i915_ring_wait_begin(ring);
+#elif __FreeBSD__
 	CTR1(KTR_DRM, "ring_wait_begin %s", ring->name);
+#endif
 	/* With GEM the hangcheck timer should kick us out of the loop,
 	 * leaving it early runs the risk of corrupting GEM state (due
 	 * to running on almost untested codepaths). But on resume
@@ -1342,7 +1490,11 @@ static int ring_wait_for_space(struct intel_ring_buffer *ring, int n)
 		ring->head = I915_READ_HEAD(ring);
 		ring->space = ring_space(ring);
 		if (ring->space >= n) {
+#ifdef __linux__
+			trace_i915_ring_wait_end(ring);
+#elif __FreeBSD__
 			CTR1(KTR_DRM, "ring_wait_end %s", ring->name);
+#endif
 			return 0;
 		}
 
@@ -1352,7 +1504,11 @@ static int ring_wait_for_space(struct intel_ring_buffer *ring, int n)
 				master_priv->sarea_priv->perf_boxes |= I915_BOX_WAIT;
 		}
 
+#ifdef FREEBSD_NOTYET
+		msleep(1);
+#else
 		DRM_MSLEEP(1);
+#endif
 
 		ret = i915_gem_check_wedge(dev_priv, dev_priv->mm.interruptible);
 		if (ret) {
@@ -1360,7 +1516,11 @@ static int ring_wait_for_space(struct intel_ring_buffer *ring, int n)
 			return ret;
 		}
 	} while (!time_after(jiffies, end));
+#ifdef __linux__
+	trace_i915_ring_wait_end(ring);
+#elif __FreeBSD__
 	CTR1(KTR_DRM, "ring_wait_end %s busy", ring->name);
+#endif
 	return -EBUSY;
 }
 
@@ -1730,8 +1890,12 @@ int intel_render_ring_init_dri(struct drm_device *dev, u64 start, u32 size)
 	if (IS_I830(ring->dev) || IS_845G(ring->dev))
 		ring->effective_size -= 128;
 
+#ifdef __linux__
+	ring->virtual_start = ioremap_wc(start, size);
+#elif __FreeBSD__
 	ring->virtual_start = pmap_mapdev_attr(start, size,
 	    VM_MEMATTR_WRITE_COMBINING);
+#endif
 	if (ring->virtual_start == NULL) {
 		DRM_ERROR("can not ioremap virtual address for"
 			  " ring buffer\n");
