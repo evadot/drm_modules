@@ -54,24 +54,7 @@ __FBSDID("$FreeBSD$");
 #define	be32_to_cpu(x)	be32toh(x)
 #define	be32_to_cpup(x)	be32toh(*x)
 
-typedef vm_paddr_t dma_addr_t;
-typedef vm_paddr_t resource_size_t;
 #define	wait_queue_head_t atomic_t
-
-typedef uint64_t u64;
-typedef uint32_t u32;
-typedef uint16_t u16;
-typedef uint8_t  u8;
-typedef int64_t s64;
-typedef int32_t s32;
-typedef int16_t s16;
-typedef int8_t  s8;
-typedef uint16_t __le16;
-typedef uint32_t __le32;
-typedef uint64_t __le64;
-typedef uint16_t __be16;
-typedef uint32_t __be32;
-typedef uint64_t __be64;
 
 #define	DRM_IRQ_ARGS		void *arg
 typedef void			irqreturn_t;
@@ -165,7 +148,6 @@ typedef void			irqreturn_t;
 #define	smp_wmb()			wmb()
 #define	smp_mb__before_atomic_inc()	mb()
 #define	smp_mb__after_atomic_inc()	mb()
-#define	barrier()			__compiler_membar()
 
 #define	do_div(a, b)		((a) /= (b))
 #define	div64_u64(a, b)		((a) / (b))

@@ -57,6 +57,6 @@ SRCS	+= \
 	opt_compat.h \
 	opt_syscons.h
 
-CFLAGS+=	-I${.CURDIR}/../include
+CFLAGS+=	-I${.CURDIR}/../include -I${SYSDIR}/compat/linuxkpi/common/include/
 
 .include <bsd.kmod.mk>
