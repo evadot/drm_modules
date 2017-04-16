@@ -25,7 +25,12 @@
  * Authors:
  *	Eric Anholt <eric@anholt.net>
  */
-
+#ifdef __linux__
+#include <linux/i2c.h>
+#include <linux/slab.h>
+#include <linux/delay.h>
+#include <linux/export.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_edid.h>
@@ -33,9 +38,11 @@
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
 #include "intel_sdvo_regs.h"
+#ifdef __FreeBSD__
 #include <dev/iicbus/iic.h>
 #include <dev/iicbus/iiconf.h>
 #include "iicbus_if.h"
+#endif
 
 #define SDVO_TMDS_MASK (SDVO_OUTPUT_TMDS0 | SDVO_OUTPUT_TMDS1)
 #define SDVO_RGB_MASK  (SDVO_OUTPUT_RGB0 | SDVO_OUTPUT_RGB1)
@@ -449,13 +456,25 @@ static bool intel_sdvo_write_cmd(struct intel_sdvo *intel_sdvo, u8 cmd,
 	int i, ret = true;
 
         /* Would be simpler to allocate both in one go ? */        
+#ifdef FREEBSD_NOTYET
+	buf = (u8 *)kzalloc(args_len * 2 + 2, GFP_KERNEL);
+#else
 	buf = (u8 *)malloc(args_len * 2 + 2, DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 	if (!buf)
 		return false;
 
+#ifdef FREEBSD_NOTYET
+	msgs = kcalloc(args_len + 3, sizeof(*msgs), GFP_KERNEL);
+#else
 	msgs = malloc(args_len + 3 * sizeof(*msgs), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 	if (!msgs) {
-	        free(buf, DRM_MEM_KMS);
+#ifdef FREEBSD_NOTYET
+	        kfree(buf);
+#else
+		free(buf, DRM_MEM_KMS);
+#endif
 		return false;
         }
 
@@ -494,10 +513,20 @@ static bool intel_sdvo_write_cmd(struct intel_sdvo *intel_sdvo, u8 cmd,
 		ret = false;
 		goto out;
 	}
+	if (ret != i+3) {
+		/* failure in I2C transfer */
+		DRM_DEBUG_KMS("I2c transfer returned %d/%d\n", ret, i+3);
+		ret = false;
+	}
 
 out:
+#ifdef FREEBSD_NOTYET
+	kfree(msgs);
+	kfree(buf);
+#else
 	free(msgs, DRM_MEM_KMS);
 	free(buf, DRM_MEM_KMS);
+#endif
 	return ret;
 }
 
@@ -534,7 +563,11 @@ static bool intel_sdvo_read_response(struct intel_sdvo *intel_sdvo,
 
 	while (status == SDVO_CMD_STATUS_PENDING && --retry) {
 		if (retry < 10)
+#ifdef FREEBSD_NOTYET
+			msleep(15);
+#else
 			DRM_MSLEEP(15);
+#endif
 		else
 			udelay(15);
 
@@ -1258,7 +1291,11 @@ static void intel_disable_sdvo(struct intel_encoder *encoder)
 				if (crtc)
 					intel_wait_for_vblank(encoder->base.dev, pipe);
 				else
+#ifdef FREEBSD_NOTYET
+					msleep(50);
+#else
 					DRM_MSLEEP(50);
+#endif
 			}
 		}
 
@@ -1444,7 +1481,11 @@ static bool
 intel_sdvo_multifunc_encoder(struct intel_sdvo *intel_sdvo)
 {
 	/* Is there more than one type of output? */
+#ifdef FREEBSD_NOTYET
+	return hweight16(intel_sdvo->caps.output_flags) > 1;
+#else
 	return bitcount16(intel_sdvo->caps.output_flags) > 1;
+#endif
 }
 
 static struct edid *
@@ -1513,7 +1554,11 @@ intel_sdvo_tmds_sink_detect(struct drm_connector *connector)
 			}
 		} else
 			status = connector_status_disconnected;
+#ifdef FREEBSD_NOTYET
+		kfree(edid);
+#else
 		free(edid, DRM_MEM_KMS);
+#endif
 	}
 
 	if (status == connector_status_connected) {
@@ -1580,7 +1625,11 @@ intel_sdvo_detect(struct drm_connector *connector, bool force)
 			else
 				ret = connector_status_disconnected;
 
+#ifdef FREEBSD_NOTYET
+			kfree(edid);
+#else
 			free(edid, DRM_MEM_KMS);
+#endif
 		} else
 			ret = connector_status_connected;
 	}
@@ -1625,7 +1674,11 @@ static void intel_sdvo_get_ddc_modes(struct drm_connector *connector)
 			drm_add_edid_modes(connector, edid);
 		}
 
+#ifdef FREEBSD_NOTYET
+		kfree(edid);
+#else
 		free(edid, DRM_MEM_KMS);
+#endif
 	}
 }
 
@@ -1834,8 +1887,15 @@ static void intel_sdvo_destroy(struct drm_connector *connector)
 				     intel_sdvo_connector->tv_format);
 
 	intel_sdvo_destroy_enhance_property(connector);
+#ifdef __linux__
+	drm_sysfs_connector_remove(connector);
+#endif
 	drm_connector_cleanup(connector);
+#ifdef FREEBSD_NOTYET
+	kfree(intel_sdvo_connector);
+#else
 	free(intel_sdvo_connector, DRM_MEM_KMS);
+#endif
 }
 
 static bool intel_sdvo_detect_hdmi_audio(struct drm_connector *connector)
@@ -1850,7 +1910,11 @@ static bool intel_sdvo_detect_hdmi_audio(struct drm_connector *connector)
 	edid = intel_sdvo_get_edid(connector);
 	if (edid != NULL && edid->input & DRM_EDID_INPUT_DIGITAL)
 		has_audio = drm_detect_monitor_audio(edid);
+#ifdef FREEBSD_NOTYET
+	kfree(edid);
+#else
 	free(edid, DRM_MEM_KMS);
+#endif
 
 	return has_audio;
 }
@@ -2031,8 +2095,12 @@ static void intel_sdvo_enc_destroy(struct drm_encoder *encoder)
 		drm_mode_destroy(encoder->dev,
 				 intel_sdvo->sdvo_lvds_fixed_mode);
 
+#ifdef __linux__
+	i2c_del_adapter(&intel_sdvo->ddc);
+#elif __FreeBSD__
 	device_delete_child(intel_sdvo->base.base.dev->dev,
 	    intel_sdvo->ddc_iic_bus);
+#endif
 	intel_encoder_destroy(encoder);
 }
 
@@ -2067,7 +2135,11 @@ intel_sdvo_guess_ddc_bus(struct intel_sdvo *sdvo)
 
 	/* Count bits to find what number we are in the priority list. */
 	mask &= sdvo->caps.output_flags;
+#ifdef FREEBSD_NOTYET
+	num_bits = hweight16(mask);
+#else
 	num_bits = bitcount16(mask);
+#endif
 	/* If more than 3 outputs, default to DDC bus 3 for now. */
 	if (num_bits > 3)
 		num_bits = 3;
@@ -2193,6 +2265,9 @@ intel_sdvo_connector_init(struct intel_sdvo_connector *connector,
 	connector->base.get_hw_state = intel_sdvo_connector_get_hw_state;
 
 	intel_connector_attach_encoder(&connector->base, &encoder->base);
+#ifdef __linux__
+	drm_sysfs_connector_add(&connector->base.base);
+#endif
 }
 
 static void
@@ -2214,7 +2289,11 @@ intel_sdvo_dvi_init(struct intel_sdvo *intel_sdvo, int device)
 	struct intel_connector *intel_connector;
 	struct intel_sdvo_connector *intel_sdvo_connector;
 
+#ifdef FREEBSD_NOTYET
+	intel_sdvo_connector = kzalloc(sizeof(struct intel_sdvo_connector), GFP_KERNEL);
+#else
 	intel_sdvo_connector = malloc(sizeof(struct intel_sdvo_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_sdvo_connector)
 		return false;
 
@@ -2263,7 +2342,11 @@ intel_sdvo_tv_init(struct intel_sdvo *intel_sdvo, int type)
 	struct intel_connector *intel_connector;
 	struct intel_sdvo_connector *intel_sdvo_connector;
 
+#ifdef FREEBSD_NOTYET
+	intel_sdvo_connector = kzalloc(sizeof(struct intel_sdvo_connector), GFP_KERNEL);
+#else
 	intel_sdvo_connector = malloc(sizeof(struct intel_sdvo_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_sdvo_connector)
 		return false;
 
@@ -2301,7 +2384,11 @@ intel_sdvo_analog_init(struct intel_sdvo *intel_sdvo, int device)
 	struct intel_connector *intel_connector;
 	struct intel_sdvo_connector *intel_sdvo_connector;
 
+#ifdef FREEBSD_NOTYET
+	intel_sdvo_connector = kzalloc(sizeof(struct intel_sdvo_connector), GFP_KERNEL);
+#else
 	intel_sdvo_connector = malloc(sizeof(struct intel_sdvo_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_sdvo_connector)
 		return false;
 
@@ -2332,7 +2419,11 @@ intel_sdvo_lvds_init(struct intel_sdvo *intel_sdvo, int device)
 	struct intel_connector *intel_connector;
 	struct intel_sdvo_connector *intel_sdvo_connector;
 
+#ifdef FREEBSD_NOTYET
+	intel_sdvo_connector = kzalloc(sizeof(struct intel_sdvo_connector), GFP_KERNEL);
+#else
 	intel_sdvo_connector = malloc(sizeof(struct intel_sdvo_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_sdvo_connector)
 		return false;
 
@@ -2775,7 +2866,11 @@ bool intel_sdvo_init(struct drm_device *dev, uint32_t sdvo_reg, bool is_sdvob)
 	struct intel_sdvo *intel_sdvo;
 	u32 hotplug_mask;
 	int i;
+#ifdef FREEBSD_NOTYET
+	intel_sdvo = kzalloc(sizeof(struct intel_sdvo), GFP_KERNEL);
+#else
 	intel_sdvo = malloc(sizeof(struct intel_sdvo), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_sdvo)
 		return false;
 
@@ -2885,7 +2980,11 @@ err:
 	device_delete_child(dev->dev, intel_sdvo->ddc_iic_bus);
 err_i2c_bus:
 	intel_sdvo_unselect_i2c_bus(intel_sdvo);
+#ifdef FREEBSD_NOTYET
+	kfree(intel_sdvo);
+#else
 	free(intel_sdvo, DRM_MEM_KMS);
+#endif
 
 	return false;
 }
