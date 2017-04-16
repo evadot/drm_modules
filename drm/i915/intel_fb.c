@@ -24,7 +24,22 @@
  *     David Airlie
  */
 
+#ifdef __linux__
+#include <linux/module.h>
+#include <linux/kernel.h>
+#include <linux/errno.h>
+#include <linux/string.h>
+#include <linux/mm.h>
+#include <linux/tty.h>
+#include <linux/sysrq.h>
+#include <linux/delay.h>
+#include <linux/fb.h>
+#include <linux/init.h>
+#include <linux/vga_switcheroo.h>
+#elif __FreeBSD__
 #include "opt_syscons.h"
+#endif
+
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_fb_helper.h>
@@ -57,6 +72,9 @@ static int intelfb_create(struct intel_fbdev *ifbdev,
 	struct drm_framebuffer *fb;
 	struct drm_mode_fb_cmd2 mode_cmd = {};
 	struct drm_i915_gem_object *obj;
+#ifdef __linux__
+	struct device *device = &dev->pdev->dev;
+#endif
 	int size, ret;
 
 	/* we don't do packed 24bpp */
@@ -66,13 +84,22 @@ static int intelfb_create(struct intel_fbdev *ifbdev,
 	mode_cmd.width = sizes->surface_width;
 	mode_cmd.height = sizes->surface_height;
 
+#ifdef FREEBSD_NOTYET
+	mode_cmd.pitches[0] = ALIGN(mode_cmd.width * ((sizes->surface_bpp + 7) /
+						      8), 64);
+#else
 	mode_cmd.pitches[0] = roundup2(mode_cmd.width * ((sizes->surface_bpp + 7) /
 						      8), 64);
+#endif
 	mode_cmd.pixel_format = drm_mode_legacy_fb_format(sizes->surface_bpp,
 							  sizes->surface_depth);
 
 	size = mode_cmd.pitches[0] * mode_cmd.height;
+#ifdef FREEBSD_NOTYET
+	size = ALIGN(size, PAGE_SIZE);
+#else
 	size = roundup2(size, PAGE_SIZE);
+#endif
 	obj = i915_gem_alloc_object(dev, size);
 	if (!obj) {
 		DRM_ERROR("failed to allocate framebuffer\n");
@@ -80,7 +107,11 @@ static int intelfb_create(struct intel_fbdev *ifbdev,
 		goto out;
 	}
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->struct_mutex);
+#else
 	DRM_LOCK(dev);
+#endif
 
 	/* Flush everything out, we'll be doing GTT only from now on */
 	ret = intel_pin_and_fence_fb_obj(dev, obj, NULL);
@@ -89,17 +120,25 @@ static int intelfb_create(struct intel_fbdev *ifbdev,
 		goto out_unref;
 	}
 
+#ifdef __linux__
+	info = framebuffer_alloc(0, device);
+#elif __FreeBSD__
 	info = framebuffer_alloc();
+#endif
 	if (!info) {
 		ret = -ENOMEM;
 		goto out_unpin;
 	}
 
+#ifdef __linux__
+	info->par = ifbdev;
+#elif __FreeBSD__
 	info->fb_size = size;
 	info->fb_bpp = sizes->surface_bpp;
 	info->fb_pbase = dev_priv->mm.gtt_base_addr + obj->gtt_offset;
 	info->fb_vbase = (vm_offset_t)pmap_mapdev_attr(info->fb_pbase, size,
 	    PAT_WRITE_COMBINING);
+#endif
 
 	ret = intel_framebuffer_init(dev, &ifbdev->ifb, &mode_cmd, obj);
 	if (ret)
@@ -120,7 +159,11 @@ static int intelfb_create(struct intel_fbdev *ifbdev,
 		      obj->gtt_offset, obj);
 
 
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 #ifdef __linux__
 	vga_switcheroo_client_fb_set(dev->pdev, info);
 #endif
@@ -130,7 +173,11 @@ out_unpin:
 	i915_gem_object_unpin(obj);
 out_unref:
 	drm_gem_object_unreference(&obj->base);
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->struct_mutex);
+#else
 	DRM_UNLOCK(dev);
+#endif
 out:
 	return ret;
 }
@@ -189,7 +236,11 @@ int intel_fbdev_init(struct drm_device *dev)
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	int ret;
 
+#ifdef FREEBSD_NOTYET
+	ifbdev = kzalloc(sizeof(struct intel_fbdev), GFP_KERNEL);
+#else
 	ifbdev = malloc(sizeof(struct intel_fbdev), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!ifbdev)
 		return -ENOMEM;
 
@@ -200,7 +251,11 @@ int intel_fbdev_init(struct drm_device *dev)
 				 dev_priv->num_pipe,
 				 INTELFB_CONN_LIMIT);
 	if (ret) {
+#ifdef FREEBSD_NOTYET
+		kfree(ifbdev);
+#else
 		free(ifbdev, DRM_MEM_KMS);
+#endif
 		return ret;
 	}
 
@@ -219,7 +274,11 @@ void intel_fbdev_fini(struct drm_device *dev)
 		return;
 
 	intel_fbdev_destroy(dev, dev_priv->fbdev);
+#ifdef FREEBSD_NOTYET
+	kfree(dev_priv->fbdev);
+#else
 	free(dev_priv->fbdev, DRM_MEM_KMS);
+#endif
 	dev_priv->fbdev = NULL;
 }
 
@@ -249,7 +308,11 @@ void intel_fb_restore_mode(struct drm_device *dev)
 	struct drm_mode_config *config = &dev->mode_config;
 	struct drm_plane *plane;
 
+#ifdef FREEBSD_NOTYET
+	mutex_lock(&dev->mode_config.mutex);
+#else
 	sx_xlock(&dev->mode_config.mutex);
+#endif
 
 	ret = drm_fb_helper_restore_fbdev_mode(&dev_priv->fbdev->helper);
 	if (ret)
@@ -259,5 +322,9 @@ void intel_fb_restore_mode(struct drm_device *dev)
 	list_for_each_entry(plane, &config->plane_list, head)
 		plane->funcs->disable_plane(plane);
 
+#ifdef FREEBSD_NOTYET
+	mutex_unlock(&dev->mode_config.mutex);
+#else
 	sx_xunlock(&dev->mode_config.mutex);
+#endif
 }
