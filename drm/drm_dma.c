@@ -118,11 +118,13 @@ void drm_dma_takedown(struct drm_device *dev)
 
 #ifdef FREEBSD_NOTYET
 	kfree(dma->buflist);
-	kfree(dma->pagelist);
-	kfree(dev->dma);
 #else
 	free(dma->buflist, DRM_MEM_BUFS);
-	free(dma->pagelist, DRM_MEM_PAGES);
+#endif
+	kfree(dma->pagelist);
+#ifdef FREEBSD_NOTYET
+	kfree(dev->dma);
+#else
 	free(dev->dma, DRM_MEM_DRIVER);
 #endif
 	dev->dma = NULL;

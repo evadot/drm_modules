@@ -1119,13 +1119,8 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 	/* Keep the original pagelist until we know all the allocations
 	 * have succeeded
 	 */
-#ifdef FREEBSD_NOTYET
 	temp_pagelist = kmalloc((dma->page_count + (count << page_order)) *
 			       sizeof(*dma->pagelist), GFP_KERNEL);
-#else
-	temp_pagelist = malloc((dma->page_count + (count << page_order)) *
-	    sizeof(*dma->pagelist), DRM_MEM_PAGES, M_NOWAIT);
-#endif
 	if (!temp_pagelist) {
 #ifdef FREEBSD_NOTYET
 		kfree(entry->buflist);
@@ -1162,11 +1157,10 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 			entry->buf_count = count;
 			entry->seg_count = count;
 			drm_cleanup_buf_error(dev, entry);
-#ifdef FREEBSD_NOTYET
 			kfree(temp_pagelist);
+#ifdef FREEBSD_NOTYET
 			mutex_unlock(&dev->struct_mutex);
 #else
-			free(temp_pagelist, DRM_MEM_PAGES);
 			DRM_UNLOCK(dev);
 #endif
 			atomic_dec(&dev->buf_alloc);
@@ -1209,11 +1203,10 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 				entry->buf_count = count;
 				entry->seg_count = count;
 				drm_cleanup_buf_error(dev, entry);
-#ifdef FREEBSD_NOTYET
 				kfree(temp_pagelist);
+#ifdef FREEBSD_NOTYET
 				mutex_unlock(&dev->struct_mutex);
 #else
-				free(temp_pagelist, DRM_MEM_PAGES);
 				DRM_UNLOCK(dev);
 #endif
 				atomic_dec(&dev->buf_alloc);
@@ -1238,11 +1231,10 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 	if (!temp_buflist) {
 		/* Free the entry because it isn't valid */
 		drm_cleanup_buf_error(dev, entry);
-#ifdef FREEBSD_NOTYET
 		kfree(temp_pagelist);
+#ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
 #else
-		free(temp_pagelist, DRM_MEM_PAGES);
 		DRM_UNLOCK(dev);
 #endif
 		atomic_dec(&dev->buf_alloc);
@@ -1258,11 +1250,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 	 * with the new one.
 	 */
 	if (dma->page_count) {
-#ifdef FREEBSD_NOTYET
 		kfree(dma->pagelist);
-#else
-		free(dma->pagelist, DRM_MEM_PAGES);
-#endif
 	}
 	dma->pagelist = temp_pagelist;
 
