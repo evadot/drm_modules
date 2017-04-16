@@ -1026,11 +1026,7 @@ static void output_poll_execute(void *ctx, int pending)
 	if (!drm_kms_helper_poll)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
 
 		/* Ignore forced connectors. */
@@ -1060,11 +1056,7 @@ static void output_poll_execute(void *ctx, int pending)
 			changed = true;
 	}
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 
 	if (changed)
 		drm_kms_helper_hotplug_event(dev);
@@ -1145,11 +1137,7 @@ void drm_helper_hpd_irq_event(struct drm_device *dev)
 	if (!dev->mode_config.poll_enabled)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
 
 		/* Only handle HPD capable connectors. */
@@ -1167,11 +1155,7 @@ void drm_helper_hpd_irq_event(struct drm_device *dev)
 			changed = true;
 	}
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 
 	if (changed)
 		drm_kms_helper_hotplug_event(dev);

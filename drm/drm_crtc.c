@@ -355,12 +355,10 @@ void drm_framebuffer_unreference(struct drm_framebuffer *fb)
 {
 	struct drm_device *dev = fb->dev;
 	DRM_DEBUG("FB ID: %d\n", fb->base.id);
-#ifdef FREEBSD_NOTYET
 	WARN_ON(!mutex_is_locked(&dev->mode_config.mutex));
+#ifdef FREEBSD_NOTYET
 	kref_put(&fb->refcount, drm_framebuffer_free);
 #else
-	if (!sx_xlocked(&dev->mode_config.mutex))
-		DRM_WARNING("%s: dev->mode_config.mutex not locked\n", __func__);
 	if (refcount_release(&fb->refcount))
 		drm_framebuffer_free(fb);
 #endif
@@ -479,11 +477,7 @@ int drm_crtc_init(struct drm_device *dev, struct drm_crtc *crtc,
 	crtc->funcs = funcs;
 	crtc->invert_dimensions = false;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	ret = drm_mode_object_get(dev, &crtc->base, DRM_MODE_OBJECT_CRTC);
 	if (ret)
@@ -495,11 +489,7 @@ int drm_crtc_init(struct drm_device *dev, struct drm_crtc *crtc,
 	dev->mode_config.num_crtc++;
 
  out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 
 	return ret;
 }
@@ -590,11 +580,7 @@ int drm_connector_init(struct drm_device *dev,
 {
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	ret = drm_mode_object_get(dev, &connector->base, DRM_MODE_OBJECT_CONNECTOR);
 	if (ret)
@@ -624,11 +610,7 @@ int drm_connector_init(struct drm_device *dev,
 				      dev->mode_config.dpms_property, 0);
 
  out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 
 	return ret;
 }
@@ -657,19 +639,11 @@ void drm_connector_cleanup(struct drm_connector *connector)
 	list_for_each_entry_safe(mode, t, &connector->user_modes, head)
 		drm_mode_remove(connector, mode);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	drm_mode_object_put(dev, &connector->base);
 	list_del(&connector->head);
 	dev->mode_config.num_connector--;
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 }
 EXPORT_SYMBOL(drm_connector_cleanup);
 
@@ -693,11 +667,7 @@ int drm_encoder_init(struct drm_device *dev,
 {
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	ret = drm_mode_object_get(dev, &encoder->base, DRM_MODE_OBJECT_ENCODER);
 	if (ret)
@@ -711,11 +681,7 @@ int drm_encoder_init(struct drm_device *dev,
 	dev->mode_config.num_encoder++;
 
  out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 
 	return ret;
 }
@@ -724,19 +690,11 @@ EXPORT_SYMBOL(drm_encoder_init);
 void drm_encoder_cleanup(struct drm_encoder *encoder)
 {
 	struct drm_device *dev = encoder->dev;
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	drm_mode_object_put(dev, &encoder->base);
 	list_del(&encoder->head);
 	dev->mode_config.num_encoder--;
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 }
 EXPORT_SYMBOL(drm_encoder_cleanup);
 
@@ -748,11 +706,7 @@ int drm_plane_init(struct drm_device *dev, struct drm_plane *plane,
 {
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	ret = drm_mode_object_get(dev, &plane->base, DRM_MODE_OBJECT_PLANE);
 	if (ret)
@@ -791,11 +745,7 @@ int drm_plane_init(struct drm_device *dev, struct drm_plane *plane,
 	}
 
  out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 
 	return ret;
 }
@@ -805,11 +755,10 @@ void drm_plane_cleanup(struct drm_plane *plane)
 {
 	struct drm_device *dev = plane->dev;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
+#ifdef FREEBSD_NOTYET
 	kfree(plane->format_types);
 #else
-	sx_xlock(&dev->mode_config.mutex);
 	free(plane->format_types, DRM_MEM_KMS);
 #endif
 	drm_mode_object_put(dev, &plane->base);
@@ -818,11 +767,7 @@ void drm_plane_cleanup(struct drm_plane *plane)
 		list_del(&plane->head);
 		dev->mode_config.num_plane--;
 	}
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 }
 EXPORT_SYMBOL(drm_plane_cleanup);
 
@@ -1108,12 +1053,8 @@ EXPORT_SYMBOL(drm_mode_create_dirty_info_property);
  */
 void drm_mode_config_init(struct drm_device *dev)
 {
-#ifdef FREEBSD_NOTYET
 	mutex_init(&dev->mode_config.mutex);
 	mutex_init(&dev->mode_config.idr_mutex);
-#else
-	sx_init(&dev->mode_config.mutex, "kmslk");
-#endif
 	INIT_LIST_HEAD(&dev->mode_config.fb_list);
 	INIT_LIST_HEAD(&dev->mode_config.crtc_list);
 	INIT_LIST_HEAD(&dev->mode_config.connector_list);
@@ -1127,17 +1068,9 @@ void drm_mode_config_init(struct drm_device *dev)
 	drm_gem_names_init(&dev->mode_config.crtc_names);
 #endif
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	drm_mode_create_standard_connector_properties(dev);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 
 	/* Just to be sure */
 	dev->mode_config.num_fb = 0;
@@ -1387,11 +1320,7 @@ int drm_mode_getresources(struct drm_device *dev, void *data,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	/*
 	 * For the non-control nodes we need to limit the list of resources
@@ -1533,11 +1462,7 @@ int drm_mode_getresources(struct drm_device *dev, void *data,
 		  card_res->count_connectors, card_res->count_encoders);
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -1569,11 +1494,7 @@ int drm_mode_getcrtc(struct drm_device *dev,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	obj = drm_mode_object_find(dev, crtc_resp->crtc_id,
 				   DRM_MODE_OBJECT_CRTC);
@@ -1601,11 +1522,7 @@ int drm_mode_getcrtc(struct drm_device *dev,
 	}
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -1652,11 +1569,7 @@ int drm_mode_getconnector(struct drm_device *dev, void *data,
 
 	DRM_DEBUG_KMS("[CONNECTOR:%d:?]\n", out_resp->connector_id);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	obj = drm_mode_object_find(dev, out_resp->connector_id,
 				   DRM_MODE_OBJECT_CONNECTOR);
@@ -1753,11 +1666,7 @@ int drm_mode_getconnector(struct drm_device *dev, void *data,
 	out_resp->count_encoders = encoders_count;
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -1772,11 +1681,7 @@ int drm_mode_getencoder(struct drm_device *dev, void *data,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	obj = drm_mode_object_find(dev, enc_resp->encoder_id,
 				   DRM_MODE_OBJECT_ENCODER);
 	if (!obj) {
@@ -1795,11 +1700,7 @@ int drm_mode_getencoder(struct drm_device *dev, void *data,
 	enc_resp->possible_clones = encoder->possible_clones;
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -1826,11 +1727,7 @@ int drm_mode_getplane_res(struct drm_device *dev, void *data,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	config = &dev->mode_config;
 
 	/*
@@ -1852,11 +1749,7 @@ int drm_mode_getplane_res(struct drm_device *dev, void *data,
 	plane_resp->count_planes = config->num_plane;
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -1884,11 +1777,7 @@ int drm_mode_getplane(struct drm_device *dev, void *data,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	obj = drm_mode_object_find(dev, plane_resp->plane_id,
 				   DRM_MODE_OBJECT_PLANE);
 	if (!obj) {
@@ -1928,11 +1817,7 @@ int drm_mode_getplane(struct drm_device *dev, void *data,
 	plane_resp->count_format_types = plane->format_count;
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -1963,11 +1848,7 @@ int drm_mode_setplane(struct drm_device *dev, void *data,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	/*
 	 * First, find the plane, crtc, and fb objects.  If not available,
@@ -2066,11 +1947,7 @@ int drm_mode_setplane(struct drm_device *dev, void *data,
 	}
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 
 	return ret;
 }
@@ -2114,11 +1991,7 @@ int drm_mode_setcrtc(struct drm_device *dev, void *data,
 	if (crtc_req->x > INT_MAX || crtc_req->y > INT_MAX)
 		return -ERANGE;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	obj = drm_mode_object_find(dev, crtc_req->crtc_id,
 				   DRM_MODE_OBJECT_CRTC);
 	if (!obj) {
@@ -2270,11 +2143,7 @@ out:
 	free(connector_set, DRM_MEM_KMS);
 #endif
 	drm_mode_destroy(dev, mode);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -2292,11 +2161,7 @@ int drm_mode_cursor_ioctl(struct drm_device *dev,
 	if (!req->flags || (~DRM_MODE_CURSOR_FLAGS & req->flags))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	obj = drm_mode_object_find(dev, req->crtc_id, DRM_MODE_OBJECT_CRTC);
 	if (!obj) {
 		DRM_DEBUG_KMS("Unknown CRTC ID %d\n", req->crtc_id);
@@ -2324,11 +2189,7 @@ int drm_mode_cursor_ioctl(struct drm_device *dev,
 		}
 	}
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -2411,11 +2272,7 @@ int drm_mode_addfb(struct drm_device *dev,
 	if ((config->min_height > r.height) || (r.height > config->max_height))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	/* TODO check buffer is sufficiently large */
 	/* TODO setup destructor callback */
@@ -2436,11 +2293,7 @@ int drm_mode_addfb(struct drm_device *dev,
 	DRM_DEBUG_KMS("[FB:%d]\n", fb->base.id);
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -2612,11 +2465,7 @@ int drm_mode_addfb2(struct drm_device *dev,
 	if (ret)
 		return ret;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 #ifdef __linux__
 	fb = dev->mode_config.funcs->fb_create(dev, file_priv, r);
@@ -2634,11 +2483,7 @@ int drm_mode_addfb2(struct drm_device *dev,
 	DRM_DEBUG_KMS("[FB:%d]\n", fb->base.id);
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -2672,11 +2517,7 @@ int drm_mode_rmfb(struct drm_device *dev,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	obj = drm_mode_object_find(dev, *id, DRM_MODE_OBJECT_FB);
 	/* TODO check that we really get a framebuffer back. */
 	if (!obj) {
@@ -2697,11 +2538,7 @@ int drm_mode_rmfb(struct drm_device *dev,
 	drm_framebuffer_remove(fb);
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -2733,11 +2570,7 @@ int drm_mode_getfb(struct drm_device *dev,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	obj = drm_mode_object_find(dev, r->fb_id, DRM_MODE_OBJECT_FB);
 	if (!obj) {
 		ret = -EINVAL;
@@ -2754,11 +2587,7 @@ int drm_mode_getfb(struct drm_device *dev,
 	fb->funcs->create_handle(fb, file_priv, &r->handle);
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -2777,11 +2606,7 @@ int drm_mode_dirtyfb_ioctl(struct drm_device *dev,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	obj = drm_mode_object_find(dev, r->fb_id, DRM_MODE_OBJECT_FB);
 	if (!obj) {
 		ret = -EINVAL;
@@ -2844,11 +2669,7 @@ out_err2:
 	free(clips, DRM_MEM_KMS);
 #endif
 out_err1:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -2872,19 +2693,11 @@ void drm_fb_release(struct drm_file *priv)
 	struct drm_device *dev = priv->minor->dev;
 	struct drm_framebuffer *fb, *tfb;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	list_for_each_entry_safe(fb, tfb, &priv->fbs, filp_head) {
 		drm_framebuffer_remove(fb);
 	}
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 }
 
 /**
@@ -3000,11 +2813,7 @@ int drm_mode_attachmode_ioctl(struct drm_device *dev,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	obj = drm_mode_object_find(dev, mode_cmd->connector_id, DRM_MODE_OBJECT_CONNECTOR);
 	if (!obj) {
@@ -3028,11 +2837,7 @@ int drm_mode_attachmode_ioctl(struct drm_device *dev,
 
 	drm_mode_attachmode(dev, connector, mode);
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -3062,11 +2867,7 @@ int drm_mode_detachmode_ioctl(struct drm_device *dev,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	obj = drm_mode_object_find(dev, mode_cmd->connector_id, DRM_MODE_OBJECT_CONNECTOR);
 	if (!obj) {
@@ -3083,11 +2884,7 @@ int drm_mode_detachmode_ioctl(struct drm_device *dev,
 
 	ret = drm_mode_detachmode(dev, connector, &mode);
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -3365,11 +3162,7 @@ int drm_mode_getproperty_ioctl(struct drm_device *dev,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	obj = drm_mode_object_find(dev, out_resp->prop_id, DRM_MODE_OBJECT_PROPERTY);
 	if (!obj) {
 		ret = -EINVAL;
@@ -3447,11 +3240,7 @@ int drm_mode_getproperty_ioctl(struct drm_device *dev,
 		out_resp->count_enum_blobs = blob_count;
 	}
 done:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -3515,11 +3304,7 @@ int drm_mode_getblob_ioctl(struct drm_device *dev,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	obj = drm_mode_object_find(dev, out_resp->blob_id, DRM_MODE_OBJECT_BLOB);
 	if (!obj) {
 		ret = -EINVAL;
@@ -3537,11 +3322,7 @@ int drm_mode_getblob_ioctl(struct drm_device *dev,
 	out_resp->length = blob->length;
 
 done:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -3683,11 +3464,7 @@ int drm_mode_obj_get_properties_ioctl(struct drm_device *dev, void *data,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	obj = drm_mode_object_find(dev, arg->obj_id, arg->obj_type);
 	if (!obj) {
@@ -3724,11 +3501,7 @@ int drm_mode_obj_get_properties_ioctl(struct drm_device *dev, void *data,
 	}
 	arg->count_props = props_count;
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -3745,11 +3518,7 @@ int drm_mode_obj_set_property_ioctl(struct drm_device *dev, void *data,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	arg_obj = drm_mode_object_find(dev, arg->obj_id, arg->obj_type);
 	if (!arg_obj)
@@ -3787,11 +3556,7 @@ int drm_mode_obj_set_property_ioctl(struct drm_device *dev, void *data,
 	}
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -3858,11 +3623,7 @@ int drm_mode_gamma_set_ioctl(struct drm_device *dev,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	obj = drm_mode_object_find(dev, crtc_lut->crtc_id, DRM_MODE_OBJECT_CRTC);
 	if (!obj) {
 		ret = -EINVAL;
@@ -3903,11 +3664,7 @@ int drm_mode_gamma_set_ioctl(struct drm_device *dev,
 	crtc->funcs->gamma_set(crtc, r_base, g_base, b_base, 0, crtc->gamma_size);
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 
 }
@@ -3925,11 +3682,7 @@ int drm_mode_gamma_get_ioctl(struct drm_device *dev,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	obj = drm_mode_object_find(dev, crtc_lut->crtc_id, DRM_MODE_OBJECT_CRTC);
 	if (!obj) {
 		ret = -EINVAL;
@@ -3962,11 +3715,7 @@ int drm_mode_gamma_get_ioctl(struct drm_device *dev,
 		goto out;
 	}
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -3993,11 +3742,7 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 	    page_flip->reserved != 0)
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	obj = drm_mode_object_find(dev, page_flip->crtc_id, DRM_MODE_OBJECT_CRTC);
 	if (!obj)
 		goto out;
@@ -4097,11 +3842,7 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 	}
 
 out:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 

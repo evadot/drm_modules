@@ -1109,17 +1109,9 @@ static void ironlake_panel_vdd_work(void *arg, int pending __unused)
 #endif
 	struct drm_device *dev = intel_dp_to_dev(intel_dp);
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 	ironlake_panel_vdd_off_sync(intel_dp);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 }
 
 void ironlake_edp_panel_vdd_off(struct intel_dp *intel_dp, bool sync)

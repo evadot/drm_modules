@@ -313,22 +313,14 @@ static void i915_hotplug_work_func(void *context, int pending)
 	struct drm_mode_config *mode_config = &dev->mode_config;
 	struct intel_encoder *encoder;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&mode_config->mutex);
-#else
-	sx_xlock(&mode_config->mutex);
-#endif
 	DRM_DEBUG_KMS("running encoder hotplug functions\n");
 
 	list_for_each_entry(encoder, &mode_config->encoder_list, base.head)
 		if (encoder->hot_plug)
 			encoder->hot_plug(encoder);
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&mode_config->mutex);
-#else
-	sx_xunlock(&mode_config->mutex);
-#endif
 
 	/* Just fire off a uevent and let userspace tell us what to do */
 	drm_helper_hpd_irq_event(dev);

@@ -308,11 +308,7 @@ void intel_fb_restore_mode(struct drm_device *dev)
 	struct drm_mode_config *config = &dev->mode_config;
 	struct drm_plane *plane;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	ret = drm_fb_helper_restore_fbdev_mode(&dev_priv->fbdev->helper);
 	if (ret)
@@ -322,9 +318,5 @@ void intel_fb_restore_mode(struct drm_device *dev)
 	list_for_each_entry(plane, &config->plane_list, head)
 		plane->funcs->disable_plane(plane);
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 }

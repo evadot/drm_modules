@@ -1278,7 +1278,7 @@ static int i915_context_status(struct drm_device *dev, struct sbuf *m, void *dat
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	int ret;
 
-	ret = sx_xlock_sig(&dev->mode_config.mutex);
+	ret = mutex_lock_interruptible(&dev->mode_config.mutex);
 	if (ret != 0)
 		return -EINTR;
 
@@ -1294,7 +1294,7 @@ static int i915_context_status(struct drm_device *dev, struct sbuf *m, void *dat
 		seq_printf(m, "\n");
 	}
 
-	sx_xunlock(&dev->mode_config.mutex);
+	mutex_unlock(&dev->mode_config.mutex);
 
 	return 0;
 }
@@ -1423,7 +1423,7 @@ static int i915_dpio_info(struct drm_device *dev, struct sbuf *m, void *data)
 		return 0;
 	}
 
-	ret = sx_xlock_sig(&dev->mode_config.mutex);
+	ret = mutex_lock_interruptible(&dev->mode_config.mutex);
 	if (ret)
 		return -EINTR;
 
@@ -1452,7 +1452,7 @@ static int i915_dpio_info(struct drm_device *dev, struct sbuf *m, void *data)
 	seq_printf(m, "DPIO_FASTCLK_DISABLE: 0x%08x\n",
 		   intel_dpio_read(dev_priv, DPIO_FASTCLK_DISABLE));
 
-	sx_xunlock(&dev->mode_config.mutex);
+	mutex_unlock(&dev->mode_config.mutex);
 
 	return 0;
 }

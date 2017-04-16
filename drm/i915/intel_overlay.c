@@ -701,10 +701,9 @@ static int intel_overlay_do_put_image(struct intel_overlay *overlay,
 
 #ifdef FREEBSD_NOTYET
 	BUG_ON(!mutex_is_locked(&dev->struct_mutex));
-	BUG_ON(!mutex_is_locked(&dev->mode_config.mutex));
 #else
 	DRM_LOCK_ASSERT(dev);
-	sx_assert(&dev->mode_config.mutex, SA_XLOCKED);
+	BUG_ON(!mutex_is_locked(&dev->mode_config.mutex));
 #endif
 	BUG_ON(!overlay);
 
@@ -813,10 +812,9 @@ int intel_overlay_switch_off(struct intel_overlay *overlay)
 
 #ifdef FREEBSD_NOTYET
 	BUG_ON(!mutex_is_locked(&dev->struct_mutex));
-	BUG_ON(!mutex_is_locked(&dev->mode_config.mutex));
 #else
 	DRM_LOCK_ASSERT(dev);
-	sx_assert(&dev->mode_config.mutex, SA_XLOCKED);
+	BUG_ON(!mutex_is_locked(&dev->mode_config.mutex));
 #endif
 
 	ret = intel_overlay_recover_from_interrupt(overlay);
@@ -1069,11 +1067,10 @@ int intel_overlay_put_image(struct drm_device *dev, void *data,
 	}
 
 	if (!(put_image_rec->flags & I915_OVERLAY_ENABLE)) {
-#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->mode_config.mutex);
+#ifdef FREEBSD_NOTYET
 		mutex_lock(&dev->struct_mutex);
 #else
-		sx_xlock(&dev->mode_config.mutex);
 		DRM_LOCK(dev);
 #endif
 
@@ -1081,10 +1078,9 @@ int intel_overlay_put_image(struct drm_device *dev, void *data,
 
 #ifdef FREEBSD_NOTYET
 		mutex_unlock(&dev->struct_mutex);
-		mutex_unlock(&dev->mode_config.mutex);
 #else
 		DRM_UNLOCK(dev);
-		sx_xunlock(&dev->mode_config.mutex);
+		mutex_unlock(&dev->mode_config.mutex);
 #endif
 
 		return ret;
@@ -1113,12 +1109,11 @@ int intel_overlay_put_image(struct drm_device *dev, void *data,
 		goto out_free;
 	}
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
+#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
 #else
 	DRM_LOCK(dev);
-	sx_xlock(&dev->mode_config.mutex);
 #endif
 
 	if (new_bo->tiling_mode) {
@@ -1201,12 +1196,11 @@ int intel_overlay_put_image(struct drm_device *dev, void *data,
 
 #ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-	mutex_unlock(&dev->mode_config.mutex);
 
 	kfree(params);
 #else
 	DRM_UNLOCK(dev);
-	sx_xunlock(&dev->mode_config.mutex);
+	mutex_unlock(&dev->mode_config.mutex);
 
 	free(params, DRM_I915_GEM);
 #endif
@@ -1216,10 +1210,9 @@ int intel_overlay_put_image(struct drm_device *dev, void *data,
 out_unlock:
 #ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-	mutex_unlock(&dev->mode_config.mutex);
 #else
 	DRM_UNLOCK(dev);
-	sx_xunlock(&dev->mode_config.mutex);
+	mutex_unlock(&dev->mode_config.mutex);
 #endif
 	drm_gem_object_unreference_unlocked(&new_bo->base);
 out_free:
@@ -1300,11 +1293,10 @@ int intel_overlay_attrs(struct drm_device *dev, void *data,
 		return -ENODEV;
 	}
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
+#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->struct_mutex);
 #else
-	sx_xlock(&dev->mode_config.mutex);
 	DRM_LOCK(dev);
 #endif
 
@@ -1372,11 +1364,10 @@ int intel_overlay_attrs(struct drm_device *dev, void *data,
 out_unlock:
 #ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->struct_mutex);
-	mutex_unlock(&dev->mode_config.mutex);
 #else
 	DRM_UNLOCK(dev);
-	sx_xunlock(&dev->mode_config.mutex);
 #endif
+	mutex_unlock(&dev->mode_config.mutex);
 
 	return ret;
 }

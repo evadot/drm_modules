@@ -782,12 +782,11 @@ struct drm_mode_group {
  * global restrictions are also here, e.g. dimension restrictions.
  */
 struct drm_mode_config {
-#ifdef FREEBSD_NOTYET
 	struct mutex mutex; /* protects configuration (mode lists etc.) */
 	struct mutex idr_mutex; /* for IDR management */
+#ifdef FREEBSD_NOTYET
 	struct idr crtc_idr; /* use this idr for all IDs, fb, crtc, connector, modes - just makes life easier */
 #else
-	struct sx mutex; /* protects configuration (mode lists etc.) */
 	struct drm_gem_names crtc_names; /* use this idr for all IDs, fb, crtc, connector, modes - just makes life easier */
 #endif
 	/* this is limited to one for now */

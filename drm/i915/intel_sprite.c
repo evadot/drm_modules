@@ -621,11 +621,7 @@ int intel_sprite_set_colorkey(struct drm_device *dev, void *data,
 	if ((set->flags & (I915_SET_COLORKEY_DESTINATION | I915_SET_COLORKEY_SOURCE)) == (I915_SET_COLORKEY_DESTINATION | I915_SET_COLORKEY_SOURCE))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	obj = drm_mode_object_find(dev, set->plane_id, DRM_MODE_OBJECT_PLANE);
 	if (!obj) {
@@ -638,11 +634,7 @@ int intel_sprite_set_colorkey(struct drm_device *dev, void *data,
 	ret = intel_plane->update_colorkey(plane, set);
 
 out_unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
@@ -658,11 +650,7 @@ int intel_sprite_get_colorkey(struct drm_device *dev, void *data,
 	if (!drm_core_check_feature(dev, DRIVER_MODESET))
 		return -ENODEV;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev->mode_config.mutex);
-#else
-	sx_xlock(&dev->mode_config.mutex);
-#endif
 
 	obj = drm_mode_object_find(dev, get->plane_id, DRM_MODE_OBJECT_PLANE);
 	if (!obj) {
@@ -675,11 +663,7 @@ int intel_sprite_get_colorkey(struct drm_device *dev, void *data,
 	intel_plane->get_colorkey(plane, get);
 
 out_unlock:
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev->mode_config.mutex);
-#else
-	sx_xunlock(&dev->mode_config.mutex);
-#endif
 	return ret;
 }
 
