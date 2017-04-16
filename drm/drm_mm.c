@@ -55,14 +55,10 @@ static struct drm_mm_node *drm_mm_kmalloc(struct drm_mm *mm, int atomic)
 {
 	struct drm_mm_node *child;
 
-#ifdef FREEBSD_NOTYET
 	if (atomic)
 		child = kzalloc(sizeof(*child), GFP_ATOMIC);
 	else
 		child = kzalloc(sizeof(*child), GFP_KERNEL);
-#else
-	child = malloc(sizeof(*child), DRM_MEM_MM, M_NOWAIT | M_ZERO);
-#endif
 
 	if (unlikely(child == NULL)) {
 		spin_lock(&mm->unused_lock);
@@ -92,11 +88,7 @@ int drm_mm_pre_get(struct drm_mm *mm)
 	spin_lock(&mm->unused_lock);
 	while (mm->num_unused < MM_UNUSED_TARGET) {
 		spin_unlock(&mm->unused_lock);
-#ifdef FREEBSD_NOTYET
 		node = kzalloc(sizeof(*node), GFP_KERNEL);
-#else
-		node = malloc(sizeof(*node), DRM_MEM_MM, M_NOWAIT | M_ZERO);
-#endif
 		spin_lock(&mm->unused_lock);
 
 		if (unlikely(node == NULL)) {
@@ -372,11 +364,7 @@ void drm_mm_put_block(struct drm_mm_node *node)
 		list_add(&node->node_list, &mm->unused_nodes);
 		++mm->num_unused;
 	} else
-#ifdef FREEBSD_NOTYET
 		kfree(node);
-#else
-		free(node, DRM_MEM_MM);
-#endif
 	spin_unlock(&mm->unused_lock);
 }
 EXPORT_SYMBOL(drm_mm_put_block);
@@ -691,11 +679,7 @@ void drm_mm_takedown(struct drm_mm * mm)
 	spin_lock(&mm->unused_lock);
 	list_for_each_entry_safe(entry, next, &mm->unused_nodes, node_list) {
 		list_del(&entry->node_list);
-#ifdef FREEBSD_NOTYET
 		kfree(entry);
-#else
-		free(entry, DRM_MEM_MM);
-#endif
 		--mm->num_unused;
 	}
 	spin_unlock(&mm->unused_lock);
