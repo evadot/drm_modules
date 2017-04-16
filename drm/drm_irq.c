@@ -38,11 +38,11 @@
 #include "drm_trace.h"
 
 #include <linux/interrupt.h>	/* For task queue support */
-#include <linux/slab.h>
 
 #include <linux/vgaarb.h>
 #include <linux/export.h>
 #endif
+#include <linux/slab.h>
 
 /* Access macro for slots in vblank timestamp ringbuffer. */
 #define vblanktimestamp(dev, crtc, count) ( \
@@ -213,7 +213,6 @@ void drm_vblank_cleanup(struct drm_device *dev)
 
 	vblank_disable_fn(dev);
 
-#ifdef FREEBSD_NOTYET
 	kfree(dev->vbl_queue);
 	kfree(dev->_vblank_count);
 	kfree(dev->vblank_refcount);
@@ -222,16 +221,9 @@ void drm_vblank_cleanup(struct drm_device *dev)
 	kfree(dev->last_vblank_wait);
 	kfree(dev->vblank_inmodeset);
 	kfree(dev->_vblank_time);
-#else
-	free(dev->_vblank_count, DRM_MEM_VBLANK);
-	free(dev->vblank_refcount, DRM_MEM_VBLANK);
-	free(dev->vblank_enabled, DRM_MEM_VBLANK);
-	free(dev->last_vblank, DRM_MEM_VBLANK);
-	free(dev->last_vblank_wait, DRM_MEM_VBLANK);
-	free(dev->vblank_inmodeset, DRM_MEM_VBLANK);
-	free(dev->_vblank_time, DRM_MEM_VBLANK);
 
 	spin_lock_destroy(&dev->vbl_lock);
+#ifdef FREEBSD_NOTYET
 	mtx_destroy(&dev->vblank_time_lock);
 #endif
 
@@ -255,7 +247,6 @@ int drm_vblank_init(struct drm_device *dev, int num_crtcs)
 
 	dev->num_crtcs = num_crtcs;
 
-#ifdef FREEBSD_NOTYET
 	dev->vbl_queue = kmalloc(sizeof(wait_queue_head_t) * num_crtcs,
 				 GFP_KERNEL);
 	if (!dev->vbl_queue)
@@ -290,42 +281,6 @@ int drm_vblank_init(struct drm_device *dev, int num_crtcs)
 				    sizeof(struct timeval), GFP_KERNEL);
 	if (!dev->_vblank_time)
 		goto err;
-#else
-	dev->_vblank_count = malloc(sizeof(atomic_t) * num_crtcs,
-	    DRM_MEM_VBLANK, M_NOWAIT);
-	if (!dev->_vblank_count)
-		goto err;
-
-	dev->vblank_refcount = malloc(sizeof(atomic_t) * num_crtcs,
-	    DRM_MEM_VBLANK, M_NOWAIT);
-	if (!dev->vblank_refcount)
-		goto err;
-
-	dev->vblank_enabled = malloc(num_crtcs * sizeof(int),
-	    DRM_MEM_VBLANK, M_NOWAIT | M_ZERO);
-	if (!dev->vblank_enabled)
-		goto err;
-
-	dev->last_vblank = malloc(num_crtcs * sizeof(u32),
-	    DRM_MEM_VBLANK, M_NOWAIT | M_ZERO);
-	if (!dev->last_vblank)
-		goto err;
-
-	dev->last_vblank_wait = malloc(num_crtcs * sizeof(u32),
-	    DRM_MEM_VBLANK, M_NOWAIT | M_ZERO);
-	if (!dev->last_vblank_wait)
-		goto err;
-
-	dev->vblank_inmodeset = malloc(num_crtcs * sizeof(int),
-	    DRM_MEM_VBLANK, M_NOWAIT | M_ZERO);
-	if (!dev->vblank_inmodeset)
-		goto err;
-
-	dev->_vblank_time = malloc(num_crtcs * DRM_VBLANKTIME_RBSIZE *
-	    sizeof(struct timeval), DRM_MEM_VBLANK, M_NOWAIT | M_ZERO);
-	if (!dev->_vblank_time)
-		goto err;
-#endif
 
 	DRM_INFO("Supports vblank timestamp caching Rev 1 (10.10.2010).\n");
 
@@ -1288,7 +1243,7 @@ static void
 drm_vblank_event_destroy(struct drm_pending_event *e)
 {
 
-	free(e, DRM_MEM_VBLANK);
+	kfree(e);
 }
 
 static int drm_queue_vblank_event(struct drm_device *dev, int pipe,
@@ -1301,11 +1256,7 @@ static int drm_queue_vblank_event(struct drm_device *dev, int pipe,
 	unsigned int seq;
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	e = kzalloc(sizeof *e, GFP_KERNEL);
-#else
-	e = malloc(sizeof *e, DRM_MEM_VBLANK, M_NOWAIT | M_ZERO);
-#endif
 	if (e == NULL) {
 		ret = -ENOMEM;
 		goto err_put;
@@ -1359,11 +1310,7 @@ static int drm_queue_vblank_event(struct drm_device *dev, int pipe,
 
 err_unlock:
 	spin_unlock_irqrestore(&dev->event_lock, flags);
-#ifdef FREEBSD_NOTYET
 	kfree(e);
-#else
-	free(e, DRM_MEM_VBLANK);
-#endif
 err_put:
 	drm_vblank_put(dev, pipe);
 	return ret;

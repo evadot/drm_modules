@@ -26,7 +26,6 @@ MALLOC_DEFINE(DRM_MEM_SGLISTS, "drm_sglists", "DRM SGLISTS Data Structures");
 MALLOC_DEFINE(DRM_MEM_MM, "drm_sman", "DRM MEMORY MANAGER Data Structures");
 MALLOC_DEFINE(DRM_MEM_HASHTAB, "drm_hashtab", "DRM HASHTABLE Data Structures");
 MALLOC_DEFINE(DRM_MEM_KMS, "drm_kms", "DRM KMS Data Structures");
-MALLOC_DEFINE(DRM_MEM_VBLANK, "drm_vblank", "DRM VBLANK Handling Data");
 
 const char *fb_mode_option = NULL;
 
