@@ -24,7 +24,9 @@
  *    Eric Anholt <eric@anholt.net>
  *
  */
-
+#ifdef __linux__
+#include <linux/dmi.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_dp_helper.h>
 #include <drm/i915_drm.h>
@@ -232,7 +234,11 @@ parse_lfp_panel_data(struct drm_i915_private *dev_priv,
 					       lvds_lfp_data_ptrs,
 					       lvds_options->panel_type);
 
+#ifdef FREEBSD_NOTYET
+	panel_fixed_mode = kzalloc(sizeof(*panel_fixed_mode), GFP_KERNEL);
+#else
 	panel_fixed_mode = malloc(sizeof(*panel_fixed_mode), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!panel_fixed_mode)
 		return;
 
@@ -310,7 +316,11 @@ parse_sdvo_panel_data(struct drm_i915_private *dev_priv,
 	if (!dvo_timing)
 		return;
 
+#ifdef FREEBSD_NOTYET
+	panel_fixed_mode = kzalloc(sizeof(*panel_fixed_mode), GFP_KERNEL);
+#else
 	panel_fixed_mode = malloc(sizeof(*panel_fixed_mode), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!panel_fixed_mode)
 		return;
 
@@ -611,7 +621,11 @@ parse_device_mapping(struct drm_i915_private *dev_priv,
 		DRM_DEBUG_KMS("no child dev is parsed from VBT\n");
 		return;
 	}
+#ifdef FREEBSD_NOTYET
+	dev_priv->child_dev = kcalloc(count, sizeof(*p_child), GFP_KERNEL);
+#else
 	dev_priv->child_dev = malloc(count * sizeof(*p_child), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!dev_priv->child_dev) {
 		DRM_DEBUG_KMS("No memory space for child device\n");
 		return;
@@ -690,7 +704,11 @@ int
 intel_parse_bios(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
+#ifdef __linux__
+	struct pci_dev *pdev = dev->pdev;
+#elif __FreeBSD__
 	device_t vga_dev = device_get_parent(dev->dev);;
+#endif
 	struct bdb_header *bdb = NULL;
 	u8 __iomem *bios = NULL;
 
@@ -712,7 +730,11 @@ intel_parse_bios(struct drm_device *dev)
 		size_t size;
 		int i;
 
+#ifdef __linux__
+		bios = pci_map_rom(pdev, &size);
+#elif __FreeBSD__
 		bios = vga_pci_map_bios(vga_dev, &size);
+#endif
 		if (!bios)
 			return -1;
 
@@ -726,7 +748,11 @@ intel_parse_bios(struct drm_device *dev)
 
 		if (!vbt) {
 			DRM_DEBUG_DRIVER("VBT signature missing\n");
+#ifdef __linux__
+			pci_unmap_rom(pdev, bios);
+#elif __FreeBSD__
 			vga_pci_unmap_bios(vga_dev, bios);
+#endif
 			return -1;
 		}
 
@@ -744,7 +770,11 @@ intel_parse_bios(struct drm_device *dev)
 	parse_edp(dev_priv, bdb);
 
 	if (bios)
+#ifdef __linux__
+		pci_unmap_rom(pdev, bios);
+#elif __FreeBSD__
 		vga_pci_unmap_bios(vga_dev, bios);
+#endif
 
 	return 0;
 }
