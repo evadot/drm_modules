@@ -1473,22 +1473,44 @@ void intel_ddi_init(struct drm_device *dev, enum port port)
 	struct intel_connector *hdmi_connector = NULL;
 	struct intel_connector *dp_connector = NULL;
 
+#ifdef FREEBSD_NOTYET
+	intel_dig_port = kzalloc(sizeof(struct intel_digital_port), GFP_KERNEL);
+#else
 	intel_dig_port = malloc(sizeof(struct intel_digital_port), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!intel_dig_port)
 		return;
 
+#ifdef FREEBSD_NOTYET
+	dp_connector = kzalloc(sizeof(struct intel_connector), GFP_KERNEL);
+#else
 	dp_connector = malloc(sizeof(struct intel_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 	if (!dp_connector) {
+#ifdef FREEBSD_NOTYET
+		kfree(intel_dig_port);
+#else
 		free(intel_dig_port, DRM_MEM_KMS);
+#endif
 		return;
 	}
 
 	if (port != PORT_A) {
+#ifdef FREEBSD_NOTYET
+		hdmi_connector = kzalloc(sizeof(struct intel_connector),
+					 GFP_KERNEL);
+#else
 		hdmi_connector = malloc(sizeof(struct intel_connector),
 					 DRM_MEM_KMS, M_WAITOK | M_ZERO);
+#endif
 		if (!hdmi_connector) {
+#ifdef FREEBSD_NOTYET
+			kfree(dp_connector);
+			kfree(intel_dig_port);
+#else
 			free(dp_connector, DRM_MEM_KMS);
 			free(intel_dig_port, DRM_MEM_KMS);
+#endif
 			return;
 		}
 	}
