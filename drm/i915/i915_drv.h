@@ -716,11 +716,7 @@ typedef struct drm_i915_private {
 	spinlock_t irq_lock;
 
 	/* DPIO indirect register protection */
-#ifdef FREEBSD_NOTYET
 	spinlock_t dpio_lock;
-#else
-	struct sx dpio_lock;
-#endif
 
 	/** Cached value of IMR to avoid reads in updating the bitfield */
 	u32 pipestat[2];
@@ -801,11 +797,7 @@ typedef struct drm_i915_private {
 
 	unsigned int fsb_freq, mem_freq, is_ddr3;
 
-#ifdef FREEBSD_NOTYET
 	spinlock_t error_lock;
-#else
-	struct mtx error_lock;
-#endif
 	/* Protected by dev->error_lock. */
 	struct drm_i915_error_state *first_error;
 #ifdef FREEBSD_NOTYET

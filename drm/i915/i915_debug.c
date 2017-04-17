@@ -649,11 +649,11 @@ static int i915_error_state(struct drm_device *dev, struct sbuf *m,
 	struct intel_ring_buffer *ring;
 	int i, j, page, offset, elt;
 
-	mtx_lock(&dev_priv->error_lock);
+	spin_lock(&dev_priv->error_lock);
 	error = dev_priv->first_error;
 	if (error != NULL)
 		refcount_acquire(&error->ref);
-	mtx_unlock(&dev_priv->error_lock);
+	spin_unlock(&dev_priv->error_lock);
 
 	if (!error) {
 		seq_printf(m, "no error state collected\n");

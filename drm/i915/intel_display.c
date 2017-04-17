@@ -422,16 +422,10 @@ static const intel_limit_t intel_limits_vlv_dp = {
 
 u32 intel_dpio_read(struct drm_i915_private *dev_priv, int reg)
 {
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 	u32 val = 0;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->dpio_lock, flags);
-#else
-	sx_xlock(&dev_priv->dpio_lock);
-#endif
 	if (wait_for_atomic_us((I915_READ(DPIO_PKT) & DPIO_BUSY) == 0, 100)) {
 		DRM_ERROR("DPIO idle wait timed out\n");
 		goto out_unlock;
@@ -447,26 +441,16 @@ u32 intel_dpio_read(struct drm_i915_private *dev_priv, int reg)
 	val = I915_READ(DPIO_DATA);
 
 out_unlock:
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->dpio_lock, flags);
-#else
-	sx_xunlock(&dev_priv->dpio_lock);
-#endif
 	return val;
 }
 
 static void intel_dpio_write(struct drm_i915_private *dev_priv, int reg,
 			     u32 val)
 {
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->dpio_lock, flags);
-#else
-	sx_xlock(&dev_priv->dpio_lock);
-#endif
 	if (wait_for_atomic_us((I915_READ(DPIO_PKT) & DPIO_BUSY) == 0, 100)) {
 		DRM_ERROR("DPIO idle wait timed out\n");
 		goto out_unlock;
@@ -480,11 +464,7 @@ static void intel_dpio_write(struct drm_i915_private *dev_priv, int reg,
 		DRM_ERROR("DPIO write wait timed out\n");
 
 out_unlock:
-#ifdef FREEBSD_NOTYET
        spin_unlock_irqrestore(&dev_priv->dpio_lock, flags);
-#else
-       sx_xunlock(&dev_priv->dpio_lock);
-#endif
 }
 
 static void vlv_init_dpio(struct drm_device *dev)
@@ -1535,16 +1515,10 @@ static void
 intel_sbi_write(struct drm_i915_private *dev_priv, u16 reg, u32 value,
 		enum intel_sbi_destination destination)
 {
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 	u32 tmp;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->dpio_lock, flags);
-#else
-	sx_xlock(&dev_priv->dpio_lock);
-#endif
 	if (wait_for((I915_READ(SBI_CTL_STAT) & SBI_BUSY) == 0, 100)) {
 		DRM_ERROR("timeout waiting for SBI to become ready\n");
 		goto out_unlock;
@@ -1566,27 +1540,17 @@ intel_sbi_write(struct drm_i915_private *dev_priv, u16 reg, u32 value,
 	}
 
 out_unlock:
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->dpio_lock, flags);
-#else
-	sx_xunlock(&dev_priv->dpio_lock);
-#endif
 }
 
 static u32
 intel_sbi_read(struct drm_i915_private *dev_priv, u16 reg,
 	       enum intel_sbi_destination destination)
 {
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 	u32 value = 0;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->dpio_lock, flags);
-#else
-	sx_xlock(&dev_priv->dpio_lock);
-#endif
 	if (wait_for((I915_READ(SBI_CTL_STAT) & SBI_BUSY) == 0, 100)) {
 		DRM_ERROR("timeout waiting for SBI to become ready\n");
 		goto out_unlock;
@@ -1609,11 +1573,7 @@ intel_sbi_read(struct drm_i915_private *dev_priv, u16 reg,
 	value = I915_READ(SBI_DATA);
 
 out_unlock:
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->dpio_lock, flags);
-#else
-	sx_xunlock(&dev_priv->dpio_lock);
-#endif
 	return value;
 }
 

@@ -1695,16 +1695,14 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 #endif
 
 	spin_lock_init(&dev_priv->irq_lock);
-#ifdef FREEBSD_NOTYET
-	spin_lock_init(&dev_priv->error_lock);
-	spin_lock_init(&dev_priv->rps.lock);
 	spin_lock_init(&dev_priv->dpio_lock);
+	spin_lock_init(&dev_priv->error_lock);
+#ifdef FREEBSD_NOTYET
+	spin_lock_init(&dev_priv->rps.lock);
 
 	mutex_init(&dev_priv->rps.hw_lock);
 #else
-	mtx_init(&dev_priv->error_lock, "915err", NULL, MTX_DEF);
 	mtx_init(&dev_priv->rps.lock, "915rps", NULL, MTX_DEF);
-	sx_init(&dev_priv->dpio_lock, "915dpi");
 
 	sx_init(&dev_priv->rps.hw_lock, "915rpshw");
 #endif
@@ -1769,9 +1767,9 @@ out_gem_unload:
 
 	free_completion(&dev_priv->error_completion);
 	spin_lock_destroy(&dev_priv->irq_lock);
-	mtx_destroy(&dev_priv->error_lock);
+	spin_lock_destroy(&dev_priv->error_lock);
 	mtx_destroy(&dev_priv->rps.lock);
-	sx_destroy(&dev_priv->dpio_lock);
+	spin_lock_destroy(&dev_priv->dpio_lock);
 
 	sx_destroy(&dev_priv->rps.hw_lock);
 
@@ -1978,9 +1976,9 @@ int i915_driver_unload(struct drm_device *dev)
 
 	free_completion(&dev_priv->error_completion);
 	spin_lock_destroy(&dev_priv->irq_lock);
-	mtx_destroy(&dev_priv->error_lock);
+	spin_lock_destroy(&dev_priv->error_lock);
 	mtx_destroy(&dev_priv->rps.lock);
-	sx_destroy(&dev_priv->dpio_lock);
+	spin_lock_destroy(&dev_priv->dpio_lock);
 
 	sx_destroy(&dev_priv->rps.hw_lock);
 #endif

@@ -1431,22 +1431,12 @@ static void i915_capture_error_state(struct drm_device *dev)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct drm_i915_gem_object *obj;
 	struct drm_i915_error_state *error;
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 	int i, pipe;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->error_lock, flags);
-#else
-	mtx_lock(&dev_priv->error_lock);
-#endif
 	error = dev_priv->first_error;
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->error_lock, flags);
-#else
-	mtx_unlock(&dev_priv->error_lock);
-#endif
 	if (error)
 		return;
 
@@ -1562,20 +1552,12 @@ static void i915_capture_error_state(struct drm_device *dev)
 	error->overlay = intel_overlay_capture_error_state(dev);
 	error->display = intel_display_capture_error_state(dev);
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->error_lock, flags);
-#else
-	mtx_lock(&dev_priv->error_lock);
-#endif
 	if (dev_priv->first_error == NULL) {
 		dev_priv->first_error = error;
 		error = NULL;
 	}
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->error_lock, flags);
-#else
-	mtx_unlock(&dev_priv->error_lock);
-#endif
 
 	if (error)
 #ifdef FREEBSD_NOTYET
@@ -1589,22 +1571,12 @@ void i915_destroy_error_state(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct drm_i915_error_state *error;
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->error_lock, flags);
-#else
-	mtx_lock(&dev_priv->error_lock);
-#endif
 	error = dev_priv->first_error;
 	dev_priv->first_error = NULL;
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->error_lock, flags);
-#else
-	mtx_unlock(&dev_priv->error_lock);
-#endif
 
 #ifdef FREEBSD_NOTYET
 	if (error)
