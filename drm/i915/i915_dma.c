@@ -1726,14 +1726,8 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 	acpi_video_register();
 #endif
 
-#ifdef __linux__
 	setup_timer(&dev_priv->hangcheck_timer, i915_hangcheck_elapsed,
 		    (unsigned long) dev);
-#elif __FreeBSD__
-	callout_init(&dev_priv->hangcheck_timer, 1);
-	callout_reset(&dev_priv->hangcheck_timer, DRM_I915_HANGCHECK_PERIOD,
-	    i915_hangcheck_elapsed, dev);
-#endif
 
 	if (IS_GEN5(dev))
 		intel_gpu_ips_init(dev_priv);
@@ -1866,12 +1860,7 @@ int i915_driver_unload(struct drm_device *dev)
 	}
 
 	/* Free error state after interrupts are fully disabled. */
-#ifdef __linux__
 	del_timer_sync(&dev_priv->hangcheck_timer);
-#elif __FreeBSD__
-	callout_stop(&dev_priv->hangcheck_timer);
-	callout_drain(&dev_priv->hangcheck_timer);
-#endif
 	cancel_work_sync(&dev_priv->error_work);
 	i915_destroy_error_state(dev);
 

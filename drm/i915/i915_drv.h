@@ -723,11 +723,7 @@ typedef struct drm_i915_private {
 	/* For hangcheck timer */
 #define DRM_I915_HANGCHECK_PERIOD 1500 /* in ms */
 #define DRM_I915_HANGCHECK_JIFFIES msecs_to_jiffies(DRM_I915_HANGCHECK_PERIOD)
-#ifdef FREEBSD_NOTYET
 	struct timer_list hangcheck_timer;
-#else
-	struct callout hangcheck_timer;
-#endif
 	int hangcheck_count;
 	uint32_t last_acthd[I915_NUM_RINGS];
 	uint32_t prev_instdone[I915_NUM_INSTDONE_REG];
@@ -1391,7 +1387,7 @@ extern void i915_update_gfx_val(struct drm_i915_private *dev_priv);
 extern void intel_console_resume(struct work_struct *work);
 
 /* i915_irq.c */
-void i915_hangcheck_elapsed(void *data);
+void i915_hangcheck_elapsed(unsigned long data);
 void i915_handle_error(struct drm_device *dev, bool wedged);
 
 extern void intel_irq_init(struct drm_device *dev);

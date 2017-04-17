@@ -2401,8 +2401,8 @@ i915_add_request(struct intel_ring_buffer *ring,
 
 	if (!dev_priv->mm.suspended) {
 		if (i915_enable_hangcheck) {
-			callout_schedule(&dev_priv->hangcheck_timer,
-			    DRM_I915_HANGCHECK_PERIOD);
+			mod_timer(&dev_priv->hangcheck_timer,
+				  round_jiffies_up(jiffies + DRM_I915_HANGCHECK_JIFFIES));
 		}
 		if (was_empty) {
 			queue_delayed_work(dev_priv->wq,
@@ -4229,7 +4229,7 @@ i915_gem_idle(struct drm_device *dev)
 	 * And not confound mm.suspended!
 	 */
 	dev_priv->mm.suspended = 1;
-	callout_stop(&dev_priv->hangcheck_timer);
+	del_timer_sync(&dev_priv->hangcheck_timer);
 
 	i915_kernel_lost_context(dev);
 	i915_gem_cleanup_ringbuffer(dev);
