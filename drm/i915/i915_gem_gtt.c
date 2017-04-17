@@ -143,23 +143,14 @@ int i915_gem_init_aliasing_ppgtt(struct drm_device *dev)
 	 * now. */
 	first_pd_entry_in_global_pt = dev_priv->mm.gtt->gtt_total_entries - I915_PPGTT_PD_ENTRIES;
 
-#ifdef FREEBSD_NOTYET
 	ppgtt = kzalloc(sizeof(*ppgtt), GFP_KERNEL);
-#else
-	ppgtt = malloc(sizeof(*ppgtt), DRM_I915_GEM, M_WAITOK | M_ZERO);
-#endif
 	if (!ppgtt)
 		return ret;
 
 	ppgtt->dev = dev;
 	ppgtt->num_pd_entries = I915_PPGTT_PD_ENTRIES;
-#ifdef FREEBSD_NOTYET
 	ppgtt->pt_pages = kzalloc(sizeof(struct page *)*ppgtt->num_pd_entries,
 				  GFP_KERNEL);
-#else
-	ppgtt->pt_pages = malloc(sizeof(struct page *)*ppgtt->num_pd_entries,
-				  DRM_I915_GEM, M_WAITOK | M_ZERO);
-#endif
 	if (!ppgtt->pt_pages)
 		goto err_ppgtt;
 
@@ -176,15 +167,9 @@ int i915_gem_init_aliasing_ppgtt(struct drm_device *dev)
 	}
 
 	if (dev_priv->mm.gtt->needs_dmar) {
-#ifdef FREEBSD_NOTYET
 		ppgtt->pt_dma_addr = kzalloc(sizeof(dma_addr_t)
 						*ppgtt->num_pd_entries,
 					     GFP_KERNEL);
-#else
-		ppgtt->pt_dma_addr = malloc(sizeof(dma_addr_t)
-						*ppgtt->num_pd_entries,
-					     DRM_I915_GEM, M_WAITOK | M_ZERO);
-#endif
 		if (!ppgtt->pt_dma_addr)
 			goto err_pt_alloc;
 
@@ -227,11 +212,7 @@ err_pd_pin:
 	}
 #endif
 err_pt_alloc:
-#ifdef FREEBSD_NOTYET
 	kfree(ppgtt->pt_dma_addr);
-#else
-	free(ppgtt->pt_dma_addr, DRM_I915_GEM);
-#endif
 	for (i = 0; i < ppgtt->num_pd_entries; i++) {
 #ifdef __linux__
 		if (ppgtt->pt_pages[i])
@@ -243,17 +224,9 @@ err_pt_alloc:
 		}
 #endif
 	}
-#ifdef FREEBSD_NOTYET
 	kfree(ppgtt->pt_pages);
-#else
-	free(ppgtt->pt_pages, DRM_I915_GEM);
-#endif
 err_ppgtt:
-#ifdef FREEBSD_NOTYET
 	kfree(ppgtt);
-#else
-	free(ppgtt, DRM_I915_GEM);
-#endif
 
 	return ret;
 }
@@ -275,11 +248,7 @@ void i915_gem_cleanup_aliasing_ppgtt(struct drm_device *dev)
 	}
 #endif
 
-#ifdef FREEBSD_NOTYET
 	kfree(ppgtt->pt_dma_addr);
-#else
-	free(ppgtt->pt_dma_addr, DRM_I915_GEM);
-#endif
 #ifdef __linux__
 	for (i = 0; i < ppgtt->num_pd_entries; i++)
 		__free_page(ppgtt->pt_pages[i]);
@@ -289,13 +258,8 @@ void i915_gem_cleanup_aliasing_ppgtt(struct drm_device *dev)
 		vm_page_free(ppgtt->pt_pages[i]);
 	}
 #endif
-#ifdef FREEBSD_NOTYET
 	kfree(ppgtt->pt_pages);
 	kfree(ppgtt);
-#else
-	free(ppgtt->pt_pages, DRM_I915_GEM);
-	free(ppgtt, DRM_I915_GEM);
-#endif
 }
 
 static void i915_ppgtt_insert_pages(struct i915_hw_ppgtt *ppgtt,
@@ -735,7 +699,7 @@ int i915_gem_gtt_init(struct drm_device *dev)
 		return 0;
 	}
 
-	dev_priv->mm.gtt = malloc(sizeof(*dev_priv->mm.gtt), DRM_I915_GEM, M_WAITOK | M_ZERO);
+	dev_priv->mm.gtt = kzalloc(sizeof(*dev_priv->mm.gtt), GFP_KERNEL);
 	if (!dev_priv->mm.gtt)
 		return -ENOMEM;
 
@@ -798,7 +762,7 @@ int i915_gem_gtt_init(struct drm_device *dev)
 	return 0;
 
 err_out:
-	free(dev_priv->mm.gtt, DRM_I915_GEM);
+	kfree(dev_priv->mm.gtt);
 #ifdef FREEBSD_WIP
 	if (INTEL_INFO(dev)->gen < 6)
 		intel_gmch_remove();
@@ -817,5 +781,5 @@ void i915_gem_gtt_fini(struct drm_device *dev)
 		intel_gmch_remove();
 #endif /* FREEBSD_WIP */
 	if (INTEL_INFO(dev)->gen >= 6)
-		free(dev_priv->mm.gtt, DRM_I915_GEM);
+		kfree(dev_priv->mm.gtt);
 }

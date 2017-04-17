@@ -1007,11 +1007,7 @@ i915_error_object_create(struct drm_i915_private *dev_priv,
 
 	count = src->base.size / PAGE_SIZE;
 
-#ifdef FREEBSD_NOTYET
 	dst = kmalloc(sizeof(*dst) + count * sizeof(u32 *), GFP_ATOMIC);
-#else
-	dst = malloc(sizeof(*dst) + count * sizeof(u32 *), DRM_I915_GEM, M_NOWAIT);
-#endif
 	if (dst == NULL)
 		return NULL;
 
@@ -1022,11 +1018,7 @@ i915_error_object_create(struct drm_i915_private *dev_priv,
 #endif
 		void *d;
 
-#ifdef FREEBSD_NOTYET
 		d = kmalloc(PAGE_SIZE, GFP_ATOMIC);
-#else
-		d = malloc(PAGE_SIZE, DRM_I915_GEM, M_NOWAIT);
-#endif
 		if (d == NULL)
 			goto unwind;
 
@@ -1105,13 +1097,8 @@ i915_error_object_create(struct drm_i915_private *dev_priv,
 
 unwind:
 	while (i--)
-#ifdef FREEBSD_NOTYET
 		kfree(dst->pages[i]);
 	kfree(dst);
-#else
-		free(dst->pages[i], DRM_I915_GEM);
-	free(dst, DRM_I915_GEM);
-#endif
 	return NULL;
 }
 
@@ -1124,15 +1111,9 @@ i915_error_object_free(struct drm_i915_error_object *obj)
 		return;
 
 	for (page = 0; page < obj->page_count; page++)
-#ifdef FREEBSD_NOTYET
 		kfree(obj->pages[page]);
 
 	kfree(obj);
-#else
-		free(obj->pages[page], DRM_I915_GEM);
-
-	free(obj, DRM_I915_GEM);
-#endif
 }
 
 #ifdef FREEBSD_NOTYET
@@ -1151,22 +1132,12 @@ i915_error_state_free(struct drm_i915_error_state *error)
 	for (i = 0; i < ARRAY_SIZE(error->ring); i++) {
 		i915_error_object_free(error->ring[i].batchbuffer);
 		i915_error_object_free(error->ring[i].ringbuffer);
-#ifdef FREEBSD_NOTYET
 		kfree(error->ring[i].requests);
-#else
-		free(error->ring[i].requests, DRM_I915_GEM);
-#endif
 	}
 
-#ifdef FREEBSD_NOTYET
 	kfree(error->active_bo);
 	kfree(error->overlay);
 	kfree(error);
-#else
-	free(error->active_bo, DRM_I915_GEM);
-	free(error->overlay, DRM_I915_GEM);
-	free(error, DRM_I915_GEM);
-#endif
 }
 static void capture_bo(struct drm_i915_error_buffer *err,
 		       struct drm_i915_gem_object *obj)
@@ -1369,13 +1340,8 @@ static void i915_gem_record_rings(struct drm_device *dev,
 
 		error->ring[i].num_requests = count;
 		error->ring[i].requests =
-#ifdef FREEBSD_NOTYET
 			kmalloc(count*sizeof(struct drm_i915_error_request),
 				GFP_ATOMIC);
-#else
-			malloc(count*sizeof(struct drm_i915_error_request),
-				DRM_I915_GEM, M_WAITOK);
-#endif
 		if (error->ring[i].requests == NULL) {
 			error->ring[i].num_requests = 0;
 			continue;
@@ -1417,11 +1383,7 @@ static void i915_capture_error_state(struct drm_device *dev)
 		return;
 
 	/* Account for pipe specific data like PIPE*STAT */
-#ifdef FREEBSD_NOTYET
 	error = kzalloc(sizeof(*error), GFP_ATOMIC);
-#else
-	error = malloc(sizeof(*error), DRM_I915_GEM, M_NOWAIT | M_ZERO);
-#endif
 	if (!error) {
 		DRM_DEBUG_DRIVER("out of memory, not capturing error state\n");
 		return;
@@ -1495,13 +1457,8 @@ static void i915_capture_error_state(struct drm_device *dev)
 	error->active_bo = NULL;
 	error->pinned_bo = NULL;
 	if (i) {
-#ifdef FREEBSD_NOTYET
 		error->active_bo = kmalloc(sizeof(*error->active_bo)*i,
 					   GFP_ATOMIC);
-#else
-		error->active_bo = malloc(sizeof(*error->active_bo)*i,
-					   DRM_I915_GEM, M_NOWAIT);
-#endif
 		if (error->active_bo)
 			error->pinned_bo =
 				error->active_bo + error->active_bo_count;

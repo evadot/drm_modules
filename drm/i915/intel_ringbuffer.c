@@ -451,11 +451,7 @@ init_pipe_control(struct intel_ring_buffer *ring)
 	if (ring->private)
 		return 0;
 
-#ifdef FREEBSD_NOTYET
 	pc = kmalloc(sizeof(*pc), GFP_KERNEL);
-#else
-	pc = malloc(sizeof(*pc), DRM_I915_GEM, M_WAITOK);
-#endif
 	if (!pc)
 		return -ENOMEM;
 
@@ -495,11 +491,7 @@ err_unpin:
 err_unref:
 	drm_gem_object_unreference(&obj->base);
 err:
-#ifdef FREEBSD_NOTYET
 	kfree(pc);
-#else
-	free(pc, DRM_I915_GEM);
-#endif
 	return ret;
 }
 
@@ -523,11 +515,7 @@ cleanup_pipe_control(struct intel_ring_buffer *ring)
 	i915_gem_object_unpin(obj);
 	drm_gem_object_unreference(&obj->base);
 
-#ifdef FREEBSD_NOTYET
 	kfree(pc);
-#else
-	free(pc, DRM_I915_GEM);
-#endif
 	ring->private = NULL;
 }
 

@@ -1065,11 +1065,7 @@ int intel_overlay_put_image(struct drm_device *dev, void *data,
 		return ret;
 	}
 
-#ifdef FREEBSD_NOTYET
 	params = kmalloc(sizeof(struct put_image_params), GFP_KERNEL);
-#else
-	params = malloc(sizeof(struct put_image_params), DRM_I915_GEM, M_WAITOK);
-#endif
 	if (!params)
 		return -ENOMEM;
 
@@ -1171,13 +1167,8 @@ int intel_overlay_put_image(struct drm_device *dev, void *data,
 
 	mutex_unlock(&dev->struct_mutex);
 
-#ifdef FREEBSD_NOTYET
 	kfree(params);
-#else
 	mutex_unlock(&dev->mode_config.mutex);
-
-	free(params, DRM_I915_GEM);
-#endif
 
 	return 0;
 
@@ -1186,11 +1177,7 @@ out_unlock:
 	mutex_unlock(&dev->mode_config.mutex);
 	drm_gem_object_unreference_unlocked(&new_bo->base);
 out_free:
-#ifdef FREEBSD_NOTYET
 	kfree(params);
-#else
-	free(params, DRM_I915_GEM);
-#endif
 
 	return ret;
 }
@@ -1345,11 +1332,7 @@ void intel_setup_overlay(struct drm_device *dev)
 	if (!HAS_OVERLAY(dev))
 		return;
 
-#ifdef FREEBSD_NOTYET
 	overlay = kzalloc(sizeof(struct intel_overlay), GFP_KERNEL);
-#else
-	overlay = malloc(sizeof(struct intel_overlay), DRM_I915_GEM, M_WAITOK | M_ZERO);
-#endif
 	if (!overlay)
 		return;
 
@@ -1416,11 +1399,7 @@ out_free_bo:
 	drm_gem_object_unreference(&reg_bo->base);
 out_free:
 	mutex_unlock(&dev->struct_mutex);
-#ifdef FREEBSD_NOTYET
 	kfree(overlay);
-#else
-	free(overlay, DRM_I915_GEM);
-#endif
 	return;
 }
 
@@ -1437,11 +1416,7 @@ void intel_cleanup_overlay(struct drm_device *dev)
 	BUG_ON(dev_priv->overlay->active);
 
 	drm_gem_object_unreference_unlocked(&dev_priv->overlay->reg_bo->base);
-#ifdef FREEBSD_NOTYET
 	kfree(dev_priv->overlay);
-#else
-	free(dev_priv->overlay, DRM_I915_GEM);
-#endif
 }
 
 //#ifdef CONFIG_DEBUG_FS
@@ -1498,11 +1473,7 @@ intel_overlay_capture_error_state(struct drm_device *dev)
 	if (!overlay || !overlay->active)
 		return NULL;
 
-#ifdef FREEBSD_NOTYET
 	error = kmalloc(sizeof(*error), GFP_ATOMIC);
-#else
-	error = malloc(sizeof(*error), DRM_I915_GEM, M_NOWAIT);
-#endif
 	if (error == NULL)
 		return NULL;
 
@@ -1531,11 +1502,7 @@ intel_overlay_capture_error_state(struct drm_device *dev)
 	return error;
 
 err:
-#ifdef FREEBSD_NOTYET
 	kfree(error);
-#else
-	free(error, DRM_I915_GEM);
-#endif
 	return NULL;
 }
 

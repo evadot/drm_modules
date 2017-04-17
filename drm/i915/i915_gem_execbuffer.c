@@ -53,15 +53,9 @@ eb_create(int size)
 	BUILD_BUG_ON_NOT_POWER_OF_2(PAGE_SIZE / sizeof(struct hlist_head));
 	while (count > size)
 		count >>= 1;
-#ifdef FREEBSD_NOTYET
 	eb = kzalloc(count*sizeof(struct hlist_head) +
 		     sizeof(struct eb_objects),
 		     GFP_KERNEL);
-#else
-	eb = malloc(count*sizeof(struct hlist_head) +
-		     sizeof(struct eb_objects),
-		     DRM_I915_GEM, M_WAITOK | M_ZERO);
-#endif
 	if (eb == NULL)
 		return eb;
 
@@ -102,11 +96,7 @@ eb_get_object(struct eb_objects *eb, unsigned long handle)
 static void
 eb_destroy(struct eb_objects *eb)
 {
-#ifdef FREEBSD_NOTYET
 	kfree(eb);
-#else
-	free(eb, DRM_I915_GEM);
-#endif
 }
 
 static inline int use_cpu_reloc(struct drm_i915_gem_object *obj)
@@ -758,9 +748,8 @@ validate_exec_list(struct drm_i915_gem_exec_object2 *exec,
 	vm_page_t *ma;
 
 	/* XXXKIB various limits checking is missing there */
-	*map = malloc(count * sizeof(*ma), DRM_I915_GEM, M_WAITOK | M_ZERO);
-	*maplen = malloc(count * sizeof(*maplen), DRM_I915_GEM, M_WAITOK |
-	    M_ZERO);
+	*map = kzalloc(count * sizeof(*ma), GFP_KERNEL);
+	*maplen = kzalloc(count * sizeof(*maplen), GFP_KERNEL);
 
 	for (i = 0; i < count; i++) {
 		char __user *ptr = (char __user *)(uintptr_t)exec[i].relocs_ptr;
@@ -790,13 +779,13 @@ validate_exec_list(struct drm_i915_gem_exec_object2 *exec,
 		int page_count;
 
 		page_count = howmany(length, PAGE_SIZE) + 2;
-		ma = (*map)[i] = malloc(page_count * sizeof(vm_page_t),
-		    DRM_I915_GEM, M_WAITOK | M_ZERO);
+		ma = (*map)[i] = kzalloc(page_count * sizeof(vm_page_t),
+		    GFP_KERNEL);
 		(*maplen)[i] = vm_fault_quick_hold_pages(
 		    &curproc->p_vmspace->vm_map, (vm_offset_t)ptr, length,
 		    VM_PROT_READ | VM_PROT_WRITE, ma, page_count);
 		if ((*maplen)[i] == -1) {
-			free(ma, DRM_I915_GEM);
+			kfree(ma);
 			(*map)[i] = NULL;
 			return -EFAULT;
 		}
@@ -1009,8 +998,8 @@ i915_gem_do_execbuffer(struct drm_device *dev, void *data,
 			goto pre_mutex_err;
 		}
 
-		cliprects = malloc(args->num_cliprects * sizeof(*cliprects),
-				    DRM_I915_GEM, M_WAITOK);
+		cliprects = kmalloc(args->num_cliprects * sizeof(*cliprects),
+				    GFP_KERNEL);
 		if (cliprects == NULL) {
 			ret = -ENOMEM;
 			goto pre_mutex_err;
@@ -1185,12 +1174,12 @@ pre_mutex_err:
 	for (i = 0; i < args->buffer_count; i++) {
 		if (relocs_ma[i] != NULL) {
 			vm_page_unhold_pages(relocs_ma[i], relocs_len[i]);
-			free(relocs_ma[i], DRM_I915_GEM);
+			kfree(relocs_ma[i]);
 		}
 	}
-	free(relocs_len, DRM_I915_GEM);
-	free(relocs_ma, DRM_I915_GEM);
-	free(cliprects, DRM_I915_GEM);
+	kfree(relocs_len);
+	kfree(relocs_ma);
+	kfree(cliprects);
 	return ret;
 }
 
@@ -1295,8 +1284,8 @@ i915_gem_execbuffer2(struct drm_device *dev, void *data,
 	}
 
 	/* XXXKIB user-controllable malloc size */
-	exec2_list = malloc(sizeof(*exec2_list)*args->buffer_count,
-			     DRM_I915_GEM, M_WAITOK);
+	exec2_list = kmalloc(sizeof(*exec2_list)*args->buffer_count,
+			     GFP_KERNEL);
 	if (exec2_list == NULL) {
 		DRM_DEBUG("Failed to allocate exec list for %d buffers\n",
 			  args->buffer_count);
@@ -1309,7 +1298,7 @@ i915_gem_execbuffer2(struct drm_device *dev, void *data,
 	if (ret != 0) {
 		DRM_DEBUG("copy %d exec entries failed %d\n",
 			  args->buffer_count, ret);
-		free(exec2_list, DRM_I915_GEM);
+		kfree(exec2_list);
 		return -EFAULT;
 	}
 
@@ -1327,6 +1316,6 @@ i915_gem_execbuffer2(struct drm_device *dev, void *data,
 		}
 	}
 
-	free(exec2_list, DRM_I915_GEM);
+	kfree(exec2_list);
 	return ret;
 }

@@ -139,11 +139,7 @@ static void do_destroy(struct i915_hw_context *ctx)
 		BUG_ON(ctx != dev_priv->ring[RCS].default_context);
 
 	drm_gem_object_unreference(&ctx->obj->base);
-#ifdef FREEBSD_NOTYET
 	kfree(ctx);
-#else
-	free(ctx, DRM_I915_GEM);
-#endif
 }
 
 static int
@@ -155,21 +151,13 @@ create_hw_context(struct drm_device *dev,
 	struct i915_hw_context *ctx;
 	int ret, id;
 
-#ifdef FREEBSD_NOTYET
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
-#else
-	ctx = malloc(sizeof(*ctx), DRM_I915_GEM, M_NOWAIT | M_ZERO);
-#endif
 	if (ctx == NULL)
 		return (-ENOMEM);
 
 	ctx->obj = i915_gem_alloc_object(dev, dev_priv->hw_context_size);
 	if (ctx->obj == NULL) {
-#ifdef FREEBSD_NOTYET
 		kfree(ctx);
-#else
-		free(ctx, DRM_I915_GEM);
-#endif
 		DRM_DEBUG_DRIVER("Context object allocated failed\n");
 		return (-ENOMEM);
 	}
