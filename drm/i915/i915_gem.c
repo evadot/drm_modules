@@ -2405,8 +2405,9 @@ i915_add_request(struct intel_ring_buffer *ring,
 			    DRM_I915_HANGCHECK_PERIOD);
 		}
 		if (was_empty) {
-			taskqueue_enqueue_timeout(dev_priv->wq,
-			    &dev_priv->mm.retire_work, hz);
+			queue_delayed_work(dev_priv->wq,
+					   &dev_priv->mm.retire_work,
+					   round_jiffies_up_relative(HZ));
 			intel_mark_busy(dev_priv->dev);
 		}
 	}
@@ -2583,7 +2584,7 @@ i915_gem_retire_requests(struct drm_device *dev)
 }
 
 static void
-i915_gem_retire_work_handler(void *arg, int pending)
+i915_gem_retire_work_handler(struct work_struct *work)
 {
 	drm_i915_private_t *dev_priv;
 	struct drm_device *dev;
@@ -2591,18 +2592,14 @@ i915_gem_retire_work_handler(void *arg, int pending)
 	bool idle;
 	int i;
 
-	dev_priv = arg;
+	dev_priv = container_of(work, drm_i915_private_t,
+				mm.retire_work.work);
 	dev = dev_priv->dev;
 
 	/* Come back later if the device is busy... */
 	if (!mutex_trylock(&dev->struct_mutex)) {
-#ifdef FREEBSD_NOTYET
 		queue_delayed_work(dev_priv->wq, &dev_priv->mm.retire_work,
 				   round_jiffies_up_relative(HZ));
-#else
-		taskqueue_enqueue_timeout(dev_priv->wq,
-		    &dev_priv->mm.retire_work, hz);
-#endif
 		return;
 	}
 
@@ -2622,8 +2619,8 @@ i915_gem_retire_work_handler(void *arg, int pending)
 	}
 
 	if (!dev_priv->mm.suspended && !idle)
-		taskqueue_enqueue_timeout(dev_priv->wq,
-		    &dev_priv->mm.retire_work, hz);
+		queue_delayed_work(dev_priv->wq, &dev_priv->mm.retire_work,
+				   round_jiffies_up_relative(HZ));
 	if (idle)
 		intel_mark_idle(dev);
 
@@ -3835,8 +3832,7 @@ i915_gem_ring_throttle(struct drm_device *dev, struct drm_file *file)
 
 	ret = __wait_seqno(ring, seqno, true, NULL);
 	if (ret == 0)
-		taskqueue_enqueue_timeout(dev_priv->wq,
-		    &dev_priv->mm.retire_work, 0);
+		queue_delayed_work(dev_priv->wq, &dev_priv->mm.retire_work, 0);
 
 	return ret;
 }
@@ -4241,7 +4237,7 @@ i915_gem_idle(struct drm_device *dev)
 	mutex_unlock(&dev->struct_mutex);
 
 	/* Cancel the retire work handler, which should be idle now. */
-	taskqueue_cancel_timeout(dev_priv->wq, &dev_priv->mm.retire_work, NULL);
+	cancel_delayed_work_sync(&dev_priv->mm.retire_work);
 
 	return 0;
 }
@@ -4531,8 +4527,8 @@ i915_gem_load(struct drm_device *dev)
 		init_ring_lists(&dev_priv->ring[i]);
 	for (i = 0; i < I915_MAX_NUM_FENCES; i++)
 		INIT_LIST_HEAD(&dev_priv->fence_regs[i].lru_list);
-	TIMEOUT_TASK_INIT(dev_priv->wq, &dev_priv->mm.retire_work, 0,
-	    i915_gem_retire_work_handler, dev_priv);
+	INIT_DELAYED_WORK(&dev_priv->mm.retire_work,
+			  i915_gem_retire_work_handler);
 	init_completion(&dev_priv->error_completion);
 
 	/* On GEN3 we really need to make sure the ARB C3 LP bit is set */

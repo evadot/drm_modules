@@ -272,17 +272,11 @@ bool intel_fbc_enabled(struct drm_device *dev)
 	return dev_priv->display.fbc_enabled(dev);
 }
 
-#ifdef FREEBSD_NOTYET
 static void intel_fbc_work_fn(struct work_struct *__work)
 {
 	struct intel_fbc_work *work =
 		container_of(to_delayed_work(__work),
 			     struct intel_fbc_work, work);
-#else
-static void intel_fbc_work_fn(void *arg, int pending)
-{
-	struct intel_fbc_work *work = arg;
-#endif
 	struct drm_device *dev = work->crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
@@ -318,14 +312,8 @@ static void intel_cancel_fbc_work(struct drm_i915_private *dev_priv)
 	 * dev_priv->fbc_work, so we can perform the cancellation
 	 * entirely asynchronously.
 	 */
-#ifdef FREEBSD_NOTYET
 	if (cancel_delayed_work(&dev_priv->fbc_work->work))
 		/* tasklet was killed before being run, clean up */
-#else
-	if (taskqueue_cancel_timeout(dev_priv->wq, &dev_priv->fbc_work->work,
-	    NULL) == 0)
-		/* tasklet was killed before being run, clean up */
-#endif
 		kfree(dev_priv->fbc_work);
 
 	/* Mark the work as no longer wanted so that if it does
@@ -356,12 +344,7 @@ void intel_enable_fbc(struct drm_crtc *crtc, unsigned long interval)
 	work->crtc = crtc;
 	work->fb = crtc->fb;
 	work->interval = interval;
-#ifdef FREEBSD_NOTYET
 	INIT_DELAYED_WORK(&work->work, intel_fbc_work_fn);
-#else
-	TIMEOUT_TASK_INIT(dev_priv->wq, &work->work, 0, intel_fbc_work_fn,
-	    work);
-#endif
 
 	dev_priv->fbc_work = work;
 
@@ -378,12 +361,7 @@ void intel_enable_fbc(struct drm_crtc *crtc, unsigned long interval)
 	 * and indeed performing the enable as a co-routine and not
 	 * waiting synchronously upon the vblank.
 	 */
-#ifdef FREEBSD_NOTYET
 	schedule_delayed_work(&work->work, msecs_to_jiffies(50));
-#else
-	taskqueue_enqueue_timeout(dev_priv->wq, &work->work,
-	    msecs_to_jiffies(50));
-#endif
 }
 
 void intel_disable_fbc(struct drm_device *dev)
@@ -3613,28 +3591,18 @@ void intel_disable_gt_powersave(struct drm_device *dev)
 		ironlake_disable_drps(dev);
 		ironlake_disable_rc6(dev);
 	} else if (INTEL_INFO(dev)->gen >= 6 && !IS_VALLEYVIEW(dev)) {
-#ifdef FREEBSD_NOTYET
 		cancel_delayed_work_sync(&dev_priv->rps.delayed_resume_work);
-#else
-		taskqueue_cancel_timeout(dev_priv->wq, &dev_priv->rps.delayed_resume_work, NULL);
-#endif
 		mutex_lock(&dev_priv->rps.hw_lock);
 		gen6_disable_rps(dev);
 		mutex_unlock(&dev_priv->rps.hw_lock);
 	}
 }
 
-#ifdef FREEBSD_NOTYET
 static void intel_gen6_powersave_work(struct work_struct *work)
 {
 	struct drm_i915_private *dev_priv =
 		container_of(work, struct drm_i915_private,
 			     rps.delayed_resume_work.work);
-#else
-static void intel_gen6_powersave_work(void *arg, int pending)
-{
-	struct drm_i915_private *dev_priv = arg;
-#endif
 	struct drm_device *dev = dev_priv->dev;
 
 	mutex_lock(&dev_priv->rps.hw_lock);
@@ -3657,13 +3625,8 @@ void intel_enable_gt_powersave(struct drm_device *dev)
 		 * done at any specific time, so do this out of our fast path
 		 * to make resume and init faster.
 		 */
-#ifdef FREEBSD_NOTYET
 		schedule_delayed_work(&dev_priv->rps.delayed_resume_work,
 				      round_jiffies_up_relative(HZ));
-#else
-		taskqueue_enqueue_timeout(dev_priv->wq, &dev_priv->rps.delayed_resume_work,
-		    round_jiffies_up_relative(HZ));
-#endif
 	}
 }
 
@@ -4637,13 +4600,8 @@ void intel_gt_init(struct drm_device *dev)
 		dev_priv->gt.force_wake_get = __gen6_gt_force_wake_get;
 		dev_priv->gt.force_wake_put = __gen6_gt_force_wake_put;
 	}
-#ifdef FREEBSD_NOTYET
 	INIT_DELAYED_WORK(&dev_priv->rps.delayed_resume_work,
 			  intel_gen6_powersave_work);
-#else
-	TIMEOUT_TASK_INIT(dev_priv->wq, &dev_priv->rps.delayed_resume_work, 0,
-	    intel_gen6_powersave_work, dev_priv);
-#endif
 }
 
 int sandybridge_pcode_read(struct drm_i915_private *dev_priv, u8 mbox, u32 *val)

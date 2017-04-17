@@ -589,11 +589,7 @@ struct i915_suspend_saved_registers {
 };
 
 struct intel_gen6_power_mgmt {
-#ifdef FREBSD_NOTYET
 	struct work_struct work;
-#else
-	struct task work;
-#endif
 	u32 pm_iir;
 	/* lock - irqsave spinlock that protectects the work_struct and
 	 * pm_iir. */
@@ -605,11 +601,7 @@ struct intel_gen6_power_mgmt {
 	u8 min_delay;
 	u8 max_delay;
 
-#ifdef FREEBSD_NOTYET
 	struct delayed_work delayed_resume_work;
-#else
-	struct timeout_task delayed_resume_work;
-#endif
 
 	/*
 	 * Protects RPS/RC6 register access and PCU communication.
@@ -655,11 +647,7 @@ struct i915_dri1_state {
 
 struct intel_l3_parity {
 	u32 *remap_info;
-#ifdef FREEBSD_NOTYET
 	struct work_struct error_work;
-#else
-	struct task error_work;
-#endif
 };
 
 typedef struct drm_i915_private {
@@ -727,11 +715,7 @@ typedef struct drm_i915_private {
 	u32 pch_irq_mask;
 
 	u32 hotplug_supported_mask;
-#ifdef FREEBSD_NOTYET
 	struct work_struct hotplug_work;
-#else
-	struct task hotplug_work;
-#endif
 
 	int num_pipe;
 	int num_pch_pll;
@@ -802,17 +786,9 @@ typedef struct drm_i915_private {
 	spinlock_t error_lock;
 	/* Protected by dev->error_lock. */
 	struct drm_i915_error_state *first_error;
-#ifdef FREEBSD_NOTYET
 	struct work_struct error_work;
-#else
-	struct task error_work;
-#endif
 	struct completion error_completion;
-#ifdef FREEBSD_NOTYET
 	struct workqueue_struct *wq;
-#else
-	struct taskqueue *wq;
-#endif
 
 	/* Display functions */
 	struct drm_i915_display_funcs display;
@@ -900,11 +876,7 @@ typedef struct drm_i915_private {
 		 * fire periodically while the ring is running. When it
 		 * fires, go retire requests.
 		 */
-#ifdef FREEBSD_NOTYET
 		struct delayed_work retire_work;
-#else
-		struct timeout_task retire_work;
-#endif
 
 		/**
 		 * Are we in a non-interruptible section of code like
@@ -995,11 +967,7 @@ typedef struct drm_i915_private {
 	 * The console may be contended at resume, but we don't
 	 * want it to block on it.
 	 */
-#ifdef FREEBSD_NOTYET
 	struct work_struct console_resume_work;
-#else
-	struct task console_resume_work;
-#endif
 
 	struct backlight_device *backlight;
 
@@ -1424,7 +1392,7 @@ extern unsigned long i915_mch_val(struct drm_i915_private *dev_priv);
 extern unsigned long i915_gfx_val(struct drm_i915_private *dev_priv);
 extern void i915_update_gfx_val(struct drm_i915_private *dev_priv);
 
-extern void intel_console_resume(void *context, int pending);
+extern void intel_console_resume(struct work_struct *work);
 
 /* i915_irq.c */
 void i915_hangcheck_elapsed(void *data);

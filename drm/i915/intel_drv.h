@@ -401,11 +401,7 @@ struct intel_dp {
 	int panel_power_cycle_delay;
 	int backlight_on_delay;
 	int backlight_off_delay;
-#ifdef FREEBSD_NOTYET
 	struct delayed_work panel_vdd_work;
-#else
-	struct timeout_task panel_vdd_work;
-#endif
 	bool want_panel_vdd;
 	struct intel_connector *attached_connector;
 };
@@ -433,11 +429,7 @@ intel_get_crtc_for_plane(struct drm_device *dev, int plane)
 }
 
 struct intel_unpin_work {
-#ifdef FREEBSD_NOTYET
 	struct work_struct work;
-#else
-	struct task work;
-#endif
 	struct drm_crtc *crtc;
 	struct drm_i915_gem_object *old_fb_obj;
 	struct drm_i915_gem_object *pending_flip_obj;
@@ -450,11 +442,7 @@ struct intel_unpin_work {
 };
 
 struct intel_fbc_work {
-#ifdef FREEBSD_NOTYET
 	struct delayed_work work;
-#else
-	struct timeout_task work;
-#endif
 	struct drm_crtc *crtc;
 	struct drm_framebuffer *fb;
 	int interval;

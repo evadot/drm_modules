@@ -7060,9 +7060,6 @@ static void intel_crtc_destroy(struct drm_crtc *crtc)
 {
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct drm_device *dev = crtc->dev;
-#ifndef FREEBSD_NOTYET
-	struct drm_i915_private *dev_priv = dev->dev_private;
-#endif
 	struct intel_unpin_work *work;
 	unsigned long flags;
 
@@ -7072,12 +7069,7 @@ static void intel_crtc_destroy(struct drm_crtc *crtc)
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 
 	if (work) {
-#ifdef FREEBSD_NOTYET
 		cancel_work_sync(&work->work);
-#else
-		taskqueue_cancel(dev_priv->wq, &work->work, NULL);
-		taskqueue_drain(dev_priv->wq, &work->work);
-#endif
 		kfree(work);
 	}
 
@@ -7086,10 +7078,10 @@ static void intel_crtc_destroy(struct drm_crtc *crtc)
 	kfree(intel_crtc);
 }
 
-static void intel_unpin_work_fn(void *arg, int pending)
+static void intel_unpin_work_fn(struct work_struct *__work)
 {
 	struct intel_unpin_work *work =
-		arg;
+		container_of(__work, struct intel_unpin_work, work);
 	struct drm_device *dev = work->crtc->dev;
 
 	mutex_lock(&dev->struct_mutex);
@@ -7153,13 +7145,11 @@ static void do_intel_finish_page_flip(struct drm_device *dev,
 #endif
 	wake_up(&dev_priv->pending_flip_queue);
 
-#ifdef FREEBSD_NOTYET
 	queue_work(dev_priv->wq, &work->work);
 
+#ifdef FREEBSD_NOTYET
 	trace_i915_flip_complete(intel_crtc->plane, work->pending_flip_obj);
 #else
-	taskqueue_enqueue(dev_priv->wq, &work->work);
-
 	CTR2(KTR_DRM, "i915_flip_complete %d %p", intel_crtc->plane,
 	    work->pending_flip_obj);
 #endif
@@ -7481,11 +7471,7 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	work->event = event;
 	work->crtc = crtc;
 	work->old_fb_obj = to_intel_framebuffer(old_fb)->obj;
-#ifdef FREEBSD_NOTYET
 	INIT_WORK(&work->work, intel_unpin_work_fn);
-#else
-	TASK_INIT(&work->work, 0, intel_unpin_work_fn, work);
-#endif
 
 	ret = drm_vblank_get(dev, intel_crtc->pipe);
 	if (ret)
@@ -7505,11 +7491,7 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 
 	if (atomic_read(&intel_crtc->unpin_work_count) >= 2)
-#ifdef FREEBSD_NOTYET
 		flush_workqueue(dev_priv->wq);
-#else
-		taskqueue_drain_all(dev_priv->wq);
-#endif
 
 	ret = i915_mutex_lock_interruptible(dev);
 	if (ret)
@@ -9450,22 +9432,11 @@ void intel_modeset_cleanup(struct drm_device *dev)
 	/* Disable the irq before mode object teardown, for the irq might
 	 * enqueue unpin/hotplug work. */
 	drm_irq_uninstall(dev);
-#ifdef FREEBSD_NOTYET
 	cancel_work_sync(&dev_priv->hotplug_work);
 	cancel_work_sync(&dev_priv->rps.work);
-#else
-	if (taskqueue_cancel(dev_priv->wq, &dev_priv->hotplug_work, NULL))
-		taskqueue_drain(dev_priv->wq, &dev_priv->hotplug_work);
-	if (taskqueue_cancel(dev_priv->wq, &dev_priv->rps.work, NULL))
-		taskqueue_drain(dev_priv->wq, &dev_priv->rps.work);
-#endif
 
 	/* flush any delayed tasks or pending work */
-#ifdef FREEBSD_NOTYET
 	flush_scheduled_work();
-#else
-	taskqueue_drain_all(dev_priv->wq);
-#endif
 
 	/* destroy backlight, if any, before the connectors */
 	intel_panel_destroy_backlight(dev);

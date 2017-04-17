@@ -1272,9 +1272,7 @@ struct drm_device {
 	unsigned long last_switch;	/**< jiffies at last context switch */
 	/*@} */
 
-#ifdef FREEBSD_NOTYET
 	struct work_struct work;
-#endif
 	/** \name VBLANK IRQ support */
 	/*@{ */
 

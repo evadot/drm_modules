@@ -1377,12 +1377,7 @@ static int i915_load_modeset_init(struct drm_device *dev)
 
 	intel_modeset_gem_init(dev);
 
-#ifdef __linux__
 	INIT_WORK(&dev_priv->console_resume_work, intel_console_resume);
-#elif __FreeBSD__
-	TASK_INIT(&dev_priv->console_resume_work, 0, intel_console_resume,
-	    dev->dev_private);
-#endif
 
 	ret = drm_irq_install(dev);
 	if (ret)
@@ -1648,18 +1643,12 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 	 * so there is no point in running more than one instance of the
 	 * workqueue at any time.  Use an ordered one.
 	 */
-#ifdef __linux__
 	dev_priv->wq = alloc_ordered_workqueue("i915", 0);
-#elif __FreeBSD__
-	dev_priv->wq = taskqueue_create("915", M_WAITOK,
-	    taskqueue_thread_enqueue, &dev_priv->wq);
-#endif
 	if (dev_priv->wq == NULL) {
 		DRM_ERROR("Failed to create our workqueue.\n");
 		ret = -ENOMEM;
 		goto out_mtrrfree;
 	}
-	taskqueue_start_threads(&dev_priv->wq, 1, PWAIT, "i915 taskq");
 
 	/* This must be called before any calls to HAS_PCH_* */
 	intel_detect_pch(dev);
@@ -1775,14 +1764,7 @@ out_gem_unload:
 
 	intel_teardown_gmbus(dev);
 	intel_teardown_mchbar(dev);
-#ifdef FREEBSD_NOTYET
 	destroy_workqueue(dev_priv->wq);
-#else
-	if (dev_priv->wq != NULL) {
-		taskqueue_free(dev_priv->wq);
-		dev_priv->wq = NULL;
-	}
-#endif
 out_mtrrfree:
 	if (dev_priv->mm.gtt_mtrr >= 0) {
 #ifdef FREEBSD_NOTYET
@@ -1839,14 +1821,7 @@ int i915_driver_unload(struct drm_device *dev)
 	mutex_unlock(&dev->struct_mutex);
 
 	/* Cancel the retire work handler, which should be idle now. */
-#ifdef __linux__
 	cancel_delayed_work_sync(&dev_priv->mm.retire_work);
-#elif __FreeBSD__
-	while (taskqueue_cancel_timeout(dev_priv->wq,
-	    &dev_priv->mm.retire_work, NULL) != 0)
-		taskqueue_drain_timeout(dev_priv->wq,
-		    &dev_priv->mm.retire_work);
-#endif
 
 #ifdef __linux__
 	io_mapping_free(dev_priv->mm.gtt_mapping);
@@ -1872,14 +1847,7 @@ int i915_driver_unload(struct drm_device *dev)
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		intel_fbdev_fini(dev);
 		intel_modeset_cleanup(dev);
-#ifdef __linux__
 		cancel_work_sync(&dev_priv->console_resume_work);
-#elif __FreeBSD__
-		while (taskqueue_cancel(dev_priv->wq,
-		    &dev_priv->console_resume_work, NULL) != 0)
-			taskqueue_drain(dev_priv->wq,
-			    &dev_priv->console_resume_work);
-#endif
 
 		/*
 		 * free the memory space allocated for the child device
@@ -1900,13 +1868,11 @@ int i915_driver_unload(struct drm_device *dev)
 	/* Free error state after interrupts are fully disabled. */
 #ifdef __linux__
 	del_timer_sync(&dev_priv->hangcheck_timer);
-	cancel_work_sync(&dev_priv->error_work);
 #elif __FreeBSD__
 	callout_stop(&dev_priv->hangcheck_timer);
 	callout_drain(&dev_priv->hangcheck_timer);
-	while (taskqueue_cancel(dev_priv->wq, &dev_priv->error_work, NULL) != 0)
-		taskqueue_drain(dev_priv->wq, &dev_priv->error_work);
 #endif
+	cancel_work_sync(&dev_priv->error_work);
 	i915_destroy_error_state(dev);
 
 #ifdef __linux__
@@ -1921,11 +1887,7 @@ int i915_driver_unload(struct drm_device *dev)
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET)) {
 		/* Flush any outstanding unpin_work. */
-#ifdef __linux__
 		flush_workqueue(dev_priv->wq);
-#elif __FreeBSD__
-		taskqueue_drain_all(dev_priv->wq);
-#endif
 
 		mutex_lock(&dev->struct_mutex);
 		i915_gem_free_all_phys_object(dev);
@@ -1950,9 +1912,8 @@ int i915_driver_unload(struct drm_device *dev)
 	intel_teardown_gmbus(dev);
 	intel_teardown_mchbar(dev);
 
-#ifdef __linux__
 	destroy_workqueue(dev_priv->wq);
-#elif __FreeBSD__
+#ifdef __FreeBSD__
 	/*
 	 * NOTE Linux<->FreeBSD: Free mmio_map after
 	 * intel_teardown_gmbus(), because, on FreeBSD,
@@ -1966,9 +1927,6 @@ int i915_driver_unload(struct drm_device *dev)
 	 * i915_gem_gtt_fini(), causing memory leaks.
 	 */
 	i915_gem_gtt_fini(dev);
-
-	if (dev_priv->wq != NULL)
-		taskqueue_free(dev_priv->wq);
 
 	free_completion(&dev_priv->error_completion);
 	spin_lock_destroy(&dev_priv->irq_lock);

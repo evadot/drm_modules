@@ -1097,16 +1097,10 @@ static void ironlake_panel_vdd_off_sync(struct intel_dp *intel_dp)
 	}
 }
 
-#ifdef FREEBSD_NOTYET
 static void ironlake_panel_vdd_work(struct work_struct *__work)
 {
 	struct intel_dp *intel_dp = container_of(to_delayed_work(__work),
 						 struct intel_dp, panel_vdd_work);
-#else
-static void ironlake_panel_vdd_work(void *arg, int pending __unused)
-{
-	struct intel_dp *intel_dp = arg;
-#endif
 	struct drm_device *dev = intel_dp_to_dev(intel_dp);
 
 	mutex_lock(&dev->mode_config.mutex);
@@ -1132,17 +1126,8 @@ void ironlake_edp_panel_vdd_off(struct intel_dp *intel_dp, bool sync)
 		 * time from now (relative to the power down delay)
 		 * to keep the panel power up across a sequence of operations
 		 */
-#ifdef FREEBSD_NOTYET
 		schedule_delayed_work(&intel_dp->panel_vdd_work,
 				      msecs_to_jiffies(intel_dp->panel_power_cycle_delay * 5));
-#else
-		struct intel_digital_port *intel_dig_port = dp_to_dig_port(intel_dp);
-		struct drm_device *dev = intel_dig_port->base.base.dev;
-		struct drm_i915_private *dev_priv = dev->dev_private;
-		taskqueue_enqueue_timeout(dev_priv->wq,
-		    &intel_dp->panel_vdd_work,
-		    msecs_to_jiffies(intel_dp->panel_power_cycle_delay * 5));
-#endif
 	}
 }
 
@@ -2561,16 +2546,7 @@ void intel_dp_encoder_destroy(struct drm_encoder *encoder)
 	}
 	drm_encoder_cleanup(encoder);
 	if (is_edp(intel_dp)) {
-#ifdef FREEBSD_NOTYET
 		cancel_delayed_work_sync(&intel_dp->panel_vdd_work);
-#else
-		struct drm_i915_private *dev_priv = dev->dev_private;
-
-		taskqueue_cancel_timeout(dev_priv->wq,
-		    &intel_dp->panel_vdd_work, NULL);
-		taskqueue_drain_timeout(dev_priv->wq,
-		    &intel_dp->panel_vdd_work);
-#endif
 		ironlake_panel_vdd_off_sync(intel_dp);
 	}
 	kfree(intel_dig_port);
@@ -2837,13 +2813,8 @@ intel_dp_init_connector(struct intel_digital_port *intel_dig_port,
 	connector->interlace_allowed = true;
 	connector->doublescan_allowed = 0;
 
-#ifdef FREEBSD_NOTYET
 	INIT_DELAYED_WORK(&intel_dp->panel_vdd_work,
 			  ironlake_panel_vdd_work);
-#else
-	TIMEOUT_TASK_INIT(dev_priv->wq, &intel_dp->panel_vdd_work, 0,
-	    ironlake_panel_vdd_work, intel_dp);
-#endif
 
 	intel_connector_attach_encoder(intel_connector, intel_encoder);
 #ifdef __linux__
