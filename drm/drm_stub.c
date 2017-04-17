@@ -153,11 +153,7 @@ struct drm_master *drm_master_create(struct drm_minor *minor)
 {
 	struct drm_master *master;
 
-#ifdef FREEBSD_NOTYET
 	master = kzalloc(sizeof(*master), GFP_KERNEL);
-#else
-	master = malloc(sizeof(*master), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 	if (!master)
 		return NULL;
 
@@ -222,11 +218,7 @@ static void drm_master_destroy(struct kref *kref)
 
 	drm_ht_remove(&master->magiclist);
 
-#ifdef FREEBSD_NOTYET
 	kfree(master);
-#else
-	free(master, DRM_MEM_KMS);
-#endif
 }
 
 void drm_master_put(struct drm_master **master)

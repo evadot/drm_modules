@@ -181,11 +181,7 @@ static bool ch7xxx_init(struct intel_dvo_device *dvo,
 	uint8_t vendor, device;
 	char *name;
 
-#ifdef FREEBSD_NOTYET
 	ch7xxx = kzalloc(sizeof(struct ch7xxx_priv), GFP_KERNEL);
-#else
-	ch7xxx = malloc(sizeof(struct ch7xxx_priv), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 	if (ch7xxx == NULL)
 		return false;
 
@@ -220,11 +216,7 @@ static bool ch7xxx_init(struct intel_dvo_device *dvo,
 		  name, vendor, device);
 	return true;
 out:
-#ifdef FREEBSD_NOTYET
 	kfree(ch7xxx);
-#else
-	free(ch7xxx, DRM_MEM_KMS);
-#endif
 	return false;
 }
 
@@ -335,11 +327,7 @@ static void ch7xxx_destroy(struct intel_dvo_device *dvo)
 	struct ch7xxx_priv *ch7xxx = dvo->dev_priv;
 
 	if (ch7xxx) {
-#ifdef FREEBSD_NOTYET
 		kfree(ch7xxx);
-#else
-		free(ch7xxx, DRM_MEM_KMS);
-#endif
 		dvo->dev_priv = NULL;
 	}
 }

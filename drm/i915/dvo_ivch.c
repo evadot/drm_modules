@@ -240,11 +240,7 @@ static bool ivch_init(struct intel_dvo_device *dvo,
 	struct ivch_priv *priv;
 	uint16_t temp;
 
-#ifdef FREEBSD_NOTYET
 	priv = kzalloc(sizeof(struct ivch_priv), GFP_KERNEL);
-#else
-	priv = malloc(sizeof(struct ivch_priv), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 	if (priv == NULL)
 		return false;
 
@@ -273,11 +269,7 @@ static bool ivch_init(struct intel_dvo_device *dvo,
 	return true;
 
 out:
-#ifdef FREEBSD_NOTYET
 	kfree(priv);
-#else
-	free(priv, DRM_MEM_KMS);
-#endif
 	return false;
 }
 
@@ -427,11 +419,7 @@ static void ivch_destroy(struct intel_dvo_device *dvo)
 	struct ivch_priv *priv = dvo->dev_priv;
 
 	if (priv) {
-#ifdef FREEBSD_NOTYET
 		kfree(priv);
-#else
-		free(priv, DRM_MEM_KMS);
-#endif
 		dvo->dev_priv = NULL;
 	}
 }

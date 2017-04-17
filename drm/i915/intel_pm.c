@@ -304,11 +304,7 @@ static void intel_fbc_work_fn(void *arg, int pending)
 	}
 	mutex_unlock(&dev->struct_mutex);
 
-#ifdef FREEBSD_NOTYET
 	kfree(work);
-#else
-	free(work, DRM_MEM_KMS);
-#endif
 }
 
 static void intel_cancel_fbc_work(struct drm_i915_private *dev_priv)
@@ -325,13 +321,12 @@ static void intel_cancel_fbc_work(struct drm_i915_private *dev_priv)
 #ifdef FREEBSD_NOTYET
 	if (cancel_delayed_work(&dev_priv->fbc_work->work))
 		/* tasklet was killed before being run, clean up */
-		kfree(dev_priv->fbc_work);
 #else
 	if (taskqueue_cancel_timeout(dev_priv->wq, &dev_priv->fbc_work->work,
 	    NULL) == 0)
 		/* tasklet was killed before being run, clean up */
-		free(dev_priv->fbc_work, DRM_MEM_KMS);
 #endif
+		kfree(dev_priv->fbc_work);
 
 	/* Mark the work as no longer wanted so that if it does
 	 * wake-up (because the work was already running and waiting
@@ -352,11 +347,7 @@ void intel_enable_fbc(struct drm_crtc *crtc, unsigned long interval)
 
 	intel_cancel_fbc_work(dev_priv);
 
-#ifdef FREEBSD_NOTYET
 	work = kzalloc(sizeof *work, GFP_KERNEL);
-#else
-	work = malloc(sizeof *work, DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 	if (work == NULL) {
 		dev_priv->display.enable_fbc(crtc, interval);
 		return;

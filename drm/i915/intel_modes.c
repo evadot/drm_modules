@@ -71,11 +71,7 @@ int intel_ddc_get_modes(struct drm_connector *connector,
 		return 0;
 
 	ret = intel_connector_update_modes(connector, edid);
-#ifdef FREEBSD_NOTYET
 	kfree(edid);
-#else
-	free(edid, DRM_MEM_KMS);
-#endif
 
 	return ret;
 }

@@ -414,11 +414,7 @@ static int intel_crt_ddc_get_modes(struct drm_connector *connector,
 		return 0;
 
 	ret = intel_connector_update_modes(connector, edid);
-#ifdef FREEBSD_NOTYET
 	kfree(edid);
-#else
-	free(edid, DRM_MEM_KMS);
-#endif
 
 	return ret;
 }
@@ -456,11 +452,7 @@ static bool intel_crt_detect_ddc(struct drm_connector *connector)
 	}
 
 out:
-#ifdef FREEBSD_NOTYET
 	kfree(edid);
-#else
-	free(edid, DRM_MEM_KMS);
-#endif
 
 	return res;
 }
@@ -637,11 +629,7 @@ static void intel_crt_destroy(struct drm_connector *connector)
 	drm_sysfs_connector_remove(connector);
 #endif
 	drm_connector_cleanup(connector);
-#ifdef FREEBSD_NOTYET
 	kfree(connector);
-#else
-	free(connector, DRM_MEM_KMS);
-#endif
 }
 
 static int intel_crt_get_modes(struct drm_connector *connector)
@@ -747,25 +735,13 @@ void intel_crt_init(struct drm_device *dev)
 	if (dmi_check_system(intel_no_crt))
 		return;
 
-#ifdef FREEBSD_NOTYET
 	crt = kzalloc(sizeof(struct intel_crt), GFP_KERNEL);
-#else
-	crt = malloc(sizeof(struct intel_crt), DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 	if (!crt)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	intel_connector = kzalloc(sizeof(struct intel_connector), GFP_KERNEL);
-#else
-	intel_connector = malloc(sizeof(struct intel_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 	if (!intel_connector) {
-#ifdef FREEBSD_NOTYET
 		kfree(crt);
-#else
-		free(crt, DRM_MEM_KMS);
-#endif
 		return;
 	}
 

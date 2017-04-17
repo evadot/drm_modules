@@ -2334,11 +2334,7 @@ intel_dp_get_edid(struct drm_connector *connector, device_t adapter)
 			return NULL;
 
 		size = (intel_connector->edid->extensions + 1) * EDID_LENGTH;
-#ifdef FREEBSD_NOTYET
 		edid = kmalloc(size, GFP_KERNEL);
-#else
-		edid = malloc(size, DRM_MEM_KMS, M_WAITOK);
-#endif
 		if (!edid)
 			return NULL;
 
@@ -2407,11 +2403,7 @@ intel_dp_detect(struct drm_connector *connector, bool force)
 		edid = intel_dp_get_edid(connector, intel_dp->adapter);
 		if (edid) {
 			intel_dp->has_audio = drm_detect_monitor_audio(edid);
-#ifdef FREEBSD_NOTYET
 			kfree(edid);
-#else
-			free(edid, DRM_MEM_KMS);
-#endif
 		}
 	}
 
@@ -2457,11 +2449,7 @@ intel_dp_detect_audio(struct drm_connector *connector)
 	edid = intel_dp_get_edid(connector, intel_dp->adapter);
 	if (edid) {
 		has_audio = drm_detect_monitor_audio(edid);
-#ifdef FREEBSD_NOTYET
 		kfree(edid);
-#else
-		free(edid, DRM_MEM_KMS);
-#endif
 	}
 
 	return has_audio;
@@ -2547,20 +2535,15 @@ intel_dp_destroy(struct drm_connector *connector)
 
 #ifdef FREEBSD_NOTYET
 	if (!IS_ERR_OR_NULL(intel_connector->edid))
-		kfree(intel_connector->edid);
 #else
-	free(intel_connector->edid, DRM_MEM_KMS);
+		kfree(intel_connector->edid);
 #endif
 
 	if (is_edp(intel_dp))
 		intel_panel_fini(&intel_connector->panel);
 
 	drm_connector_cleanup(connector);
-#ifdef FREEBSD_NOTYET
 	kfree(connector);
-#else
-	free(connector, DRM_MEM_KMS);
-#endif
 }
 
 void intel_dp_encoder_destroy(struct drm_encoder *encoder)
@@ -2590,11 +2573,7 @@ void intel_dp_encoder_destroy(struct drm_encoder *encoder)
 #endif
 		ironlake_panel_vdd_off_sync(intel_dp);
 	}
-#ifdef FREEBSD_NOTYET
 	kfree(intel_dig_port);
-#else
-	free(intel_dig_port, DRM_MEM_KMS);
-#endif
 }
 
 static const struct drm_encoder_helper_funcs intel_dp_helper_funcs = {
@@ -2939,11 +2918,10 @@ intel_dp_init_connector(struct intel_digital_port *intel_dig_port,
 				drm_mode_connector_update_edid_property(connector, edid);
 				drm_edid_to_eld(connector, edid);
 			} else {
-#ifdef FREEBSD_NOTYET
 				kfree(edid);
+#ifdef FREEBSD_NOTYET
 				edid = ERR_PTR(-EINVAL);
 #else
-				free(edid, DRM_MEM_KMS);
 				edid = NULL;
 				edid_err = -EINVAL;
 #endif
@@ -3002,25 +2980,13 @@ intel_dp_init(struct drm_device *dev, int output_reg, enum port port)
 	struct drm_encoder *encoder;
 	struct intel_connector *intel_connector;
 
-#ifdef FREEBSD_NOTYET
 	intel_dig_port = kzalloc(sizeof(struct intel_digital_port), GFP_KERNEL);
-#else
-	intel_dig_port = malloc(sizeof(struct intel_digital_port), DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 	if (!intel_dig_port)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	intel_connector = kzalloc(sizeof(struct intel_connector), GFP_KERNEL);
-#else
-	intel_connector = malloc(sizeof(struct intel_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 	if (!intel_connector) {
-#ifdef FREEBSD_NOTYET
 		kfree(intel_dig_port);
-#else
-		free(intel_dig_port, DRM_MEM_KMS);
-#endif
 		return;
 	}
 

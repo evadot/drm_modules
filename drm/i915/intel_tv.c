@@ -1431,11 +1431,7 @@ intel_tv_destroy(struct drm_connector *connector)
 	drm_sysfs_connector_remove(connector);
 #endif
 	drm_connector_cleanup(connector);
-#ifdef FREEBSD_NOTYET
 	kfree(connector);
-#ele
-	free(connector, DRM_MEM_KMS);
-#endif
 }
 
 
@@ -1597,26 +1593,14 @@ intel_tv_init(struct drm_device *dev)
 	    (tv_dac_off & TVDAC_STATE_CHG_EN) != 0)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	intel_tv = kzalloc(sizeof(struct intel_tv), GFP_KERNEL);
-#else
-	intel_tv = malloc(sizeof(struct intel_tv), DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 	if (!intel_tv) {
 		return;
 	}
 
-#ifdef FREEBSD_NOTYET
 	intel_connector = kzalloc(sizeof(struct intel_connector), GFP_KERNEL);
-#else
-	intel_connector = malloc(sizeof(struct intel_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 	if (!intel_connector) {
-#ifdef FREEBSD_NOTYET
 		kfree(intel_tv);
-#else
-		free(intel_tv, DRM_MEM_KMS);
-#endif
 		return;
 	}
 

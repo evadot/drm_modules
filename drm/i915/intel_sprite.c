@@ -574,11 +574,7 @@ static void intel_destroy_plane(struct drm_plane *plane)
 	struct intel_plane *intel_plane = to_intel_plane(plane);
 	intel_disable_plane(plane);
 	drm_plane_cleanup(plane);
-#ifdef FREEBSD_NOTYET
 	kfree(intel_plane);
-#else
-	free(intel_plane, DRM_MEM_KMS);
-#endif
 }
 
 int intel_sprite_set_colorkey(struct drm_device *dev, void *data,
@@ -678,11 +674,7 @@ intel_plane_init(struct drm_device *dev, enum pipe pipe)
 	if (INTEL_INFO(dev)->gen < 5)
 		return -ENODEV;
 
-#ifdef FREEBSD_NOTYET
 	intel_plane = kzalloc(sizeof(struct intel_plane), GFP_KERNEL);
-#else
-	intel_plane = malloc(sizeof(struct intel_plane), DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 	if (!intel_plane)
 		return -ENOMEM;
 
@@ -721,11 +713,7 @@ intel_plane_init(struct drm_device *dev, enum pipe pipe)
 		break;
 
 	default:
-#ifdef FREEBSD_NOTYET
 		kfree(intel_plane);
-#else
-		free(intel_plane, DRM_MEM_KMS);
-#endif
 		return -ENODEV;
 	}
 
@@ -736,11 +724,7 @@ intel_plane_init(struct drm_device *dev, enum pipe pipe)
 			     plane_formats, num_plane_formats,
 			     false);
 	if (ret)
-#ifdef FREEBSD_NOTYET
 		kfree(intel_plane);
-#else
-		free(intel_plane, DRM_MEM_KMS);
-#endif
 
 	return ret;
 }

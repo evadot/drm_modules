@@ -509,11 +509,7 @@ void drm_crtc_cleanup(struct drm_crtc *crtc)
 {
 	struct drm_device *dev = crtc->dev;
 
-#ifdef FREEBSD_NOTYET
 	kfree(crtc->gamma_store);
-#else
-	free(crtc->gamma_store, DRM_MEM_KMS);
-#endif
 	crtc->gamma_store = NULL;
 
 	drm_mode_object_put(dev, &crtc->base);
@@ -715,13 +711,8 @@ int drm_plane_init(struct drm_device *dev, struct drm_plane *plane,
 	plane->base.properties = &plane->properties;
 	plane->dev = dev;
 	plane->funcs = funcs;
-#ifdef FREEBSD_NOTYET
 	plane->format_types = kmalloc(sizeof(uint32_t) * format_count,
 				      GFP_KERNEL);
-#else
-	plane->format_types = malloc(sizeof(uint32_t) * format_count,
-	    DRM_MEM_KMS, M_WAITOK);
-#endif
 	if (!plane->format_types) {
 		DRM_DEBUG_KMS("out of memory when allocating plane\n");
 		drm_mode_object_put(dev, &plane->base);
@@ -756,11 +747,7 @@ void drm_plane_cleanup(struct drm_plane *plane)
 	struct drm_device *dev = plane->dev;
 
 	mutex_lock(&dev->mode_config.mutex);
-#ifdef FREEBSD_NOTYET
 	kfree(plane->format_types);
-#else
-	free(plane->format_types, DRM_MEM_KMS);
-#endif
 	drm_mode_object_put(dev, &plane->base);
 	/* if not added to a list, it must be a private plane */
 	if (!list_empty(&plane->head)) {
@@ -787,21 +774,12 @@ struct drm_display_mode *drm_mode_create(struct drm_device *dev)
 {
 	struct drm_display_mode *nmode;
 
-#ifdef FREEBSD_NOTYET
 	nmode = kzalloc(sizeof(struct drm_display_mode), GFP_KERNEL);
-#else
-	nmode = malloc(sizeof(struct drm_display_mode), DRM_MEM_KMS,
-	    M_WAITOK | M_ZERO);
-#endif
 	if (!nmode)
 		return NULL;
 
 	if (drm_mode_object_get(dev, &nmode->base, DRM_MODE_OBJECT_MODE)) {
-#ifdef FREEBSD_NOTYET
 		kfree(nmode);
-#else
-		free(nmode, DRM_MEM_KMS);
-#endif
 		return NULL;
 	}
 
@@ -826,11 +804,7 @@ void drm_mode_destroy(struct drm_device *dev, struct drm_display_mode *mode)
 
 	drm_mode_object_put(dev, &mode->base);
 
-#ifdef FREEBSD_NOTYET
 	kfree(mode);
-#else
-	free(mode, DRM_MEM_KMS);
-#endif
 }
 EXPORT_SYMBOL(drm_mode_destroy);
 
@@ -1088,12 +1062,7 @@ int drm_mode_group_init(struct drm_device *dev, struct drm_mode_group *group)
 	total_objects += dev->mode_config.num_connector;
 	total_objects += dev->mode_config.num_encoder;
 
-#ifdef FREEBSD_NOTYET
 	group->id_list = kzalloc(total_objects * sizeof(uint32_t), GFP_KERNEL);
-#else
-	group->id_list = malloc(total_objects * sizeof(uint32_t),
-	    DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 	if (!group->id_list)
 		return -ENOMEM;
 
@@ -1105,7 +1074,7 @@ int drm_mode_group_init(struct drm_device *dev, struct drm_mode_group *group)
 
 void drm_mode_group_free(struct drm_mode_group *group)
 {
-	free(group->id_list, DRM_MEM_KMS);
+	kfree(group->id_list);
 	group->id_list = NULL;
 }
 
@@ -2080,15 +2049,9 @@ int drm_mode_setcrtc(struct drm_device *dev, void *data,
 			goto out;
 		}
 
-#ifdef FREEBSD_NOTYET
 		connector_set = kmalloc(crtc_req->count_connectors *
 					sizeof(struct drm_connector *),
 					GFP_KERNEL);
-#else
-		connector_set = malloc(crtc_req->count_connectors *
-					sizeof(struct drm_connector *),
-					DRM_MEM_KMS, M_WAITOK);
-#endif
 		if (!connector_set) {
 			ret = -ENOMEM;
 			goto out;
@@ -2128,11 +2091,7 @@ int drm_mode_setcrtc(struct drm_device *dev, void *data,
 	ret = crtc->funcs->set_config(&set);
 
 out:
-#ifdef FREEBSD_NOTYET
 	kfree(connector_set);
-#else
-	free(connector_set, DRM_MEM_KMS);
-#endif
 	drm_mode_destroy(dev, mode);
 	mutex_unlock(&dev->mode_config.mutex);
 	return ret;
@@ -2626,12 +2585,7 @@ int drm_mode_dirtyfb_ioctl(struct drm_device *dev,
 			ret = -EINVAL;
 			goto out_err1;
 		}
-#ifdef FREEBSD_NOTYET
 		clips = kzalloc(num_clips * sizeof(*clips), GFP_KERNEL);
-#else
-		clips = malloc(num_clips * sizeof(*clips), DRM_MEM_KMS,
-		    M_WAITOK | M_ZERO);
-#endif
 		if (!clips) {
 			ret = -ENOMEM;
 			goto out_err1;
@@ -2654,11 +2608,7 @@ int drm_mode_dirtyfb_ioctl(struct drm_device *dev,
 	}
 
 out_err2:
-#ifdef FREEBSD_NOTYET
 	kfree(clips);
-#else
-	free(clips, DRM_MEM_KMS);
-#endif
 out_err1:
 	mutex_unlock(&dev->mode_config.mutex);
 	return ret;
@@ -2885,22 +2835,12 @@ struct drm_property *drm_property_create(struct drm_device *dev, int flags,
 	struct drm_property *property = NULL;
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	property = kzalloc(sizeof(struct drm_property), GFP_KERNEL);
-#else
-	property = malloc(sizeof(struct drm_property), DRM_MEM_KMS,
-	    M_WAITOK | M_ZERO);
-#endif
 	if (!property)
 		return NULL;
 
 	if (num_values) {
-#ifdef FREEBSD_NOTYET
 		property->values = kzalloc(sizeof(uint64_t)*num_values, GFP_KERNEL);
-#else
-		property->values = malloc(sizeof(uint64_t)*num_values, DRM_MEM_KMS,
-		    M_WAITOK | M_ZERO);
-#endif
 		if (!property->values)
 			goto fail;
 	}
@@ -2921,13 +2861,8 @@ struct drm_property *drm_property_create(struct drm_device *dev, int flags,
 	list_add_tail(&property->head, &dev->mode_config.property_list);
 	return property;
 fail:
-#ifdef FREEBSD_NOTYET
 	kfree(property->values);
 	kfree(property);
-#else
-	free(property->values, DRM_MEM_KMS);
-	free(property, DRM_MEM_KMS);
-#endif
 	return NULL;
 }
 EXPORT_SYMBOL(drm_property_create);
@@ -3032,12 +2967,7 @@ int drm_property_add_enum(struct drm_property *property, int index,
 		}
 	}
 
-#ifdef FREEBSD_NOTYET
 	prop_enum = kzalloc(sizeof(struct drm_property_enum), GFP_KERNEL);
-#else
-	prop_enum = malloc(sizeof(struct drm_property_enum), DRM_MEM_KMS,
-	    M_WAITOK | M_ZERO);
-#endif
 	if (!prop_enum)
 		return -ENOMEM;
 
@@ -3057,26 +2987,14 @@ void drm_property_destroy(struct drm_device *dev, struct drm_property *property)
 
 	list_for_each_entry_safe(prop_enum, pt, &property->enum_blob_list, head) {
 		list_del(&prop_enum->head);
-#ifdef FREEBSD_NOTYET
 		kfree(prop_enum);
-#else
-		free(prop_enum, DRM_MEM_KMS);
-#endif
 	}
 
 	if (property->num_values)
-#ifdef FREEBSD_NOTYET
 		kfree(property->values);
-#else
-		free(property->values, DRM_MEM_KMS);
-#endif
 	drm_mode_object_put(dev, &property->base);
 	list_del(&property->head);
-#ifdef FREEBSD_NOTYET
 	kfree(property);
-#else
-	free(property, DRM_MEM_KMS);
-#endif
 }
 EXPORT_SYMBOL(drm_property_destroy);
 
@@ -3244,22 +3162,13 @@ static struct drm_property_blob *drm_property_create_blob(struct drm_device *dev
 	if (!length || !data)
 		return NULL;
 
-#ifdef FREEBSD_NOTYET
 	blob = kzalloc(sizeof(struct drm_property_blob)+length, GFP_KERNEL);
-#else
-	blob = malloc(sizeof(struct drm_property_blob)+length, DRM_MEM_KMS,
-	    M_WAITOK | M_ZERO);
-#endif
 	if (!blob)
 		return NULL;
 
 	ret = drm_mode_object_get(dev, &blob->base, DRM_MODE_OBJECT_BLOB);
 	if (ret) {
-#ifdef FREEBSD_NOTYET
 		kfree(blob);
-#else
-		free(blob, DRM_MEM_KMS);
-#endif
 		return NULL;
 	}
 
@@ -3276,11 +3185,7 @@ static void drm_property_destroy_blob(struct drm_device *dev,
 {
 	drm_mode_object_put(dev, &blob->base);
 	list_del(&blob->head);
-#ifdef FREEBSD_NOTYET
 	kfree(blob);
-#else
-	free(blob, DRM_MEM_KMS);
-#endif
 }
 
 int drm_mode_getblob_ioctl(struct drm_device *dev,
@@ -3586,12 +3491,7 @@ int drm_mode_crtc_set_gamma_size(struct drm_crtc *crtc,
 {
 	crtc->gamma_size = gamma_size;
 
-#ifdef FREEBSD_NOTYET
 	crtc->gamma_store = kzalloc(gamma_size * sizeof(uint16_t) * 3, GFP_KERNEL);
-#else
-	crtc->gamma_store = malloc(gamma_size * sizeof(uint16_t) * 3,
-	    DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 	if (!crtc->gamma_store) {
 		crtc->gamma_size = 0;
 		return -ENOMEM;
@@ -3714,7 +3614,7 @@ static void
 free_vblank_event(void *arg)
 {
 
-	free(arg, DRM_MEM_KMS);
+	kfree(arg);
 }
 
 int drm_mode_page_flip_ioctl(struct drm_device *dev,
@@ -3783,11 +3683,7 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 		file_priv->event_space -= sizeof e->event;
 		spin_unlock_irqrestore(&dev->event_lock, flags);
 
-#ifdef FREEBSD_NOTYET
 		e = kzalloc(sizeof *e, GFP_KERNEL);
-#else
-		e = malloc(sizeof *e, DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 		if (e == NULL) {
 			spin_lock_irqsave(&dev->event_lock, flags);
 			file_priv->event_space += sizeof e->event;
@@ -3815,11 +3711,7 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 			spin_lock_irqsave(&dev->event_lock, flags);
 			file_priv->event_space += sizeof e->event;
 			spin_unlock_irqrestore(&dev->event_lock, flags);
-#ifdef FREEBSD_NOTYET
 			kfree(e);
-#else
-			free(e, DRM_MEM_KMS);
-#endif
 		}
 	}
 

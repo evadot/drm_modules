@@ -588,47 +588,23 @@ int drm_crtc_helper_set_config(struct drm_mode_set *set)
 
 	/* Allocate space for the backup of all (non-pointer) crtc, encoder and
 	 * connector data. */
-#ifdef FREEBSD_NOTYET
 	save_crtcs = kzalloc(dev->mode_config.num_crtc *
 			     sizeof(struct drm_crtc), GFP_KERNEL);
-#else
-	save_crtcs = malloc(dev->mode_config.num_crtc *
-			     sizeof(struct drm_crtc), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 	if (!save_crtcs)
 		return -ENOMEM;
 
-#ifdef FREEBSD_NOTYET
 	save_encoders = kzalloc(dev->mode_config.num_encoder *
 				sizeof(struct drm_encoder), GFP_KERNEL);
-#else
-	save_encoders = malloc(dev->mode_config.num_encoder *
-				sizeof(struct drm_encoder), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 	if (!save_encoders) {
-#ifdef FREEBSD_NOTYET
 		kfree(save_crtcs);
-#else
-		free(save_crtcs, DRM_MEM_KMS);
-#endif
 		return -ENOMEM;
 	}
 
-#ifdef FREEBSD_NOTYET
 	save_connectors = kzalloc(dev->mode_config.num_connector *
 				sizeof(struct drm_connector), GFP_KERNEL);
-#else
-	save_connectors = malloc(dev->mode_config.num_connector *
-				sizeof(struct drm_connector), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 	if (!save_connectors) {
-#ifdef FREEBSD_NOTYET
 		kfree(save_crtcs);
 		kfree(save_encoders);
-#else
-		free(save_crtcs, DRM_MEM_KMS);
-		free(save_encoders, DRM_MEM_KMS);
-#endif
 		return -ENOMEM;
 	}
 
@@ -800,15 +776,9 @@ int drm_crtc_helper_set_config(struct drm_mode_set *set)
 		}
 	}
 
-#ifdef FREEBSD_NOTYET
 	kfree(save_connectors);
 	kfree(save_encoders);
 	kfree(save_crtcs);
-#else
-	free(save_connectors, DRM_MEM_KMS);
-	free(save_encoders, DRM_MEM_KMS);
-	free(save_crtcs, DRM_MEM_KMS);
-#endif
 	return 0;
 
 fail:
@@ -834,15 +804,9 @@ fail:
 				      save_set.y, save_set.fb))
 		DRM_ERROR("failed to restore config after modeset failure\n");
 
-#ifdef FREEBSD_NOTYET
 	kfree(save_connectors);
 	kfree(save_encoders);
 	kfree(save_crtcs);
-#else
-	free(save_connectors, DRM_MEM_KMS);
-	free(save_encoders, DRM_MEM_KMS);
-	free(save_crtcs, DRM_MEM_KMS);
-#endif
 	return ret;
 }
 EXPORT_SYMBOL(drm_crtc_helper_set_config);

@@ -232,11 +232,7 @@ static bool ns2501_init(struct intel_dvo_device *dvo,
 	struct ns2501_priv *ns;
 	unsigned char ch;
 
-#ifdef FREEBSD_NOTYET
 	ns = kzalloc(sizeof(struct ns2501_priv), GFP_KERNEL);
-#else
-	ns = malloc(sizeof(struct ns2501_priv), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 	if (ns == NULL)
 		return false;
 
@@ -270,11 +266,7 @@ static bool ns2501_init(struct intel_dvo_device *dvo,
 	return true;
 
 out:
-#ifdef FREEBSD_NOTYET
 	kfree(ns);
-#else
-	free(ns, DRM_MEM_KMS);
-#endif
 	return false;
 }
 
@@ -589,11 +581,7 @@ static void ns2501_destroy(struct intel_dvo_device *dvo)
 	struct ns2501_priv *ns = dvo->dev_priv;
 
 	if (ns) {
-#ifdef FREEBSD_NOTYET
 		kfree(ns);
-#else
-		free(ns, DRM_MEM_KMS);
-#endif
 		dvo->dev_priv = NULL;
 	}
 }

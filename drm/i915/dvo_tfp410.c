@@ -172,11 +172,7 @@ static bool tfp410_init(struct intel_dvo_device *dvo,
 	struct tfp410_priv *tfp;
 	int id;
 
-#ifdef FREEBSD_NOTYET
 	tfp = kzalloc(sizeof(struct tfp410_priv), GFP_KERNEL);
-#else
-	tfp = malloc(sizeof(struct tfp410_priv), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 	if (tfp == NULL)
 		return false;
 
@@ -200,11 +196,7 @@ static bool tfp410_init(struct intel_dvo_device *dvo,
 	tfp->quiet = false;
 	return true;
 out:
-#ifdef FREEBSD_NOTYET
 	kfree(tfp);
-#else
-	free(tfp, DRM_MEM_KMS);
-#endif
 	return false;
 }
 
@@ -309,11 +301,7 @@ static void tfp410_destroy(struct intel_dvo_device *dvo)
 	struct tfp410_priv *tfp = dvo->dev_priv;
 
 	if (tfp) {
-#ifdef FREEBSD_NOTYET
 		kfree(tfp);
-#else
-		free(tfp, DRM_MEM_KMS);
-#endif
 		dvo->dev_priv = NULL;
 	}
 }

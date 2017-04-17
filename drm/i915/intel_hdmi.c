@@ -828,11 +828,7 @@ intel_hdmi_detect(struct drm_connector *connector, bool force)
 						drm_detect_hdmi_monitor(edid);
 			intel_hdmi->has_audio = drm_detect_monitor_audio(edid);
 		}
-#ifdef FREEBSD_NOTYET
 		kfree(edid);
-#else
-		free(edid, DRM_MEM_KMS);
-#endif
 	}
 
 	if (status == connector_status_connected) {
@@ -873,11 +869,7 @@ intel_hdmi_detect_audio(struct drm_connector *connector)
 	if (edid) {
 		if (edid->input & DRM_EDID_INPUT_DIGITAL)
 			has_audio = drm_detect_monitor_audio(edid);
-#ifdef FREEBSD_NOTYET
 		kfree(edid);
-#else
-		free(edid, DRM_MEM_KMS);
-#endif
 	}
 
 	return has_audio;
@@ -945,11 +937,7 @@ static void intel_hdmi_destroy(struct drm_connector *connector)
 	drm_sysfs_connector_remove(connector);
 #endif
 	drm_connector_cleanup(connector);
-#ifdef FREEBSD_NOTYET
 	kfree(connector);
-#else
-	free(connector, DRM_MEM_KMS);
-#endif
 }
 
 static const struct drm_encoder_helper_funcs intel_hdmi_helper_funcs = {
@@ -1066,25 +1054,13 @@ void intel_hdmi_init(struct drm_device *dev, int sdvox_reg, enum port port)
 	struct drm_encoder *encoder;
 	struct intel_connector *intel_connector;
 
-#ifdef FREEBSD_NOTYET
 	intel_dig_port = kzalloc(sizeof(struct intel_digital_port), GFP_KERNEL);
-#else
-	intel_dig_port = malloc(sizeof(struct intel_digital_port), DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 	if (!intel_dig_port)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	intel_connector = kzalloc(sizeof(struct intel_connector), GFP_KERNEL);
-#else
-	intel_connector = malloc(sizeof(struct intel_connector), DRM_MEM_KMS, M_WAITOK | M_ZERO);
-#endif
 	if (!intel_connector) {
-#ifdef FREEBSD_NOTYET
 		kfree(intel_dig_port);
-#else
-		free(intel_dig_port, DRM_MEM_KMS);
-#endif
 		return;
 	}
 
