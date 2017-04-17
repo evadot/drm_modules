@@ -29,18 +29,29 @@
  *          Keith Packard.
  */
 
-#include <drm/drmP.h>
 #include <drm/ttm/ttm_module.h>
 #include <drm/ttm/ttm_bo_driver.h>
 #include <drm/ttm/ttm_page_alloc.h>
 #ifdef TTM_HAS_AGP
 #include <drm/ttm/ttm_placement.h>
+#ifdef __linux__
+#include <linux/agp_backend.h>
+#include <linux/module.h>
+#include <linux/slab.h>
+#include <linux/io.h>
+#include <asm/agp.h>
+#endif
 
 struct ttm_agp_backend {
 	struct ttm_tt ttm;
+#ifdef __linux__
+	struct agp_memory *mem;
+	struct agp_bridge_data *bridge;
+#elif __FreeBSD__
 	vm_offset_t offset;
 	vm_page_t *pages;
 	device_t bridge;
+#endif
 };
 
 MALLOC_DEFINE(M_TTM_AGP, "ttm_agp", "TTM AGP Backend");
@@ -49,23 +60,53 @@ static int ttm_agp_bind(struct ttm_tt *ttm, struct ttm_mem_reg *bo_mem)
 {
 	struct ttm_agp_backend *agp_be = container_of(ttm, struct ttm_agp_backend, ttm);
 	struct drm_mm_node *node = bo_mem->mm_node;
+#ifdef __linux__
+	struct agp_memory *mem;
+	int ret, cached = (bo_mem->placement & TTM_PL_FLAG_CACHED);
+#elif __FreeBSD__
 	int ret;
+#endif
 	unsigned i;
 
+#ifdef __linux__
+	mem = agp_allocate_memory(agp_be->bridge, ttm->num_pages, AGP_USER_MEMORY);
+	if (unlikely(mem == NULL))
+		return -ENOMEM;
+
+	mem->page_count = 0;
+#endif
 	for (i = 0; i < ttm->num_pages; i++) {
+#ifdef __linux__
+		struct page *page = ttm->pages[i];
+#elif __FreeBSD__
 		vm_page_t page = ttm->pages[i];
+#endif
 
 		if (!page)
 			page = ttm->dummy_read_page;
 
+#ifdef __linux__
+		mem->pages[mem->page_count++] = page;
+#elif __FreeBSD__
 		agp_be->pages[i] = page;
+#endif
 	}
+#ifdef __linux__
+	agp_be->mem = mem;
 
+	mem->is_flushed = 1;
+	mem->type = (cached) ? AGP_USER_CACHED_MEMORY : AGP_USER_MEMORY;
+
+	ret = agp_bind_memory(mem, node->start);
+	if (ret)
+		pr_err("AGP Bind memory failed\n");
+#elif __FreeBSD__
 	agp_be->offset = node->start * PAGE_SIZE;
 	ret = -agp_bind_pages(agp_be->bridge, agp_be->pages,
 			      ttm->num_pages << PAGE_SHIFT, agp_be->offset);
 	if (ret)
 		printf("[TTM] AGP Bind memory failed\n");
+#endif
 
 	return ret;
 }
@@ -74,17 +115,34 @@ static int ttm_agp_unbind(struct ttm_tt *ttm)
 {
 	struct ttm_agp_backend *agp_be = container_of(ttm, struct ttm_agp_backend, ttm);
 
+#ifdef __linux__
+	if (agp_be->mem) {
+		if (agp_be->mem->is_bound)
+			return agp_unbind_memory(agp_be->mem);
+		agp_free_memory(agp_be->mem);
+		agp_be->mem = NULL;
+	}
+	return 0;
+#elif __FreeBSD__
 	return -agp_unbind_pages(agp_be->bridge, ttm->num_pages << PAGE_SHIFT,
 				 agp_be->offset);
+#endif
 }
 
 static void ttm_agp_destroy(struct ttm_tt *ttm)
 {
 	struct ttm_agp_backend *agp_be = container_of(ttm, struct ttm_agp_backend, ttm);
 
+#ifdef __linux__
+	if (agp_be->mem)
+		ttm_agp_unbind(ttm);
+	ttm_tt_fini(ttm);
+	kfree(agp_be);
+#elif __FreeBSD__
 	ttm_tt_fini(ttm);
 	free(agp_be->pages, M_TTM_AGP);
 	free(agp_be, M_TTM_AGP);
+#endif
 }
 
 static struct ttm_backend_func ttm_agp_func = {
