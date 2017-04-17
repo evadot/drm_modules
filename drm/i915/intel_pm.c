@@ -2310,12 +2310,7 @@ err_unref:
 /**
  * Lock protecting IPS related data structures
  */
-#ifdef FREEBSD_NOTYET
 DEFINE_SPINLOCK(mchdev_lock);
-#else
-struct mtx mchdev_lock;
-MTX_SYSINIT(mchdev, &mchdev_lock, "mchdev", MTX_DEF);
-#endif
 
 /* Global for IPS driver to get at the current i915 device. Protected by
  * mchdev_lock. */
@@ -2326,11 +2321,7 @@ bool ironlake_set_drps(struct drm_device *dev, u8 val)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u16 rgvswctl;
 
-#ifdef FREEBSD_NOTYET
 	assert_spin_locked(&mchdev_lock);
-#else
-	mtx_assert(&mchdev_lock, MA_OWNED);
-#endif
 
 	rgvswctl = I915_READ16(MEMSWCTL);
 	if (rgvswctl & MEMCTL_CMD_STS) {
@@ -2355,11 +2346,7 @@ static void ironlake_enable_drps(struct drm_device *dev)
 	u32 rgvmodectl = I915_READ(MEMMODECTL);
 	u8 fmax, fmin, fstart, vstart;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&mchdev_lock);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 
 	/* Enable temp reporting */
 	I915_WRITE16(PMMISC, I915_READ(PMMISC) | MCPPCE_EN);
@@ -2418,11 +2405,7 @@ static void ironlake_enable_drps(struct drm_device *dev)
 	dev_priv->ips.last_count2 = I915_READ(0x112f4);
 	getrawmonotonic(&dev_priv->ips.last_time2);
 
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&mchdev_lock);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 }
 
 static void ironlake_disable_drps(struct drm_device *dev)
@@ -2430,11 +2413,7 @@ static void ironlake_disable_drps(struct drm_device *dev)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u16 rgvswctl;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&mchdev_lock);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 
 	rgvswctl = I915_READ16(MEMSWCTL);
 
@@ -2452,11 +2431,7 @@ static void ironlake_disable_drps(struct drm_device *dev)
 	I915_WRITE(MEMSWCTL, rgvswctl);
 	mdelay(1);
 
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&mchdev_lock);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 }
 
 /* There's a funny hw issue where the hw returns all 0 when reading from
@@ -2914,11 +2889,7 @@ static unsigned long __i915_chipset_val(struct drm_i915_private *dev_priv)
 	unsigned long now = jiffies_to_msecs(jiffies), diff1;
 	int i;
 
-#ifdef FREEBSD_NOTYET
 	assert_spin_locked(&mchdev_lock);
-#else
-	mtx_assert(&mchdev_lock, MA_OWNED);
-#endif
 
 	diff1 = now - dev_priv->ips.last_time1;
 
@@ -2972,19 +2943,11 @@ unsigned long i915_chipset_val(struct drm_i915_private *dev_priv)
 	if (dev_priv->info->gen != 5)
 		return 0;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&mchdev_lock);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 
 	val = __i915_chipset_val(dev_priv);
 
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&mchdev_lock);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 
 	return val;
 }
@@ -3152,11 +3115,7 @@ static void __i915_update_gfx_val(struct drm_i915_private *dev_priv)
 	unsigned long diffms;
 	u32 count;
 
-#ifdef FREEBSD_NOTYET
 	assert_spin_locked(&mchdev_lock);
-#else
-	mtx_assert(&mchdev_lock, MA_OWNED);
-#endif
 
 #ifdef __linux__
 	getrawmonotonic(&now);
@@ -3195,19 +3154,11 @@ void i915_update_gfx_val(struct drm_i915_private *dev_priv)
 	if (dev_priv->info->gen != 5)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&mchdev_lock);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 
 	__i915_update_gfx_val(dev_priv);
 
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&mchdev_lock);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 }
 
 static unsigned long __i915_gfx_val(struct drm_i915_private *dev_priv)
@@ -3215,11 +3166,7 @@ static unsigned long __i915_gfx_val(struct drm_i915_private *dev_priv)
 	unsigned long t, corr, state1, corr2, state2;
 	u32 pxvid, ext_v;
 
-#ifdef FREEBSD_NOTYET
 	assert_spin_locked(&mchdev_lock);
-#else
-	mtx_assert(&mchdev_lock, MA_OWNED);
-#endif
 
 	pxvid = I915_READ(PXVFREQ_BASE + (dev_priv->rps.cur_delay * 4));
 	pxvid = (pxvid >> 24) & 0x7f;
@@ -3258,19 +3205,11 @@ unsigned long i915_gfx_val(struct drm_i915_private *dev_priv)
 	if (dev_priv->info->gen != 5)
 		return 0;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&mchdev_lock);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 
 	val = __i915_gfx_val(dev_priv);
 
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&mchdev_lock);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 
 	return val;
 }
@@ -3286,11 +3225,7 @@ unsigned long i915_read_mch_val(void)
 	struct drm_i915_private *dev_priv;
 	unsigned long chipset_val, graphics_val, ret = 0;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&mchdev_lock);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 	if (!i915_mch_dev)
 		goto out_unlock;
 	dev_priv = i915_mch_dev;
@@ -3301,11 +3236,7 @@ unsigned long i915_read_mch_val(void)
 	ret = chipset_val + graphics_val;
 
 out_unlock:
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&mchdev_lock);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 
 	return ret;
 }
@@ -3321,11 +3252,7 @@ bool i915_gpu_raise(void)
 	struct drm_i915_private *dev_priv;
 	bool ret = true;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&mchdev_lock);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 	if (!i915_mch_dev) {
 		ret = false;
 		goto out_unlock;
@@ -3336,11 +3263,7 @@ bool i915_gpu_raise(void)
 		dev_priv->ips.max_delay--;
 
 out_unlock:
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&mchdev_lock);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 
 	return ret;
 }
@@ -3357,11 +3280,7 @@ bool i915_gpu_lower(void)
 	struct drm_i915_private *dev_priv;
 	bool ret = true;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&mchdev_lock);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 	if (!i915_mch_dev) {
 		ret = false;
 		goto out_unlock;
@@ -3372,11 +3291,7 @@ bool i915_gpu_lower(void)
 		dev_priv->ips.max_delay++;
 
 out_unlock:
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&mchdev_lock);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 
 	return ret;
 }
@@ -3394,11 +3309,7 @@ bool i915_gpu_busy(void)
 	bool ret = false;
 	int i;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&mchdev_lock);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 	if (!i915_mch_dev)
 		goto out_unlock;
 	dev_priv = i915_mch_dev;
@@ -3407,11 +3318,7 @@ bool i915_gpu_busy(void)
 		ret |= !list_empty(&ring->request_list);
 
 out_unlock:
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&mchdev_lock);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 
 	return ret;
 }
@@ -3428,11 +3335,7 @@ bool i915_gpu_turbo_disable(void)
 	struct drm_i915_private *dev_priv;
 	bool ret = true;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&mchdev_lock);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 	if (!i915_mch_dev) {
 		ret = false;
 		goto out_unlock;
@@ -3445,11 +3348,7 @@ bool i915_gpu_turbo_disable(void)
 		ret = false;
 
 out_unlock:
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&mchdev_lock);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 
 	return ret;
 }
@@ -3481,17 +3380,9 @@ void intel_gpu_ips_init(struct drm_i915_private *dev_priv)
 {
 	/* We only register the i915 ips part with intel-ips once everything is
 	 * set up, to avoid intel-ips sneaking in and reading bogus values. */
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&mchdev_lock);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 	i915_mch_dev = dev_priv;
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&mchdev_lock);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 
 #ifdef FREEBSD_WIP
 	ips_ping_for_i915_load();
@@ -3500,18 +3391,11 @@ void intel_gpu_ips_init(struct drm_i915_private *dev_priv)
 
 void intel_gpu_ips_teardown(void)
 {
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&mchdev_lock);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 	i915_mch_dev = NULL;
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&mchdev_lock);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 }
+
 static void intel_init_emon(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;

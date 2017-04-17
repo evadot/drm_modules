@@ -311,24 +311,16 @@ static void i915_hotplug_work_func(struct work_struct *work)
 }
 
 /* defined intel_pm.c */
-#ifdef FREEBSD_NOTYET
 extern spinlock_t mchdev_lock;
-#else
-extern struct mtx mchdev_lock;
-#endif
 
 static void ironlake_handle_rps_change(struct drm_device *dev)
 {
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	u32 busy_up, busy_down, max_avg, min_avg;
 	u8 new_delay;
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
 
 	spin_lock_irqsave(&mchdev_lock, flags);
-#else
-	mtx_lock(&mchdev_lock);
-#endif
 
 	I915_WRITE16(MEMINTRSTS, I915_READ(MEMINTRSTS));
 
@@ -356,11 +348,7 @@ static void ironlake_handle_rps_change(struct drm_device *dev)
 	if (ironlake_set_drps(dev, new_delay))
 		dev_priv->ips.cur_delay = new_delay;
 
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&mchdev_lock, flags);
-#else
-	mtx_unlock(&mchdev_lock);
-#endif
 
 	return;
 }
