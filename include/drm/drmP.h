@@ -158,6 +158,8 @@
 #include <drm/drm_linux_list.h>
 #include <drm/drm_gem_names.h>
 
+#include <linux/idr.h>
+
 #if defined(CONFIG_AGP) || (defined(CONFIG_AGP_MODULE) && defined(MODULE))
 #define __OS_HAS_AGP 1
 #else
@@ -502,10 +504,8 @@ struct drm_file {
 	struct drm_minor *minor;
 	unsigned long lock_count;
 
-#ifdef FREEBSD_NOTYET
 	/** Mapping of mm object handles to object pointers. */
 	struct idr object_idr;
-#endif
 	/** Lock for synchronization of access to object_idr. */
 	spinlock_t table_lock;
 
@@ -1243,9 +1243,8 @@ struct drm_device {
 	int ctx_count;			/**< Number of context handles */
 	struct mutex ctxlist_mutex;	/**< For ctxlist */
 
-#ifdef FREEBSD_NOTYET
 	struct idr ctx_idr;
-#else
+#ifdef __FreeBSD__
 	drm_local_map_t **context_sareas;
 	int max_context;
 	unsigned long *ctx_bitmap;
@@ -1366,9 +1365,8 @@ struct drm_device {
 	/** \name GEM information */
 	/*@{ */
 	spinlock_t object_name_lock;
-#ifdef FREEBSD_NOTYET
 	struct idr object_name_idr;
-#else
+#ifdef __FreeBSD__
 	struct drm_gem_names object_names;
 #endif
 	/*@} */
