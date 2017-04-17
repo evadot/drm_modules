@@ -74,6 +74,7 @@ module_param_named(vblankoffdelay, drm_vblank_offdelay, int, 0600);
 module_param_named(timestamp_precision_usec, drm_timestamp_precision, int, 0600);
 module_param_named(timestamp_monotonic, drm_timestamp_monotonic, int, 0600);
 
+#ifdef __FreeBSD__
 static struct cdevsw drm_cdevsw = {
 	.d_version =	D_VERSION,
 	.d_open =	drm_open,
@@ -84,6 +85,7 @@ static struct cdevsw drm_cdevsw = {
 	.d_name =	"drm",
 	.d_flags =	D_TRACKCLOSE
 };
+#endif
 
 #ifdef __linux__
 struct idr drm_minors_idr;
@@ -160,10 +162,10 @@ struct drm_master *drm_master_create(struct drm_minor *minor)
 		return NULL;
 
 	kref_init(&master->refcount);
+	spin_lock_init(&master->lock.spinlock);
 #ifdef FREEBSD_NOTYET
 	init_waitqueue_head(&master->lock.lock_queue);
 #else
-	spin_lock_init(&master->lock.spinlock);
 	DRM_INIT_WAITQUEUE(&master->lock.lock_queue);
 #endif
 	drm_ht_create(&master->magiclist, DRM_MAGIC_HASH_ORDER);
@@ -295,13 +297,11 @@ int drm_fill_in_dev(struct drm_device *dev,
 	INIT_LIST_HEAD(&dev->vblank_event_list);
 
 	spin_lock_init(&dev->count_lock);
-#ifdef FREEBSD_NOTYET
-	mutex_init(&dev->struct_mutex);
-#else
-	mtx_init(&dev->irq_lock, "drmirq", NULL, MTX_DEF);
 	spin_lock_init(&dev->event_lock);
 	mutex_init(&dev->struct_mutex);
 	mutex_init(&dev->ctxlist_mutex);
+#ifdef __FreeBSD__
+	mtx_init(&dev->irq_lock, "drmirq", NULL, MTX_DEF);
 	mtx_init(&dev->pcir_lock, "drmpcir", NULL, MTX_DEF);
 #endif
 
@@ -326,9 +326,17 @@ int drm_fill_in_dev(struct drm_device *dev,
 
 	dev->driver = driver;
 
+#ifdef __linux__
+	if (dev->driver->bus->agp_init) {
+		retcode = dev->driver->bus->agp_init(dev);
+		if (retcode)
+			goto error_out_unreg;
+	}
+#elif __FreeBSD__
 	retcode = drm_pci_agp_init(dev);
 	if (retcode)
 		goto error_out_unreg;
+#endif
 
 
 
@@ -358,11 +366,16 @@ int drm_fill_in_dev(struct drm_device *dev,
 	return 0;
 
       error_out_unreg:
+#ifdef FREEBSD_NOTYET
+	drm_lastclose(dev);
+#else
 	drm_cancel_fill_in_dev(dev);
+#endif
 	return retcode;
 }
 EXPORT_SYMBOL(drm_fill_in_dev);
 
+#ifdef __FreeBSD__
 void drm_cancel_fill_in_dev(struct drm_device *dev)
 {
 	struct drm_driver *driver;
@@ -394,6 +407,7 @@ void drm_cancel_fill_in_dev(struct drm_device *dev)
 	mutex_destroy(&dev->ctxlist_mutex);
 	mtx_destroy(&dev->pcir_lock);
 }
+#endif
 
 /**
  * Get a secondary minor number.
@@ -430,6 +444,33 @@ int drm_get_minor(struct drm_device *dev, struct drm_minor **minor, int type)
 	new_minor->index = minor_id;
 	INIT_LIST_HEAD(&new_minor->master_list);
 
+#ifdef __linux__
+	idr_replace(&drm_minors_idr, new_minor, minor_id);
+
+	if (type == DRM_MINOR_LEGACY) {
+		ret = drm_proc_init(new_minor, minor_id, drm_proc_root);
+		if (ret) {
+			DRM_ERROR("DRM: Failed to initialize /proc/dri.\n");
+			goto err_mem;
+		}
+	} else
+		new_minor->proc_root = NULL;
+
+#if defined(CONFIG_DEBUG_FS)
+	ret = drm_debugfs_init(new_minor, minor_id, drm_debugfs_root);
+	if (ret) {
+		DRM_ERROR("DRM: Failed to initialize /sys/kernel/debug/dri.\n");
+		goto err_g2;
+	}
+#endif
+
+	ret = drm_sysfs_device_add(new_minor);
+	if (ret) {
+		printk(KERN_ERR
+		       "DRM: Error sysfs_device_add.\n");
+		goto err_g2;
+	}
+#elif __FreeBSD__
 	new_minor->buf_sigio = NULL;
 
 	switch (type) {
@@ -452,15 +493,24 @@ int drm_get_minor(struct drm_device *dev, struct drm_minor **minor, int type)
 		goto err_mem;
 	}
 	new_minor->device->si_drv1 = new_minor;
+#endif
 	*minor = new_minor;
 
 	DRM_DEBUG("new minor assigned %d\n", minor_id);
 	return 0;
 
 
+#ifdef __linux__
+err_g2:
+	if (new_minor->type == DRM_MINOR_LEGACY)
+		drm_proc_cleanup(new_minor, drm_proc_root);
+#endif
 err_mem:
 	kfree(new_minor);
 err_idr:
+#ifdef FREEBSD_NOTYET
+	idr_remove(&drm_minors_idr, minor_id);
+#endif
 	*minor = NULL;
 	return ret;
 }
@@ -482,15 +532,34 @@ int drm_put_minor(struct drm_minor **minor_p)
 
 	DRM_DEBUG("release secondary minor %d\n", minor->index);
 
+#ifdef __linux__
+	if (minor->type == DRM_MINOR_LEGACY)
+		drm_proc_cleanup(minor, drm_proc_root);
+#if defined(CONFIG_DEBUG_FS)
+	drm_debugfs_cleanup(minor);
+#endif
+
+	drm_sysfs_device_remove(minor);
+
+	idr_remove(&drm_minors_idr, minor->index);
+#elif __FreeBSD__
 	funsetown(&minor->buf_sigio);
 
 	destroy_dev(minor->device);
+#endif
 
 	kfree(minor);
 	*minor_p = NULL;
 	return 0;
 }
 EXPORT_SYMBOL(drm_put_minor);
+
+#ifdef __linux__
+static void drm_unplug_minor(struct drm_minor *minor)
+{
+	drm_sysfs_device_remove(minor);
+}
+#endif
 
 /**
  * Called via drm_exit() at module unload time or when pci device is
