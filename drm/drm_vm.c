@@ -113,7 +113,7 @@ drm_mmap(struct cdev *kdev, vm_ooffset_t offset, vm_paddr_t *paddr,
 		mutex_unlock(&dev->struct_mutex);
 		return -1;
 	}
-	if (((map->flags & _DRM_RESTRICTED) && !DRM_SUSER(DRM_CURPROC))) {
+	if (((map->flags & _DRM_RESTRICTED) && !capable(CAP_SYS_ADMIN))) {
 		mutex_unlock(&dev->struct_mutex);
 		DRM_DEBUG("restricted map\n");
 		return -1;

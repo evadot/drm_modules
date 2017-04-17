@@ -524,11 +524,7 @@ int drm_addmap_ioctl(struct drm_device *dev, void *data,
 	struct drm_map_list *maplist;
 	int err;
 
-#ifdef __linux__
 	if (!(capable(CAP_SYS_ADMIN) || map->type == _DRM_AGP || map->type == _DRM_SHM))
-#elif __FreeBSD__
-	if (!(DRM_SUSER(DRM_CURPROC) || map->type == _DRM_AGP || map->type == _DRM_SHM))
-#endif
 		return -EPERM;
 
 	err = drm_addmap_core(dev, map->offset, map->size, map->type,
@@ -958,11 +954,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 	if (!dma)
 		return -EINVAL;
 
-#ifdef __linux__
 	if (!capable(CAP_SYS_ADMIN))
-#elif __FreeBSD__
-	if (!DRM_SUSER(DRM_CURPROC))
-#endif
 		return -EPERM;
 
 	count = request->count;
@@ -1192,11 +1184,7 @@ static int drm_addbufs_sg(struct drm_device * dev, struct drm_buf_desc * request
 	if (!dma)
 		return -EINVAL;
 
-#ifdef __linux__
 	if (!capable(CAP_SYS_ADMIN))
-#elif __FreeBSD__
-	if (!DRM_SUSER(DRM_CURPROC))
-#endif
 		return -EPERM;
 
 	count = request->count;
@@ -1372,11 +1360,7 @@ static int drm_addbufs_fb(struct drm_device * dev, struct drm_buf_desc * request
 	if (!dma)
 		return -EINVAL;
 
-#ifdef __linux__
 	if (!capable(CAP_SYS_ADMIN))
-#elif __FreeBSD__
-	if (!DRM_SUSER(DRM_CURPROC))
-#endif
 		return -EPERM;
 
 	count = request->count;

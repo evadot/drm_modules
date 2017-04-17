@@ -1009,13 +1009,9 @@ int i915_getparam(struct drm_device *dev, void *data,
 		value = 1;
 		break;
 	case I915_PARAM_HAS_SECURE_BATCHES:
-#ifdef __linux__
 		value = capable(CAP_SYS_ADMIN);
-#elif __FreeBSD__
 		/* FIXME Linux<->FreeBSD: Is there a better choice than
 		 * curthread? */
-		value = DRM_SUSER(curthread);
-#endif
 		break;
 	case I915_PARAM_HAS_PINNED_BATCHES:
 		value = 1;
