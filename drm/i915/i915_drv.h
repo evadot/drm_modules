@@ -591,11 +591,7 @@ struct intel_gen6_power_mgmt {
 	u32 pm_iir;
 	/* lock - irqsave spinlock that protectects the work_struct and
 	 * pm_iir. */
-#ifdef FREEBSD_NOTYET
 	spinlock_t lock;
-#else
-	struct mtx lock;
-#endif
 
 	/* The below variables an all the rps hw state are protected by
 	 * dev->struct mutext. */
@@ -613,11 +609,7 @@ struct intel_gen6_power_mgmt {
 	 * Protects RPS/RC6 register access and PCU communication.
 	 * Must be taken after struct_mutex if nested.
 	 */
-#ifdef FREEBSD_NOTYET
 	struct mutex hw_lock;
-#else
-	struct sx hw_lock;
-#endif
 };
 
 struct intel_ilk_power_mgmt {

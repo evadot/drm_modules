@@ -1697,15 +1697,9 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 	spin_lock_init(&dev_priv->irq_lock);
 	spin_lock_init(&dev_priv->dpio_lock);
 	spin_lock_init(&dev_priv->error_lock);
-#ifdef FREEBSD_NOTYET
 	spin_lock_init(&dev_priv->rps.lock);
 
 	mutex_init(&dev_priv->rps.hw_lock);
-#else
-	mtx_init(&dev_priv->rps.lock, "915rps", NULL, MTX_DEF);
-
-	sx_init(&dev_priv->rps.hw_lock, "915rpshw");
-#endif
 
 	if (IS_IVYBRIDGE(dev) || IS_HASWELL(dev))
 		dev_priv->num_pipe = 3;
@@ -1768,10 +1762,10 @@ out_gem_unload:
 	free_completion(&dev_priv->error_completion);
 	spin_lock_destroy(&dev_priv->irq_lock);
 	spin_lock_destroy(&dev_priv->error_lock);
-	mtx_destroy(&dev_priv->rps.lock);
+	spin_lock_destroy(&dev_priv->rps.lock);
 	spin_lock_destroy(&dev_priv->dpio_lock);
 
-	sx_destroy(&dev_priv->rps.hw_lock);
+	mutex_destroy(&dev_priv->rps.hw_lock);
 
 	if (dev->msi_enabled)
 		drm_pci_disable_msi(dev);
@@ -1977,10 +1971,10 @@ int i915_driver_unload(struct drm_device *dev)
 	free_completion(&dev_priv->error_completion);
 	spin_lock_destroy(&dev_priv->irq_lock);
 	spin_lock_destroy(&dev_priv->error_lock);
-	mtx_destroy(&dev_priv->rps.lock);
+	spin_lock_destroy(&dev_priv->rps.lock);
 	spin_lock_destroy(&dev_priv->dpio_lock);
 
-	sx_destroy(&dev_priv->rps.hw_lock);
+	mutex_destroy(&dev_priv->rps.hw_lock);
 #endif
 
 #ifdef __linux__

@@ -2528,11 +2528,7 @@ void gen6_set_rps(struct drm_device *dev, u8 val)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 limits = gen6_rps_limits(dev_priv, &val);
 
-#ifdef FREEBSD_NOTYET
 	WARN_ON(!mutex_is_locked(&dev_priv->rps.hw_lock));
-#else
-	sx_assert(&dev_priv->rps.hw_lock, SA_XLOCKED);
-#endif
 	WARN_ON(val > dev_priv->rps.max_delay);
 	WARN_ON(val < dev_priv->rps.min_delay);
 
@@ -2571,17 +2567,9 @@ static void gen6_disable_rps(struct drm_device *dev)
 	 * register (PMIMR) to mask PM interrupts. The only risk is in leaving
 	 * stale bits in PMIIR and PMIMR which gen6_enable_rps will clean up. */
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&dev_priv->rps.lock);
-#else
-	mtx_lock(&dev_priv->rps.lock);
-#endif
 	dev_priv->rps.pm_iir = 0;
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&dev_priv->rps.lock);
-#else
-	mtx_unlock(&dev_priv->rps.lock);
-#endif
 
 	I915_WRITE(GEN6_PMIIR, I915_READ(GEN6_PMIIR));
 }
@@ -2622,11 +2610,7 @@ static void gen6_enable_rps(struct drm_device *dev)
 	int rc6_mode;
 	int i, ret;
 
-#ifdef FREEBSD_NOTYET
 	WARN_ON(!mutex_is_locked(&dev_priv->rps.hw_lock));
-#else
-	sx_assert(&dev_priv->rps.hw_lock, SA_XLOCKED);
-#endif
 
 	/* Here begins a magic sequence of register writes to enable
 	 * auto-downclocking.
@@ -2736,18 +2720,10 @@ static void gen6_enable_rps(struct drm_device *dev)
 
 	/* requires MSI enabled */
 	I915_WRITE(GEN6_PMIER, GEN6_PM_DEFERRED_EVENTS);
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&dev_priv->rps.lock);
-#else
-	mtx_lock(&dev_priv->rps.lock);
-#endif
 	WARN_ON(dev_priv->rps.pm_iir != 0);
 	I915_WRITE(GEN6_PMIMR, 0);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&dev_priv->rps.lock);
-#else
-	mtx_unlock(&dev_priv->rps.lock);
-#endif
 	/* enable all PM interrupts */
 	I915_WRITE(GEN6_PMINTRMSK, 0);
 
@@ -2776,11 +2752,7 @@ static void gen6_update_ring_freq(struct drm_device *dev)
 	unsigned int ia_freq, max_ia_freq;
 	int scaling_factor = 180;
 
-#ifdef FREEBSD_NOTYET
 	WARN_ON(!mutex_is_locked(&dev_priv->rps.hw_lock));
-#else
-	sx_assert(&dev_priv->rps.hw_lock, SA_XLOCKED);
-#endif
 
 #ifdef FREEBSD_WIP
 	max_ia_freq = cpufreq_quick_get_max(0);
@@ -3660,15 +3632,12 @@ void intel_disable_gt_powersave(struct drm_device *dev)
 	} else if (INTEL_INFO(dev)->gen >= 6 && !IS_VALLEYVIEW(dev)) {
 #ifdef FREEBSD_NOTYET
 		cancel_delayed_work_sync(&dev_priv->rps.delayed_resume_work);
+#else
+		taskqueue_cancel_timeout(dev_priv->wq, &dev_priv->rps.delayed_resume_work, NULL);
+#endif
 		mutex_lock(&dev_priv->rps.hw_lock);
 		gen6_disable_rps(dev);
 		mutex_unlock(&dev_priv->rps.hw_lock);
-#else
-		taskqueue_cancel_timeout(dev_priv->wq, &dev_priv->rps.delayed_resume_work, NULL);
-		sx_xlock(&dev_priv->rps.hw_lock);
-		gen6_disable_rps(dev);
-		sx_xunlock(&dev_priv->rps.hw_lock);
-#endif
 	}
 }
 
@@ -3685,18 +3654,10 @@ static void intel_gen6_powersave_work(void *arg, int pending)
 #endif
 	struct drm_device *dev = dev_priv->dev;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev_priv->rps.hw_lock);
-#else
-	sx_xlock(&dev_priv->rps.hw_lock);
-#endif
 	gen6_enable_rps(dev);
 	gen6_update_ring_freq(dev);
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev_priv->rps.hw_lock);
-#else
-	sx_xunlock(&dev_priv->rps.hw_lock);
-#endif
 }
 
 void intel_enable_gt_powersave(struct drm_device *dev)
@@ -4728,11 +4689,7 @@ void intel_gt_init(struct drm_device *dev)
 
 int sandybridge_pcode_read(struct drm_i915_private *dev_priv, u8 mbox, u32 *val)
 {
-#ifdef FREEBSD_NOTYET
 	WARN_ON(!mutex_is_locked(&dev_priv->rps.hw_lock));
-#else
-	sx_assert(&dev_priv->rps.hw_lock, SA_XLOCKED);
-#endif
 
 	if (I915_READ(GEN6_PCODE_MAILBOX) & GEN6_PCODE_READY) {
 		DRM_DEBUG_DRIVER("warning: pcode (read) mailbox access failed\n");
@@ -4756,11 +4713,7 @@ int sandybridge_pcode_read(struct drm_i915_private *dev_priv, u8 mbox, u32 *val)
 
 int sandybridge_pcode_write(struct drm_i915_private *dev_priv, u8 mbox, u32 val)
 {
-#ifdef FREEBSD_NOTYET
 	WARN_ON(!mutex_is_locked(&dev_priv->rps.hw_lock));
-#else
-	sx_assert(&dev_priv->rps.hw_lock, SA_XLOCKED);
-#endif
 
 	if (I915_READ(GEN6_PCODE_MAILBOX) & GEN6_PCODE_READY) {
 		DRM_DEBUG_DRIVER("warning: pcode (write) mailbox access failed\n");

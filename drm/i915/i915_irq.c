@@ -411,29 +411,17 @@ static void gen6_pm_rps_work(void *context, int pending)
 	u32 pm_iir, pm_imr;
 	u8 new_delay;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irq(&dev_priv->rps.lock);
-#else
-	mtx_lock(&dev_priv->rps.lock);
-#endif
 	pm_iir = dev_priv->rps.pm_iir;
 	dev_priv->rps.pm_iir = 0;
 	pm_imr = I915_READ(GEN6_PMIMR);
 	I915_WRITE(GEN6_PMIMR, 0);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irq(&dev_priv->rps.lock);
-#else
-	mtx_unlock(&dev_priv->rps.lock);
-#endif
 
 	if ((pm_iir & GEN6_PM_DEFERRED_EVENTS) == 0)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	mutex_lock(&dev_priv->rps.hw_lock);
-#else
-	sx_xlock(&dev_priv->rps.hw_lock);
-#endif
 
 	if (pm_iir & GEN6_PM_RP_UP_THRESHOLD)
 		new_delay = dev_priv->rps.cur_delay + 1;
@@ -448,11 +436,7 @@ static void gen6_pm_rps_work(void *context, int pending)
 		gen6_set_rps(dev_priv->dev, new_delay);
 	}
 
-#ifdef FREEBSD_NOTYET
 	mutex_unlock(&dev_priv->rps.hw_lock);
-#else
-	sx_xunlock(&dev_priv->rps.hw_lock);
-#endif
 }
 
 
@@ -578,9 +562,7 @@ static void snb_gt_irq_handler(struct drm_device *dev,
 static void gen6_queue_rps_work(struct drm_i915_private *dev_priv,
 				u32 pm_iir)
 {
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 
 	/*
 	 * IIR bits should never already be set because IMR should
@@ -592,21 +574,15 @@ static void gen6_queue_rps_work(struct drm_i915_private *dev_priv,
 	 * The mask bit in IMR is cleared by dev_priv->rps.work.
 	 */
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->rps.lock, flags);
-#else
-	mtx_lock(&dev_priv->rps.lock);
-#endif
 	dev_priv->rps.pm_iir |= pm_iir;
 	I915_WRITE(GEN6_PMIMR, dev_priv->rps.pm_iir);
 	POSTING_READ(GEN6_PMIMR);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->rps.lock, flags);
 
+#ifdef FREEBSD_NOTYET
 	queue_work(dev_priv->wq, &dev_priv->rps.work);
 #else
-	mtx_unlock(&dev_priv->rps.lock);
-
 	taskqueue_enqueue(dev_priv->wq, &dev_priv->rps.work);
 #endif
 }

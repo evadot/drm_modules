@@ -1007,9 +1007,9 @@ static int gen6_drpc_info(struct drm_device *dev, struct sbuf *m)
 	rpmodectl1 = I915_READ(GEN6_RP_CONTROL);
 	rcctl1 = I915_READ(GEN6_RC_CONTROL);
 	mutex_unlock(&dev->struct_mutex);
-	sx_xlock(&dev_priv->rps.hw_lock);
+	mutex_lock(&dev_priv->rps.hw_lock);
 	sandybridge_pcode_read(dev_priv, GEN6_PCODE_READ_RC6VIDS, &rc6vids);
-	sx_xunlock(&dev_priv->rps.hw_lock);
+	mutex_unlock(&dev_priv->rps.hw_lock);
 
 	seq_printf(m, "Video Turbo Mode: %s\n",
 		   yesno(rpmodectl1 & GEN6_RP_MEDIA_TURBO));
@@ -1180,7 +1180,7 @@ static int i915_ring_freq_table(struct drm_device *dev, struct sbuf *m,
 		return 0;
 	}
 
-	sx_xlock(&dev_priv->rps.hw_lock);
+	mutex_lock(&dev_priv->rps.hw_lock);
 
 	seq_printf(m, "GPU freq (MHz)\tEffective CPU freq (MHz)\n");
 
@@ -1194,7 +1194,7 @@ static int i915_ring_freq_table(struct drm_device *dev, struct sbuf *m,
 		seq_printf(m, "%d\t\t%d\n", gpu_freq * GT_FREQUENCY_MULTIPLIER, ia_freq * 100);
 	}
 
-	sx_xunlock(&dev_priv->rps.hw_lock);
+	mutex_unlock(&dev_priv->rps.hw_lock);
 
 	return 0;
 }
@@ -1495,9 +1495,9 @@ i915_ring_stop(SYSCTL_HANDLER_ARGS)
 
 	DRM_DEBUG_DRIVER("Stopping rings 0x%08x\n", val);
 
-	sx_xlock(&dev_priv->rps.hw_lock);
+	mutex_lock(&dev_priv->rps.hw_lock);
 	dev_priv->stop_rings = val;
-	sx_xunlock(&dev_priv->rps.hw_lock);
+	mutex_unlock(&dev_priv->rps.hw_lock);
 
 	return (0);
 }
@@ -1514,12 +1514,12 @@ i915_max_freq(SYSCTL_HANDLER_ARGS)
 	if (!(IS_GEN6(dev) || IS_GEN7(dev)))
 		return (ENODEV);
 
-	sx_xlock(&dev_priv->rps.hw_lock);
+	mutex_lock(&dev_priv->rps.hw_lock);
 
 	val = dev_priv->rps.max_delay * GT_FREQUENCY_MULTIPLIER;
 	ret = sysctl_handle_int(oidp, &val, 0, req);
 	if (ret != 0 || !req->newptr) {
-		sx_xunlock(&dev_priv->rps.hw_lock);
+		mutex_unlock(&dev_priv->rps.hw_lock);
 		return (ret);
 	}
 
@@ -1531,7 +1531,7 @@ i915_max_freq(SYSCTL_HANDLER_ARGS)
 	dev_priv->rps.max_delay = val / GT_FREQUENCY_MULTIPLIER;
 
 	gen6_set_rps(dev, val / GT_FREQUENCY_MULTIPLIER);
-	sx_xunlock(&dev_priv->rps.hw_lock);
+	mutex_unlock(&dev_priv->rps.hw_lock);
 
 	return (ret);
 }
@@ -1548,12 +1548,12 @@ i915_min_freq(SYSCTL_HANDLER_ARGS)
 	if (!(IS_GEN6(dev) || IS_GEN7(dev)))
 		return (ENODEV);
 
-	sx_xlock(&dev_priv->rps.hw_lock);
+	mutex_lock(&dev_priv->rps.hw_lock);
 
 	val = dev_priv->rps.min_delay * GT_FREQUENCY_MULTIPLIER;
 	ret = sysctl_handle_int(oidp, &val, 0, req);
 	if (ret != 0 || !req->newptr) {
-		sx_xunlock(&dev_priv->rps.hw_lock);
+		mutex_unlock(&dev_priv->rps.hw_lock);
 		return (ret);
 	}
 
@@ -1565,7 +1565,7 @@ i915_min_freq(SYSCTL_HANDLER_ARGS)
 	dev_priv->rps.min_delay = val / GT_FREQUENCY_MULTIPLIER;
 
 	gen6_set_rps(dev, val / GT_FREQUENCY_MULTIPLIER);
-	sx_xunlock(&dev_priv->rps.hw_lock);
+	mutex_unlock(&dev_priv->rps.hw_lock);
 
 	return (ret);
 }
@@ -1583,9 +1583,9 @@ i915_cache_sharing(SYSCTL_HANDLER_ARGS)
 	if (!(IS_GEN6(dev) || IS_GEN7(dev)))
 		return (ENODEV);
 
-	sx_xlock(&dev_priv->rps.hw_lock);
+	mutex_lock(&dev_priv->rps.hw_lock);
 	snpcr = I915_READ(GEN6_MBCUNIT_SNPCR);
-	sx_xunlock(&dev_priv->rps.hw_lock);
+	mutex_unlock(&dev_priv->rps.hw_lock);
 
 	val = (snpcr & GEN6_MBC_SNPCR_MASK) >> GEN6_MBC_SNPCR_SHIFT;
 	ret = sysctl_handle_int(oidp, &val, 0, req);
