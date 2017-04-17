@@ -992,8 +992,8 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 			       sizeof(*dma->pagelist), GFP_KERNEL);
 	if (!temp_pagelist) {
 		kfree(entry->buflist);
-		mutex_unlock(&dev->struct_mutex);
 		kfree(entry->seglist);
+		mutex_unlock(&dev->struct_mutex);
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;
 	}
