@@ -1043,7 +1043,23 @@ EXPORT_SYMBOL(drm_fb_helper_single_fb_probe);
 void drm_fb_helper_fill_fix(struct fb_info *info, uint32_t pitch,
 			    uint32_t depth)
 {
+#ifdef __linux__
+	info->fix.type = FB_TYPE_PACKED_PIXELS;
+	info->fix.visual = depth == 8 ? FB_VISUAL_PSEUDOCOLOR :
+		FB_VISUAL_TRUECOLOR;
+	info->fix.mmio_start = 0;
+	info->fix.mmio_len = 0;
+	info->fix.type_aux = 0;
+	info->fix.xpanstep = 1; /* doing it in hw */
+	info->fix.ypanstep = 1; /* doing it in hw */
+	info->fix.ywrapstep = 0;
+	info->fix.accel = FB_ACCEL_NONE;
+	info->fix.type_aux = 0;
+
+	info->fix.line_length = pitch;
+#elif __FreeBSD__
 	info->fb_stride = pitch;
+#endif
 
 	return;
 }
@@ -1053,8 +1069,79 @@ void drm_fb_helper_fill_var(struct fb_info *info, struct drm_fb_helper *fb_helpe
 			    uint32_t fb_width, uint32_t fb_height)
 {
 	struct drm_framebuffer *fb = fb_helper->fb;
+#ifdef __FreeBSD__
 	struct vt_kms_softc *sc;
+#endif
 
+#ifdef __linux__
+	info->pseudo_palette = fb_helper->pseudo_palette;
+	info->var.xres_virtual = fb->width;
+	info->var.yres_virtual = fb->height;
+	info->var.bits_per_pixel = fb->bits_per_pixel;
+	info->var.accel_flags = FB_ACCELF_TEXT;
+	info->var.xoffset = 0;
+	info->var.yoffset = 0;
+	info->var.activate = FB_ACTIVATE_NOW;
+	info->var.height = -1;
+	info->var.width = -1;
+
+	switch (fb->depth) {
+	case 8:
+		info->var.red.offset = 0;
+		info->var.green.offset = 0;
+		info->var.blue.offset = 0;
+		info->var.red.length = 8; /* 8bit DAC */
+		info->var.green.length = 8;
+		info->var.blue.length = 8;
+		info->var.transp.offset = 0;
+		info->var.transp.length = 0;
+		break;
+	case 15:
+		info->var.red.offset = 10;
+		info->var.green.offset = 5;
+		info->var.blue.offset = 0;
+		info->var.red.length = 5;
+		info->var.green.length = 5;
+		info->var.blue.length = 5;
+		info->var.transp.offset = 15;
+		info->var.transp.length = 1;
+		break;
+	case 16:
+		info->var.red.offset = 11;
+		info->var.green.offset = 5;
+		info->var.blue.offset = 0;
+		info->var.red.length = 5;
+		info->var.green.length = 6;
+		info->var.blue.length = 5;
+		info->var.transp.offset = 0;
+		break;
+	case 24:
+		info->var.red.offset = 16;
+		info->var.green.offset = 8;
+		info->var.blue.offset = 0;
+		info->var.red.length = 8;
+		info->var.green.length = 8;
+		info->var.blue.length = 8;
+		info->var.transp.offset = 0;
+		info->var.transp.length = 0;
+		break;
+	case 32:
+		info->var.red.offset = 16;
+		info->var.green.offset = 8;
+		info->var.blue.offset = 0;
+		info->var.red.length = 8;
+		info->var.green.length = 8;
+		info->var.blue.length = 8;
+		info->var.transp.offset = 24;
+		info->var.transp.length = 8;
+		break;
+	default:
+		break;
+	}
+
+	info->var.xres = fb_width;
+	info->var.yres = fb_height;
+#elif __FreeBSD__
 	info->fb_name = device_get_nameunit(fb_helper->dev->dev);
 	info->fb_width = fb->width;
 	info->fb_height = fb->height;
@@ -1062,6 +1149,7 @@ void drm_fb_helper_fill_var(struct fb_info *info, struct drm_fb_helper *fb_helpe
 
 	sc = (struct vt_kms_softc *)info->fb_priv;
 	sc->fb_helper = fb_helper;
+#endif
 }
 EXPORT_SYMBOL(drm_fb_helper_fill_var);
 
