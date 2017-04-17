@@ -158,8 +158,15 @@ struct ttm_tt *ttm_agp_tt_create(struct ttm_bo_device *bdev,
 {
 	struct ttm_agp_backend *agp_be;
 
+#ifdef FREEBSD_NOTYET
+	agp_be = kmalloc(sizeof(*agp_be), GFP_KERNEL);
+	if (!agp_be)
+		return NULL;
+#else
 	agp_be = malloc(sizeof(*agp_be), M_TTM_AGP, M_WAITOK | M_ZERO);
+#endif
 
+	agp_be->mem = NULL;
 	agp_be->bridge = bridge;
 	agp_be->ttm.func = &ttm_agp_func;
 
@@ -174,6 +181,7 @@ struct ttm_tt *ttm_agp_tt_create(struct ttm_bo_device *bdev,
 
 	return &agp_be->ttm;
 }
+EXPORT_SYMBOL(ttm_agp_tt_create);
 
 int ttm_agp_tt_populate(struct ttm_tt *ttm)
 {
@@ -182,10 +190,12 @@ int ttm_agp_tt_populate(struct ttm_tt *ttm)
 
 	return ttm_pool_populate(ttm);
 }
+EXPORT_SYMBOL(ttm_agp_tt_populate);
 
 void ttm_agp_tt_unpopulate(struct ttm_tt *ttm)
 {
 	ttm_pool_unpopulate(ttm);
 }
+EXPORT_SYMBOL(ttm_agp_tt_unpopulate);
 
 #endif
