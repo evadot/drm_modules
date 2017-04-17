@@ -30,9 +30,9 @@
 #include <linux/input.h>
 #include <linux/i2c.h>
 #include <linux/kernel.h>
-#include <linux/slab.h>
 #include <linux/vgaarb.h>
 #endif
+#include <linux/slab.h>
 #include <drm/drmP.h>
 #include <drm/drm_edid.h>
 #include "intel_drv.h"
@@ -6633,18 +6633,10 @@ static struct drm_display_mode load_detect_mode = {
 		 704, 832, 0, 480, 489, 491, 520, 0, DRM_MODE_FLAG_NHSYNC | DRM_MODE_FLAG_NVSYNC),
 };
 
-#ifdef FREEBSD_NOTYET
 static struct drm_framebuffer *
 intel_framebuffer_create(struct drm_device *dev,
 			 struct drm_mode_fb_cmd2 *mode_cmd,
 			 struct drm_i915_gem_object *obj)
-#else
-static int
-intel_framebuffer_create(struct drm_device *dev,
-			 struct drm_mode_fb_cmd2 *mode_cmd,
-			 struct drm_i915_gem_object *obj,
-			 struct drm_framebuffer **res)
-#endif
 {
 	struct intel_framebuffer *intel_fb;
 	int ret;
@@ -6652,66 +6644,37 @@ intel_framebuffer_create(struct drm_device *dev,
 	intel_fb = kzalloc(sizeof(*intel_fb), GFP_KERNEL);
 	if (!intel_fb) {
 		drm_gem_object_unreference_unlocked(&obj->base);
-#ifdef FREEBSD_NOTYET
 		return ERR_PTR(-ENOMEM);
-#else
-		return -ENOMEM;
-#endif
 	}
 
 	ret = intel_framebuffer_init(dev, intel_fb, mode_cmd, obj);
 	if (ret) {
 		drm_gem_object_unreference_unlocked(&obj->base);
 		kfree(intel_fb);
-#ifdef FREEBSD_NOTYET
 		return ERR_PTR(ret);
-#else
-		return ret;
-#endif
 	}
 
-#ifdef FREEBSD_NOTYET
 	return &intel_fb->base;
-#else
-	*res = &intel_fb->base;
-	return 0;
-#endif
 }
 
 static u32
 intel_framebuffer_pitch_for_width(int width, int bpp)
 {
 	u32 pitch = DIV_ROUND_UP(width * bpp, 8);
-#ifdef FREEBSD_NOTYET
 	return ALIGN(pitch, 64);
-#else
-	return roundup2(pitch, 64);
-#endif
 }
 
 static u32
 intel_framebuffer_size_for_mode(struct drm_display_mode *mode, int bpp)
 {
 	u32 pitch = intel_framebuffer_pitch_for_width(mode->hdisplay, bpp);
-#ifdef FREEBSD_NOTYET
 	return ALIGN(pitch * mode->vdisplay, PAGE_SIZE);
-#else
-	return roundup2(pitch * mode->vdisplay, PAGE_SIZE);
-#endif
 }
 
-#ifdef FREEBSD_NOTYET
 static struct drm_framebuffer *
 intel_framebuffer_create_for_mode(struct drm_device *dev,
 				  struct drm_display_mode *mode,
 				  int depth, int bpp)
-#else
-static int
-intel_framebuffer_create_for_mode(struct drm_device *dev,
-				  struct drm_display_mode *mode,
-				  int depth, int bpp,
-				  struct drm_framebuffer **res)
-#endif
 {
 	struct drm_i915_gem_object *obj;
 	struct drm_mode_fb_cmd2 mode_cmd = { 0 };
@@ -6719,11 +6682,7 @@ intel_framebuffer_create_for_mode(struct drm_device *dev,
 	obj = i915_gem_alloc_object(dev,
 				    intel_framebuffer_size_for_mode(mode, bpp));
 	if (obj == NULL)
-#ifdef FREEBSD_NOTYET
 		return ERR_PTR(-ENOMEM);
-#else
-		return -ENOMEM;
-#endif
 
 	mode_cmd.width = mode->hdisplay;
 	mode_cmd.height = mode->vdisplay;
@@ -6731,11 +6690,7 @@ intel_framebuffer_create_for_mode(struct drm_device *dev,
 								bpp);
 	mode_cmd.pixel_format = drm_mode_legacy_fb_format(bpp, depth);
 
-#ifdef FREEBSD_NOTYET
 	return intel_framebuffer_create(dev, &mode_cmd, obj);
-#else
-	return intel_framebuffer_create(dev, &mode_cmd, obj, res);
-#endif
 }
 
 static struct drm_framebuffer *
@@ -6777,7 +6732,6 @@ bool intel_get_load_detect_pipe(struct drm_connector *connector,
 	struct drm_device *dev = encoder->dev;
 	struct drm_framebuffer *fb;
 	int i = -1;
-	int ret;
 
 	DRM_DEBUG_KMS("[CONNECTOR:%d:%s], [ENCODER:%d:%s]\n",
 		      connector->base.id, drm_get_connector_name(connector),
@@ -6844,15 +6798,14 @@ bool intel_get_load_detect_pipe(struct drm_connector *connector,
 	 * not even exist) or that it is large enough to satisfy the
 	 * requested mode.
 	 */
-	ret = 0;
 	fb = mode_fits_in_fbdev(dev, mode);
 	if (fb == NULL) {
 		DRM_DEBUG_KMS("creating tmp fb for load-detection\n");
-		ret = intel_framebuffer_create_for_mode(dev, mode, 24, 32, &fb);
+		fb = intel_framebuffer_create_for_mode(dev, mode, 24, 32);
 		old->release_fb = fb;
 	} else
 		DRM_DEBUG_KMS("reusing fbdev for load-detection framebuffer\n");
-	if (ret) {
+	if (IS_ERR(fb)) {
 		DRM_DEBUG_KMS("failed to allocate framebuffer for load-detection\n");
 		return false;
 	}
@@ -8803,20 +8756,19 @@ int intel_framebuffer_init(struct drm_device *dev,
 	return 0;
 }
 
-static int
+static struct drm_framebuffer *
 intel_user_framebuffer_create(struct drm_device *dev,
 			      struct drm_file *filp,
-			      struct drm_mode_fb_cmd2 *mode_cmd,
-			      struct drm_framebuffer **res)
+			      struct drm_mode_fb_cmd2 *mode_cmd)
 {
 	struct drm_i915_gem_object *obj;
 
 	obj = to_intel_bo(drm_gem_object_lookup(dev, filp,
 						mode_cmd->handles[0]));
 	if (&obj->base == NULL)
-		return -ENOENT;
+		return ERR_PTR(-ENOENT);
 
-	return intel_framebuffer_create(dev, mode_cmd, obj, res);
+	return intel_framebuffer_create(dev, mode_cmd, obj);
 }
 
 static const struct drm_mode_config_funcs intel_mode_funcs = {

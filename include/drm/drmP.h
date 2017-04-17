@@ -145,6 +145,7 @@
 #include <linux/mutex.h>
 #define spin_is_locked(_l) mtx_owned(&(_l)->m)
 
+#include <linux/err.h>
 #include <linux/bitops.h>
 #include <linux/types.h>
 #include <linux/kref.h>

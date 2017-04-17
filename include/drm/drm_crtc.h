@@ -715,16 +715,9 @@ struct drm_mode_set {
  * involve drivers.
  */
 struct drm_mode_config_funcs {
-#ifdef FREEBSD_NOTYET
 	struct drm_framebuffer *(*fb_create)(struct drm_device *dev,
 					     struct drm_file *file_priv,
 					     struct drm_mode_fb_cmd2 *mode_cmd);
-#else
-	int (*fb_create)(struct drm_device *dev,
-					     struct drm_file *file_priv,
-					     struct drm_mode_fb_cmd2 *mode_cmd,
-					     struct drm_framebuffer **fb);
-#endif
 	void (*output_poll_changed)(struct drm_device *dev);
 };
 

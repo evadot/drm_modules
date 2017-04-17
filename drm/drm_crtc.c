@@ -31,9 +31,9 @@
  */
 #ifdef FREEBSD_NOTYET
 #include <linux/list.h>
-#include <linux/slab.h>
 #include <linux/export.h>
 #endif
+#include <linux/slab.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_edid.h>
@@ -2209,13 +2209,8 @@ int drm_mode_addfb(struct drm_device *dev,
 	/* TODO check buffer is sufficiently large */
 	/* TODO setup destructor callback */
 
-#ifdef __linux__
 	fb = dev->mode_config.funcs->fb_create(dev, file_priv, &r);
 	if (IS_ERR(fb)) {
-#elif __FreeBSD__
-	ret = dev->mode_config.funcs->fb_create(dev, file_priv, &r, &fb);
-	if (ret != 0) {
-#endif
 		DRM_DEBUG_KMS("could not create framebuffer\n");
 		goto out;
 	}
@@ -2399,13 +2394,8 @@ int drm_mode_addfb2(struct drm_device *dev,
 
 	mutex_lock(&dev->mode_config.mutex);
 
-#ifdef __linux__
 	fb = dev->mode_config.funcs->fb_create(dev, file_priv, r);
 	if (IS_ERR(fb)) {
-#elif __FreeBSD__
-	ret = dev->mode_config.funcs->fb_create(dev, file_priv, r, &fb);
-	if (ret != 0) {
-#endif
 		DRM_DEBUG_KMS("could not create framebuffer\n");
 		goto out;
 	}
