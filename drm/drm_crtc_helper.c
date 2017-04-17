@@ -318,8 +318,7 @@ static bool drm_encoder_crtc_ok(struct drm_encoder *encoder,
 	struct drm_crtc *tmp;
 	int crtc_mask = 1;
 
-	if (crtc == NULL)
-		printf("checking null crtc?\n");
+	WARN(!crtc, "checking null crtc?\n");
 
 	dev = crtc->dev;
 

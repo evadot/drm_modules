@@ -1213,12 +1213,12 @@ EXPORT_SYMBOL(drm_mode_config_cleanup);
 static void drm_crtc_convert_to_umode(struct drm_mode_modeinfo *out,
 				      const struct drm_display_mode *in)
 {
-	if (in->hdisplay > USHRT_MAX || in->hsync_start > USHRT_MAX ||
+	WARN(in->hdisplay > USHRT_MAX || in->hsync_start > USHRT_MAX ||
 	     in->hsync_end > USHRT_MAX || in->htotal > USHRT_MAX ||
 	     in->hskew > USHRT_MAX || in->vdisplay > USHRT_MAX ||
 	     in->vsync_start > USHRT_MAX || in->vsync_end > USHRT_MAX ||
-	     in->vtotal > USHRT_MAX || in->vscan > USHRT_MAX)
-		DRM_WARNING("timing values too large for mode info\n");
+	     in->vtotal > USHRT_MAX || in->vscan > USHRT_MAX,
+	     "timing values too large for mode info\n");
 
 	out->clock = in->clock;
 	out->hdisplay = in->hdisplay;
@@ -2734,7 +2734,7 @@ int drm_mode_attachmode_crtc(struct drm_device *dev, struct drm_crtc *crtc,
 			list_move_tail(list.next, &connector->user_modes);
 	}
 
-	MPASS(!list_empty(&list));
+	WARN_ON(!list_empty(&list));
 
  out:
 	list_for_each_entry_safe(dup_mode, next, &list, head)
@@ -3087,7 +3087,7 @@ void drm_object_attach_property(struct drm_mode_object *obj,
 	int count = obj->properties->count;
 
 	if (count == DRM_OBJECT_MAX_PROPERTY) {
-		DRM_WARNING("Failed to attach object property (type: 0x%x). Please "
+		WARN(1, "Failed to attach object property (type: 0x%x). Please "
 			"increase DRM_OBJECT_MAX_PROPERTY by 1 for each time "
 			"you see this message on the same object type.\n",
 			obj->type);
