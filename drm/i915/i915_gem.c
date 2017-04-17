@@ -1196,12 +1196,12 @@ static int __wait_seqno(struct intel_ring_buffer *ring, u32 seqno,
 	(i915_seqno_passed(ring->get_seqno(ring, false), seqno) || \
 	atomic_read(&dev_priv->mm.wedged))
 	flags = interruptible ? PCATCH : 0;
-	mtx_lock(&dev_priv->irq_lock);
+	spin_lock(&dev_priv->irq_lock);
 	do {
 		if (EXIT_COND) {
 			end = 1;
 		} else {
-			ret = -msleep_sbt(&ring->irq_queue, &dev_priv->irq_lock, flags,
+			ret = -msleep_sbt(&ring->irq_queue, &dev_priv->irq_lock.m, flags,
 			    "915gwr", timeout_sbt, 0, 0);
 
 			/*
@@ -1231,7 +1231,7 @@ static int __wait_seqno(struct intel_ring_buffer *ring, u32 seqno,
 		if (ret)
 			end = ret;
 	} while (end == 0 && wait_forever);
-	mtx_unlock(&dev_priv->irq_lock);
+	spin_unlock(&dev_priv->irq_lock);
 
 	getrawmonotonic(&now);
 

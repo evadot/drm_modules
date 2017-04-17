@@ -713,11 +713,7 @@ typedef struct drm_i915_private {
 	atomic_t irq_received;
 
 	/* protects the irq masks */
-#ifdef FREEBSD_NOTYET
 	spinlock_t irq_lock;
-#else
-	struct mtx irq_lock;
-#endif
 
 	/* DPIO indirect register protection */
 #ifdef FREEBSD_NOTYET

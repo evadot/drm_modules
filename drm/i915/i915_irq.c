@@ -98,19 +98,13 @@ i915_disable_pipestat(drm_i915_private_t *dev_priv, int pipe, u32 mask)
 void intel_enable_asle(struct drm_device *dev)
 {
 	drm_i915_private_t *dev_priv = dev->dev_private;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 
 	/* FIXME: opregion/asle for VLV */
 	if (IS_VALLEYVIEW(dev))
 		return;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_lock(&dev_priv->irq_lock);
-#endif
 
 	if (HAS_PCH_SPLIT(dev))
 		ironlake_enable_display_irq(dev_priv, DE_GSE);
@@ -122,11 +116,7 @@ void intel_enable_asle(struct drm_device *dev)
 					     PIPE_LEGACY_BLC_EVENT_ENABLE);
 	}
 
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_unlock(&dev_priv->irq_lock);
-#endif
 }
 
 /**
@@ -490,9 +480,7 @@ static void ivybridge_parity_work(void *context, int pending)
 	char *parity_event[5];
 #endif
 	uint32_t misccpctl;
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 
 	/* We must turn off DOP level clock gating to access the L3 registers.
 	 * In order to prevent a get/put style interface, acquire struct mutex
@@ -515,18 +503,10 @@ static void ivybridge_parity_work(void *context, int pending)
 
 	I915_WRITE(GEN7_MISCCPCTL, misccpctl);
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
-#else
-	mtx_lock(&dev_priv->irq_lock);
-#endif
 	dev_priv->gt_irq_mask &= ~GT_GEN7_L3_PARITY_ERROR_INTERRUPT;
 	I915_WRITE(GTIMR, dev_priv->gt_irq_mask);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
-#else
-	mtx_unlock(&dev_priv->irq_lock);
-#endif
 
 	mutex_unlock(&dev_priv->dev->struct_mutex);
 
@@ -554,27 +534,19 @@ static void ivybridge_parity_work(void *context, int pending)
 static void ivybridge_handle_parity_error(struct drm_device *dev)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 
 	if (!HAS_L3_GPU_CACHE(dev))
 		return;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
-#else
-	mtx_lock(&dev_priv->irq_lock);
-#endif
 	dev_priv->gt_irq_mask |= GT_GEN7_L3_PARITY_ERROR_INTERRUPT;
 	I915_WRITE(GTIMR, dev_priv->gt_irq_mask);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
 
+#ifdef FREEBSD_NOTYET
 	queue_work(dev_priv->wq, &dev_priv->l3_parity.error_work);
 #else
-	mtx_unlock(&dev_priv->irq_lock);
-
 	taskqueue_enqueue(dev_priv->wq, &dev_priv->l3_parity.error_work);
 #endif
 }
@@ -651,9 +623,7 @@ static void valleyview_irq_handler(DRM_IRQ_ARGS)
 #ifdef __linux__
 	irqreturn_t ret = IRQ_NONE;
 #endif
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 	int pipe;
 	u32 pipe_stats[I915_MAX_PIPES];
 	bool blc_event;
@@ -674,11 +644,7 @@ static void valleyview_irq_handler(DRM_IRQ_ARGS)
 #endif
 		snb_gt_irq_handler(dev, dev_priv, gt_iir);
 
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-		mtx_lock(&dev_priv->irq_lock);
-#endif
 		for_each_pipe(pipe) {
 			int reg = PIPESTAT(pipe);
 			pipe_stats[pipe] = I915_READ(reg);
@@ -693,11 +659,7 @@ static void valleyview_irq_handler(DRM_IRQ_ARGS)
 				I915_WRITE(reg, pipe_stats[pipe]);
 			}
 		}
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-		mtx_unlock(&dev_priv->irq_lock);
-#endif
 
 		for_each_pipe(pipe) {
 			if (pipe_stats[pipe] & PIPE_VBLANK_INTERRUPT_STATUS)
@@ -1834,18 +1796,12 @@ static void i915_pageflip_stall_check(struct drm_device *dev, int pipe)
 static int i915_enable_vblank(struct drm_device *dev, int pipe)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 
 	if (!i915_pipe_enabled(dev, pipe))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_lock(&dev_priv->irq_lock);
-#endif
 	if (INTEL_INFO(dev)->gen >= 4)
 		i915_enable_pipestat(dev_priv, pipe,
 				     PIPE_START_VBLANK_INTERRUPT_ENABLE);
@@ -1856,10 +1812,8 @@ static int i915_enable_vblank(struct drm_device *dev, int pipe)
 	/* maintain vblank delivery even in deep C-states */
 	if (dev_priv->info->gen == 3)
 		I915_WRITE(INSTPM, _MASKED_BIT_DISABLE(INSTPM_AGPBUSY_DIS));
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_unlock(&dev_priv->irq_lock);
+#ifdef __FreeBSD__
 	CTR1(KTR_DRM, "i915_enable_vblank %d", pipe);
 #endif
 
@@ -1869,24 +1823,16 @@ static int i915_enable_vblank(struct drm_device *dev, int pipe)
 static int ironlake_enable_vblank(struct drm_device *dev, int pipe)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 
 	if (!i915_pipe_enabled(dev, pipe))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_lock(&dev_priv->irq_lock);
-#endif
 	ironlake_enable_display_irq(dev_priv, (pipe == 0) ?
 				    DE_PIPEA_VBLANK : DE_PIPEB_VBLANK);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_unlock(&dev_priv->irq_lock);
+#ifdef __FreeBSD__
 	CTR1(KTR_DRM, "ironlake_enable_vblank %d", pipe);
 #endif
 
@@ -1896,24 +1842,16 @@ static int ironlake_enable_vblank(struct drm_device *dev, int pipe)
 static int ivybridge_enable_vblank(struct drm_device *dev, int pipe)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 
 	if (!i915_pipe_enabled(dev, pipe))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_lock(&dev_priv->irq_lock);
-#endif
 	ironlake_enable_display_irq(dev_priv,
 				    DE_PIPEA_VBLANK_IVB << (5 * pipe));
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_unlock(&dev_priv->irq_lock);
+#ifdef __FreeBSD__
 	CTR1(KTR_DRM, "ivybridge_enable_vblank %d", pipe);
 #endif
 
@@ -1923,19 +1861,13 @@ static int ivybridge_enable_vblank(struct drm_device *dev, int pipe)
 static int valleyview_enable_vblank(struct drm_device *dev, int pipe)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 	u32 imr;
 
 	if (!i915_pipe_enabled(dev, pipe))
 		return -EINVAL;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_lock(&dev_priv->irq_lock);
-#endif
 	imr = I915_READ(VLV_IMR);
 	if (pipe == 0)
 		imr &= ~I915_DISPLAY_PIPE_A_VBLANK_INTERRUPT;
@@ -1944,11 +1876,7 @@ static int valleyview_enable_vblank(struct drm_device *dev, int pipe)
 	I915_WRITE(VLV_IMR, imr);
 	i915_enable_pipestat(dev_priv, pipe,
 			     PIPE_START_VBLANK_INTERRUPT_ENABLE);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_unlock(&dev_priv->irq_lock);
-#endif
 
 	return 0;
 }
@@ -1959,25 +1887,17 @@ static int valleyview_enable_vblank(struct drm_device *dev, int pipe)
 static void i915_disable_vblank(struct drm_device *dev, int pipe)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_lock(&dev_priv->irq_lock);
-#endif
 	if (dev_priv->info->gen == 3)
 		I915_WRITE(INSTPM, _MASKED_BIT_ENABLE(INSTPM_AGPBUSY_DIS));
 
 	i915_disable_pipestat(dev_priv, pipe,
 			      PIPE_VBLANK_INTERRUPT_ENABLE |
 			      PIPE_START_VBLANK_INTERRUPT_ENABLE);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_unlock(&dev_priv->irq_lock);
+#ifdef __FreeBSD__
 	CTR1(KTR_DRM, "i915_disable_vblank %d", pipe);
 #endif
 }
@@ -1985,21 +1905,13 @@ static void i915_disable_vblank(struct drm_device *dev, int pipe)
 static void ironlake_disable_vblank(struct drm_device *dev, int pipe)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_lock(&dev_priv->irq_lock);
-#endif
 	ironlake_disable_display_irq(dev_priv, (pipe == 0) ?
 				     DE_PIPEA_VBLANK : DE_PIPEB_VBLANK);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_unlock(&dev_priv->irq_lock);
+#ifdef __FreeBSD__
 	CTR1(KTR_DRM, "ironlake_disable_vblank %d", pipe);
 #endif
 }
@@ -2007,21 +1919,13 @@ static void ironlake_disable_vblank(struct drm_device *dev, int pipe)
 static void ivybridge_disable_vblank(struct drm_device *dev, int pipe)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_lock(&dev_priv->irq_lock);
-#endif
 	ironlake_disable_display_irq(dev_priv,
 				     DE_PIPEA_VBLANK_IVB << (pipe * 5));
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_unlock(&dev_priv->irq_lock);
+#ifdef __FreeBSD__
 	CTR1(KTR_DRM, "ivybridge_disable_vblank %d", pipe);
 #endif
 }
@@ -2029,16 +1933,10 @@ static void ivybridge_disable_vblank(struct drm_device *dev, int pipe)
 static void valleyview_disable_vblank(struct drm_device *dev, int pipe)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 	u32 imr;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_lock(&dev_priv->irq_lock);
-#endif
 	i915_disable_pipestat(dev_priv, pipe,
 			      PIPE_START_VBLANK_INTERRUPT_ENABLE);
 	imr = I915_READ(VLV_IMR);
@@ -2047,10 +1945,8 @@ static void valleyview_disable_vblank(struct drm_device *dev, int pipe)
 	else
 		imr |= I915_DISPLAY_PIPE_B_VBLANK_INTERRUPT;
 	I915_WRITE(VLV_IMR, imr);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-	mtx_unlock(&dev_priv->irq_lock);
+#ifdef __FreeBSD__
 	CTR2(KTR_DRM, "%s %d", __func__, pipe);
 #endif
 }
@@ -2582,9 +2478,7 @@ static void i8xx_irq_handler(DRM_IRQ_ARGS)
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
 	u16 iir, new_iir;
 	u32 pipe_stats[2];
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 	int irq_received;
 	int pipe;
 	u16 flip_mask =
@@ -2603,11 +2497,7 @@ static void i8xx_irq_handler(DRM_IRQ_ARGS)
 		 * It doesn't set the bit in iir again, but it still produces
 		 * interrupts (for non-MSI).
 		 */
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-		mtx_lock(&dev_priv->irq_lock);
-#endif
 		if (iir & I915_RENDER_COMMAND_PARSER_ERROR_INTERRUPT)
 			i915_handle_error(dev, false);
 
@@ -2626,11 +2516,7 @@ static void i8xx_irq_handler(DRM_IRQ_ARGS)
 				irq_received = 1;
 			}
 		}
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-		mtx_unlock(&dev_priv->irq_lock);
-#endif
 
 		I915_WRITE16(IIR, iir & ~flip_mask);
 		new_iir = I915_READ16(IIR); /* Flush posted writes */
@@ -2771,9 +2657,7 @@ static irqreturn_t i915_irq_handler(DRM_IRQ_ARGS)
 	struct drm_device *dev = (struct drm_device *) arg;
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
 	u32 iir, new_iir, pipe_stats[I915_MAX_PIPES];
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 	u32 flip_mask =
 		I915_DISPLAY_PLANE_A_FLIP_PENDING_INTERRUPT |
 		I915_DISPLAY_PLANE_B_FLIP_PENDING_INTERRUPT;
@@ -2795,11 +2679,7 @@ static irqreturn_t i915_irq_handler(DRM_IRQ_ARGS)
 		 * It doesn't set the bit in iir again, but it still produces
 		 * interrupts (for non-MSI).
 		 */
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-		mtx_lock(&dev_priv->irq_lock);
-#endif
 		if (iir & I915_RENDER_COMMAND_PARSER_ERROR_INTERRUPT)
 			i915_handle_error(dev, false);
 
@@ -2816,11 +2696,7 @@ static irqreturn_t i915_irq_handler(DRM_IRQ_ARGS)
 				irq_received = true;
 			}
 		}
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-		mtx_unlock(&dev_priv->irq_lock);
-#endif
 
 		if (!irq_received)
 			break;
@@ -3025,9 +2901,7 @@ static irqreturn_t i965_irq_handler(DRM_IRQ_ARGS)
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
 	u32 iir, new_iir;
 	u32 pipe_stats[I915_MAX_PIPES];
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 	int irq_received;
 	int pipe;
 
@@ -3045,11 +2919,7 @@ static irqreturn_t i965_irq_handler(DRM_IRQ_ARGS)
 		 * It doesn't set the bit in iir again, but it still produces
 		 * interrupts (for non-MSI).
 		 */
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-		mtx_lock(&dev_priv->irq_lock);
-#endif
 		if (iir & I915_RENDER_COMMAND_PARSER_ERROR_INTERRUPT)
 			i915_handle_error(dev, false);
 
@@ -3068,11 +2938,7 @@ static irqreturn_t i965_irq_handler(DRM_IRQ_ARGS)
 				irq_received = 1;
 			}
 		}
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-		mtx_unlock(&dev_priv->irq_lock);
-#endif
 
 		if (!irq_received)
 			break;

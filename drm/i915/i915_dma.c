@@ -795,14 +795,14 @@ static int i915_wait_irq(struct drm_device * dev, int irq_nr)
 		DRM_WAIT_ON(ret, ring->irq_queue, 3 * DRM_HZ,
 			    READ_BREADCRUMB(dev_priv) >= irq_nr);
 #else
-		mtx_lock(&dev_priv->irq_lock);
+		spin_lock(&dev_priv->irq_lock);
 		while (ret == 0 && READ_BREADCRUMB(dev_priv) < irq_nr) {
-			ret = -msleep(&ring->irq_queue, &dev_priv->irq_lock,
+			ret = -msleep(&ring->irq_queue, &dev_priv->irq_lock.m,
 			    PCATCH, "915wtq", 3 * DRM_HZ);
 			if (ret == -ERESTART)
 				ret = -ERESTARTSYS;
 		}
-		mtx_unlock(&dev_priv->irq_lock);
+		spin_unlock(&dev_priv->irq_lock);
 #endif
 		ring->irq_put(ring);
 	} else if (wait_for(READ_BREADCRUMB(dev_priv) >= irq_nr, 3000))
@@ -1694,15 +1694,14 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 		drm_pci_enable_msi(dev);
 #endif
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_init(&dev_priv->irq_lock);
+#ifdef FREEBSD_NOTYET
 	spin_lock_init(&dev_priv->error_lock);
 	spin_lock_init(&dev_priv->rps.lock);
 	spin_lock_init(&dev_priv->dpio_lock);
 
 	mutex_init(&dev_priv->rps.hw_lock);
 #else
-	mtx_init(&dev_priv->irq_lock, "userirq", NULL, MTX_DEF);
 	mtx_init(&dev_priv->error_lock, "915err", NULL, MTX_DEF);
 	mtx_init(&dev_priv->rps.lock, "915rps", NULL, MTX_DEF);
 	sx_init(&dev_priv->dpio_lock, "915dpi");
@@ -1769,7 +1768,7 @@ out_gem_unload:
 	EVENTHANDLER_DEREGISTER(vm_lowmem, dev_priv->mm.inactive_shrinker);
 
 	free_completion(&dev_priv->error_completion);
-	mtx_destroy(&dev_priv->irq_lock);
+	spin_lock_destroy(&dev_priv->irq_lock);
 	mtx_destroy(&dev_priv->error_lock);
 	mtx_destroy(&dev_priv->rps.lock);
 	sx_destroy(&dev_priv->dpio_lock);
@@ -1978,7 +1977,7 @@ int i915_driver_unload(struct drm_device *dev)
 		taskqueue_free(dev_priv->wq);
 
 	free_completion(&dev_priv->error_completion);
-	mtx_destroy(&dev_priv->irq_lock);
+	spin_lock_destroy(&dev_priv->irq_lock);
 	mtx_destroy(&dev_priv->error_lock);
 	mtx_destroy(&dev_priv->rps.lock);
 	sx_destroy(&dev_priv->dpio_lock);

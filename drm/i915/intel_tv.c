@@ -1171,28 +1171,18 @@ intel_tv_detect_type(struct intel_tv *intel_tv,
 	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	struct drm_device *dev = encoder->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 	u32 tv_ctl, save_tv_ctl;
 	u32 tv_dac, save_tv_dac;
 	int type;
 
 	/* Disable TV interrupts around load detect or we'll recurse */
 	if (connector->polled & DRM_CONNECTOR_POLL_HPD) {
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-		mtx_lock(&dev_priv->irq_lock);
-#endif
 		i915_disable_pipestat(dev_priv, 0,
 				      PIPE_HOTPLUG_INTERRUPT_ENABLE |
 				      PIPE_HOTPLUG_TV_INTERRUPT_ENABLE);
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-		mtx_unlock(&dev_priv->irq_lock);
-#endif
 	}
 
 	save_tv_dac = tv_dac = I915_READ(TV_DAC);
@@ -1265,19 +1255,11 @@ intel_tv_detect_type(struct intel_tv *intel_tv,
 
 	/* Restore interrupt config */
 	if (connector->polled & DRM_CONNECTOR_POLL_HPD) {
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&dev_priv->irq_lock, irqflags);
-#else
-		mtx_lock(&dev_priv->irq_lock);
-#endif
 		i915_enable_pipestat(dev_priv, 0,
 				     PIPE_HOTPLUG_INTERRUPT_ENABLE |
 				     PIPE_HOTPLUG_TV_INTERRUPT_ENABLE);
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev_priv->irq_lock, irqflags);
-#else
-		mtx_unlock(&dev_priv->irq_lock);
-#endif
 	}
 
 	return type;
