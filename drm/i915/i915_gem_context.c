@@ -252,14 +252,13 @@ static int create_default_context(struct drm_i915_private *dev_priv)
 	struct i915_hw_context *ctx;
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	BUG_ON(!mutex_is_locked(&dev_priv->dev->struct_mutex));
 
+#ifdef FREEBSD_NOTYET
 	ctx = create_hw_context(dev_priv->dev, NULL);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
 #else
-	DRM_LOCK_ASSERT(dev_priv->dev);
 
 	ret = create_hw_context(dev_priv->dev, NULL, &ctx);
 	if (ret != 0)

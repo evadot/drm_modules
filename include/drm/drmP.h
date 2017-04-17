@@ -1897,13 +1897,6 @@ SYSCTL_DECL(_hw_drm);
 
 #define DRM_CURPROC		curthread
 #define DRM_STRUCTPROC		struct thread
-#if defined(INVARIANTS)
-/* #define	DRM_LOCK_ASSERT(dev)	sx_assert(&(dev)->dev_struct_lock, SA_XLOCKED) */
-/* #define	DRM_UNLOCK_ASSERT(dev)	sx_assert(&(dev)->dev_struct_lock, SA_UNLOCKED) */
-#else
-#define	DRM_LOCK_ASSERT(d)
-#define	DRM_UNLOCK_ASSERT(d)
-#endif
 
 #define DRM_SYSCTL_HANDLER_ARGS	(SYSCTL_HANDLER_ARGS)
 

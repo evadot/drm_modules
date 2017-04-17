@@ -1117,11 +1117,7 @@ i915_gem_check_olr(struct intel_ring_buffer *ring, u32 seqno)
 {
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	BUG_ON(!mutex_is_locked(&ring->dev->struct_mutex));
-#else
-	DRM_LOCK_ASSERT(ring->dev);
-#endif
 
 	ret = 0;
 	if (seqno == ring->outstanding_lazy_request)
@@ -1254,11 +1250,7 @@ i915_wait_seqno(struct intel_ring_buffer *ring, uint32_t seqno)
 	bool interruptible = dev_priv->mm.interruptible;
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	BUG_ON(!mutex_is_locked(&dev->struct_mutex));
-#else
-	DRM_LOCK_ASSERT(dev);
-#endif
 	BUG_ON(seqno == 0);
 
 	ret = i915_gem_check_wedge(dev_priv, interruptible);
@@ -1319,11 +1311,7 @@ i915_gem_object_wait_rendering__nonblocking(struct drm_i915_gem_object *obj,
 	u32 seqno;
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	BUG_ON(!mutex_is_locked(&dev->struct_mutex));
-#else
-	DRM_LOCK_ASSERT(dev);
-#endif
 	BUG_ON(!dev_priv->mm.interruptible);
 
 	seqno = readonly ? obj->last_write_seqno : obj->last_read_seqno;
@@ -2454,11 +2442,7 @@ static void i915_gem_reset_ring_lists(struct drm_i915_private *dev_priv,
 				      struct intel_ring_buffer *ring)
 {
 	if (ring->dev != NULL)
-#ifdef FREEBSD_NOTYET
 		BUG_ON(!mutex_is_locked(&ring->dev->struct_mutex));
-#else
-		DRM_LOCK_ASSERT(ring->dev);
-#endif
 
 	while (!list_empty(&ring->request_list)) {
 		struct drm_i915_gem_request *request;

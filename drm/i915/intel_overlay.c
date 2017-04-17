@@ -697,12 +697,8 @@ static int intel_overlay_do_put_image(struct intel_overlay *overlay,
 	struct drm_device *dev = overlay->dev;
 	u32 swidth, swidthsw, sheight, ostride;
 
-#ifdef FREEBSD_NOTYET
 	BUG_ON(!mutex_is_locked(&dev->struct_mutex));
-#else
-	DRM_LOCK_ASSERT(dev);
 	BUG_ON(!mutex_is_locked(&dev->mode_config.mutex));
-#endif
 	BUG_ON(!overlay);
 
 	ret = intel_overlay_release_old_vid(overlay);
@@ -806,12 +802,8 @@ int intel_overlay_switch_off(struct intel_overlay *overlay)
 	struct drm_device *dev = overlay->dev;
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	BUG_ON(!mutex_is_locked(&dev->struct_mutex));
-#else
-	DRM_LOCK_ASSERT(dev);
 	BUG_ON(!mutex_is_locked(&dev->mode_config.mutex));
-#endif
 
 	ret = intel_overlay_recover_from_interrupt(overlay);
 	if (ret != 0)

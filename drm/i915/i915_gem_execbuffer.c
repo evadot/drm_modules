@@ -1088,7 +1088,7 @@ i915_gem_do_execbuffer(struct drm_device *dev, void *data,
 								&objects, eb,
 								exec,
 								args->buffer_count);
-			DRM_LOCK_ASSERT(dev);
+			BUG_ON(!mutex_is_locked(&ring->dev->struct_mutex));
 		}
 		if (ret)
 			goto err;

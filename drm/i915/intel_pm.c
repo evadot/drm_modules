@@ -2308,11 +2308,7 @@ intel_alloc_context_page(struct drm_device *dev)
 	struct drm_i915_gem_object *ctx;
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	WARN_ON(!mutex_is_locked(&dev->struct_mutex));
-#else
-	DRM_LOCK_ASSERT(dev);
-#endif
 
 	ctx = i915_gem_alloc_object(dev, 4096);
 	if (!ctx) {
@@ -2864,11 +2860,7 @@ static void ironlake_enable_rc6(struct drm_device *dev)
 	if (!intel_enable_rc6(dev))
 		return;
 
-#ifdef FREEBSD_NOTYET
 	WARN_ON(!mutex_is_locked(&dev->struct_mutex));
-#else
-	DRM_LOCK_ASSERT(dev);
-#endif
 
 	ret = ironlake_setup_rc6(dev);
 	if (ret)
