@@ -9,7 +9,6 @@ devclass_t drm_devclass;
 MALLOC_DEFINE(DRM_MEM_SAREA, "drm_sarea", "DRM SAREA Data Structures");
 MALLOC_DEFINE(DRM_MEM_DRIVER, "drm_driver", "DRM DRIVER Data Structures");
 MALLOC_DEFINE(DRM_MEM_IOCTLS, "drm_ioctls", "DRM IOCTL Data Structures");
-MALLOC_DEFINE(DRM_MEM_BUFS, "drm_bufs", "DRM BUFFER Data Structures");
 MALLOC_DEFINE(DRM_MEM_FILES, "drm_files", "DRM FILE Data Structures");
 MALLOC_DEFINE(DRM_MEM_BUFLISTS, "drm_buflists", "DRM BUFLISTS Data Structures");
 MALLOC_DEFINE(DRM_MEM_CTXBITMAP, "drm_ctxbitmap",

@@ -722,17 +722,9 @@ static void drm_cleanup_buf_error(struct drm_device * dev,
 
 	if (entry->buf_count) {
 		for (i = 0; i < entry->buf_count; i++) {
-#ifdef FREEBSD_NOTYET
 			kfree(entry->buflist[i].dev_private);
-#else
-			free(entry->buflist[i].dev_private, DRM_MEM_BUFS);
-#endif
 		}
-#ifdef FREEBSD_NOTYET
 		kfree(entry->buflist);
-#else
-		free(entry->buflist, DRM_MEM_BUFS);
-#endif
 
 		entry->buf_count = 0;
 	}
@@ -829,12 +821,7 @@ int drm_addbufs_agp(struct drm_device * dev, struct drm_buf_desc * request)
 		return -EINVAL;
 	}
 
-#ifdef FREEBSD_NOTYET
 	entry->buflist = kzalloc(count * sizeof(*entry->buflist), GFP_KERNEL);
-#else
-	entry->buflist = malloc(count * sizeof(*entry->buflist), DRM_MEM_BUFS,
-	    M_NOWAIT | M_ZERO);
-#endif
 	if (!entry->buflist) {
 		mutex_unlock(&dev->struct_mutex);
 		atomic_dec(&dev->buf_alloc);
@@ -862,12 +849,7 @@ int drm_addbufs_agp(struct drm_device * dev, struct drm_buf_desc * request)
 		buf->file_priv = NULL;
 
 		buf->dev_priv_size = dev->driver->dev_priv_size;
-#ifdef FREEBSD_NOTYET
 		buf->dev_private = kzalloc(buf->dev_priv_size, GFP_KERNEL);
-#else
-		buf->dev_private = malloc(buf->dev_priv_size, DRM_MEM_BUFS,
-		    M_NOWAIT | M_ZERO);
-#endif
 		if (!buf->dev_private) {
 			/* Set count correctly so we free the proper amount. */
 			entry->buf_count = count;
@@ -886,15 +868,9 @@ int drm_addbufs_agp(struct drm_device * dev, struct drm_buf_desc * request)
 
 	DRM_DEBUG("byte_count: %d\n", byte_count);
 
-#ifdef FREEBSD_NOTYET
 	temp_buflist = krealloc(dma->buflist,
 				(dma->buf_count + entry->buf_count) *
 				sizeof(*dma->buflist), GFP_KERNEL);
-#else
-	temp_buflist = realloc(dma->buflist,
-	    (dma->buf_count + entry->buf_count) * sizeof(*dma->buflist),
-	    DRM_MEM_BUFS, M_NOWAIT);
-#endif
 	if (!temp_buflist) {
 		/* Free the entry because it isn't valid */
 		drm_cleanup_buf_error(dev, entry);
@@ -994,12 +970,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 		return -EINVAL;
 	}
 
-#ifdef FREEBSD_NOTYET
 	entry->buflist = kzalloc(count * sizeof(*entry->buflist), GFP_KERNEL);
-#else
-	entry->buflist = malloc(count * sizeof(*entry->buflist), DRM_MEM_BUFS,
-	    M_NOWAIT | M_ZERO);
-#endif
 	if (!entry->buflist) {
 		mutex_unlock(&dev->struct_mutex);
 		atomic_dec(&dev->buf_alloc);
@@ -1008,11 +979,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 
 	entry->seglist = kzalloc(count * sizeof(*entry->seglist), GFP_KERNEL);
 	if (!entry->seglist) {
-#ifdef FREEBSD_NOTYET
 		kfree(entry->buflist);
-#else
-		free(entry->buflist, DRM_MEM_BUFS);
-#endif
 		mutex_unlock(&dev->struct_mutex);
 		atomic_dec(&dev->buf_alloc);
 		return -ENOMEM;
@@ -1024,11 +991,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 	temp_pagelist = kmalloc((dma->page_count + (count << page_order)) *
 			       sizeof(*dma->pagelist), GFP_KERNEL);
 	if (!temp_pagelist) {
-#ifdef FREEBSD_NOTYET
 		kfree(entry->buflist);
-#else
-		free(entry->buflist, DRM_MEM_BUFS);
-#endif
 		mutex_unlock(&dev->struct_mutex);
 		kfree(entry->seglist);
 		atomic_dec(&dev->buf_alloc);
@@ -1087,13 +1050,8 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 			buf->file_priv = NULL;
 
 			buf->dev_priv_size = dev->driver->dev_priv_size;
-#ifdef FREEBSD_NOTYET
 			buf->dev_private = kzalloc(buf->dev_priv_size,
 						GFP_KERNEL);
-#else
-			buf->dev_private = malloc(buf->dev_priv_size,
-			    DRM_MEM_BUFS, M_NOWAIT | M_ZERO);
-#endif
 			if (!buf->dev_private) {
 				/* Set count correctly so we free the proper amount. */
 				entry->buf_count = count;
@@ -1111,15 +1069,9 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 		byte_count += PAGE_SIZE << page_order;
 	}
 
-#ifdef FREEBSD_NOTYET
 	temp_buflist = krealloc(dma->buflist,
 				(dma->buf_count + entry->buf_count) *
 				sizeof(*dma->buflist), GFP_KERNEL);
-#else
-	temp_buflist = realloc(dma->buflist,
-	    (dma->buf_count + entry->buf_count) * sizeof(*dma->buflist),
-	    DRM_MEM_BUFS, M_NOWAIT);
-#endif
 	if (!temp_buflist) {
 		/* Free the entry because it isn't valid */
 		drm_cleanup_buf_error(dev, entry);
@@ -1232,13 +1184,8 @@ static int drm_addbufs_sg(struct drm_device * dev, struct drm_buf_desc * request
 		return -EINVAL;
 	}
 
-#ifdef FREEBSD_NOTYET
 	entry->buflist = kzalloc(count * sizeof(*entry->buflist),
 				GFP_KERNEL);
-#else
-	entry->buflist = malloc(count * sizeof(*entry->buflist), DRM_MEM_BUFS,
-	    M_NOWAIT | M_ZERO);
-#endif
 	if (!entry->buflist) {
 		mutex_unlock(&dev->struct_mutex);
 		atomic_dec(&dev->buf_alloc);
@@ -1272,12 +1219,7 @@ static int drm_addbufs_sg(struct drm_device * dev, struct drm_buf_desc * request
 		buf->file_priv = NULL;
 
 		buf->dev_priv_size = dev->driver->dev_priv_size;
-#ifdef FREEBSD_NOTYET
 		buf->dev_private = kzalloc(buf->dev_priv_size, GFP_KERNEL);
-#else
-		buf->dev_private = malloc(buf->dev_priv_size, DRM_MEM_BUFS,
-		    M_NOWAIT | M_ZERO);
-#endif
 		if (!buf->dev_private) {
 			/* Set count correctly so we free the proper amount. */
 			entry->buf_count = count;
@@ -1296,15 +1238,9 @@ static int drm_addbufs_sg(struct drm_device * dev, struct drm_buf_desc * request
 
 	DRM_DEBUG("byte_count: %d\n", byte_count);
 
-#ifdef FREEBSD_NOTYET
 	temp_buflist = krealloc(dma->buflist,
 				(dma->buf_count + entry->buf_count) *
 				sizeof(*dma->buflist), GFP_KERNEL);
-#else
-	temp_buflist = realloc(dma->buflist,
-	    (dma->buf_count + entry->buf_count) * sizeof(*dma->buflist),
-	    DRM_MEM_BUFS, M_NOWAIT);
-#endif
 	if (!temp_buflist) {
 		/* Free the entry because it isn't valid */
 		drm_cleanup_buf_error(dev, entry);
@@ -1408,13 +1344,8 @@ static int drm_addbufs_fb(struct drm_device * dev, struct drm_buf_desc * request
 		return -EINVAL;
 	}
 
-#ifdef FREEBSD_NOTYET
 	entry->buflist = kzalloc(count * sizeof(*entry->buflist),
 				GFP_KERNEL);
-#else
-	entry->buflist = malloc(count * sizeof(*entry->buflist), DRM_MEM_BUFS,
-	    M_NOWAIT | M_ZERO);
-#endif
 	if (!entry->buflist) {
 		mutex_unlock(&dev->struct_mutex);
 		atomic_dec(&dev->buf_alloc);
@@ -1442,12 +1373,7 @@ static int drm_addbufs_fb(struct drm_device * dev, struct drm_buf_desc * request
 		buf->file_priv = NULL;
 
 		buf->dev_priv_size = dev->driver->dev_priv_size;
-#ifdef FREEBSD_NOTYET
 		buf->dev_private = kzalloc(buf->dev_priv_size, GFP_KERNEL);
-#else
-		buf->dev_private = malloc(buf->dev_priv_size, DRM_MEM_BUFS,
-		    M_NOWAIT | M_ZERO);
-#endif
 		if (!buf->dev_private) {
 			/* Set count correctly so we free the proper amount. */
 			entry->buf_count = count;
@@ -1466,15 +1392,9 @@ static int drm_addbufs_fb(struct drm_device * dev, struct drm_buf_desc * request
 
 	DRM_DEBUG("byte_count: %d\n", byte_count);
 
-#ifdef FREEBSD_NOTYET
 	temp_buflist = krealloc(dma->buflist,
 				(dma->buf_count + entry->buf_count) *
 				sizeof(*dma->buflist), GFP_KERNEL);
-#else
-	temp_buflist = realloc(dma->buflist,
-	    (dma->buf_count + entry->buf_count) * sizeof(*dma->buflist),
-	    DRM_MEM_BUFS, M_NOWAIT);
-#endif
 	if (!temp_buflist) {
 		/* Free the entry because it isn't valid */
 		drm_cleanup_buf_error(dev, entry);

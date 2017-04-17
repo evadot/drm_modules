@@ -93,26 +93,13 @@ void drm_dma_takedown(struct drm_device *dev)
 		}
 		if (dma->bufs[i].buf_count) {
 			for (j = 0; j < dma->bufs[i].buf_count; j++) {
-#ifdef FREEBSD_NOTYET
 				kfree(dma->bufs[i].buflist[j].dev_private);
-#else
-				free(dma->bufs[i].buflist[j].dev_private,
-				    DRM_MEM_BUFS);
-#endif
 			}
-#ifdef FREEBSD_NOTYET
 			kfree(dma->bufs[i].buflist);
-#else
-			free(dma->bufs[i].buflist, DRM_MEM_BUFS);
-#endif
 		}
 	}
 
-#ifdef FREEBSD_NOTYET
 	kfree(dma->buflist);
-#else
-	free(dma->buflist, DRM_MEM_BUFS);
-#endif
 	kfree(dma->pagelist);
 	kfree(dev->dma);
 	dev->dma = NULL;
