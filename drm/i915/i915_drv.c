@@ -604,8 +604,8 @@ int i915_suspend(struct drm_device *dev, pm_message_t state)
 void intel_console_resume(struct work_struct *work)
 {
 	struct drm_i915_private *dev_priv =
-                container_of(work, struct drm_i915_private,
-                             console_resume_work);
+		container_of(work, struct drm_i915_private,
+			     console_resume_work);
 	struct drm_device *dev = dev_priv->dev;
 
 	console_lock();
