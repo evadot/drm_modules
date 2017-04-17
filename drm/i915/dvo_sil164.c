@@ -136,7 +136,11 @@ static bool sil164_init(struct intel_dvo_device *dvo,
 	struct sil164_priv *sil;
 	unsigned char ch;
 
+#ifdef FREEBSD_NOTYET
+	sil = kzalloc(sizeof(struct sil164_priv), GFP_KERNEL);
+#else
 	sil = malloc(sizeof(struct sil164_priv), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
+#endif
 	if (sil == NULL)
 		return false;
 
@@ -167,7 +171,11 @@ static bool sil164_init(struct intel_dvo_device *dvo,
 	return true;
 
 out:
+#ifdef FREEBSD_NOTYET
+	kfree(sil);
+#else
 	free(sil, DRM_MEM_KMS);
+#endif
 	return false;
 }
 
@@ -262,7 +270,11 @@ static void sil164_destroy(struct intel_dvo_device *dvo)
 	struct sil164_priv *sil = dvo->dev_priv;
 
 	if (sil) {
+#ifdef FREEBSD_NOTYET
+		kfree(sil);
+#else
 		free(sil, DRM_MEM_KMS);
+#endif
 		dvo->dev_priv = NULL;
 	}
 }
