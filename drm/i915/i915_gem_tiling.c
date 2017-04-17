@@ -461,13 +461,19 @@ static void
 i915_gem_swizzle_page(vm_page_t page)
 {
 	char temp[64];
+#ifdef __FreeBSD__
 	struct sf_buf *sf;
+#endif
 	char *vaddr;
 	int i;
 
+#ifdef __linux__
+	vaddr = kmap(page);
+#elif __FreeBSD__
 	/* XXXKIB sleep */
 	sf = sf_buf_alloc(page, SFB_DEFAULT);
 	vaddr = (char *)sf_buf_kva(sf);
+#endif
 
 	for (i = 0; i < PAGE_SIZE; i += 128) {
 		memcpy(temp, &vaddr[i], 64);
@@ -475,7 +481,11 @@ i915_gem_swizzle_page(vm_page_t page)
 		memcpy(&vaddr[i + 64], temp, 64);
 	}
 
+#ifdef __linux__
+	kunmap(page);
+#elif __FreeBSD__
 	sf_buf_free(sf);
+#endif
 }
 
 void
@@ -522,8 +532,13 @@ i915_gem_object_save_bit_17_swizzle(struct drm_i915_gem_object *obj)
 	int i;
 
 	if (obj->bit_17 == NULL) {
+#ifdef FREEBSD_NOTYET
+		obj->bit_17 = kmalloc(BITS_TO_LONGS(page_count) *
+					   sizeof(long), GFP_KERNEL);
+#else
 		obj->bit_17 = malloc(BITS_TO_LONGS(page_count) *
 					   sizeof(long), DRM_I915_GEM, M_WAITOK);
+#endif
 		if (obj->bit_17 == NULL) {
 			DRM_ERROR("Failed to allocate memory for bit 17 "
 				  "record\n");
