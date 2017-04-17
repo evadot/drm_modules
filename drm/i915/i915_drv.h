@@ -30,11 +30,22 @@
 #ifndef _I915_DRV_H_
 #define _I915_DRV_H_
 
+#ifdef __FreeBSD__
 #include <dev/agp/agp_i810.h>
 #include <drm/drm_mm.h>
+#endif
 #include "i915_reg.h"
-#include "intel_ringbuffer.h"
 #include "intel_bios.h"
+#include "intel_ringbuffer.h"
+#ifdef __linux__
+#include <linux/io-mapping.h>
+#include <linux/i2c.h>
+#include <linux/i2c-algo-bit.h>
+#include <drm/intel-gtt.h>
+#include <linux/backlight.h>
+#include <linux/intel-iommu.h>
+#include <linux/kref.h>
+#endif
 
 /* General customization:
  */
@@ -45,7 +56,9 @@
 #define DRIVER_DESC		"Intel Graphics"
 #define DRIVER_DATE		"20080730"
 
+#ifdef __FreeBSD__
 MALLOC_DECLARE(DRM_I915_GEM);
+#endif
 
 enum pipe {
 	PIPE_A = 0,
@@ -179,7 +192,11 @@ struct sdvo_device_mapping {
 struct intel_display_error_state;
 
 struct drm_i915_error_state {
+#ifdef FREEBSD_NOTYET
+	struct kref ref;
+#else
 	u_int ref;
+#endif
 	u32 eir;
 	u32 pgtbl_er;
 	u32 ier;
@@ -346,10 +363,19 @@ struct intel_device_info {
 struct i915_hw_ppgtt {
 	struct drm_device *dev;
 	unsigned num_pd_entries;
+#ifdef __linux__
+	struct page **pt_pages;
+#elif __FreeBSD__
 	vm_page_t *pt_pages;
+#endif
 	uint32_t pd_offset;
+#ifdef __linux__
+	dma_addr_t *pt_dma_addr;
+	dma_addr_t scratch_page_dma_addr;
+#elif __FreeBSD__
 	vm_paddr_t *pt_dma_addr;
 	vm_paddr_t scratch_page_dma_addr;
+#endif
 };
 
 
@@ -557,11 +583,19 @@ struct i915_suspend_saved_registers {
 };
 
 struct intel_gen6_power_mgmt {
+#ifdef FREBSD_NOTYET
+	struct work_struct work;
+#else
 	struct task work;
+#endif
 	u32 pm_iir;
 	/* lock - irqsave spinlock that protectects the work_struct and
 	 * pm_iir. */
+#ifdef FREEBSD_NOTYET
+	spinlock_t lock;
+#else
 	struct mtx lock;
+#endif
 
 	/* The below variables an all the rps hw state are protected by
 	 * dev->struct mutext. */
@@ -569,13 +603,21 @@ struct intel_gen6_power_mgmt {
 	u8 min_delay;
 	u8 max_delay;
 
+#ifdef FREEBSD_NOTYET
+	struct delayed_work delayed_resume_work;
+#else
 	struct timeout_task delayed_resume_work;
+#endif
 
 	/*
 	 * Protects RPS/RC6 register access and PCU communication.
 	 * Must be taken after struct_mutex if nested.
 	 */
+#ifdef FREEBSD_NOTYET
+	struct mutex hw_lock;
+#else
 	struct sx hw_lock;
+#endif
 };
 
 struct intel_ilk_power_mgmt {
@@ -615,7 +657,11 @@ struct i915_dri1_state {
 
 struct intel_l3_parity {
 	u32 *remap_info;
+#ifdef FREEBSD_NOTYET
+	struct work_struct error_work;
+#else
 	struct task error_work;
+#endif
 };
 
 typedef struct drm_i915_private {
@@ -635,13 +681,21 @@ typedef struct drm_i915_private {
 	/** forcewake_count is protected by gt_lock */
 	unsigned forcewake_count;
 	/** gt_lock is also taken in irq contexts. */
+#ifdef FREEBSD_NOTYET
+	struct spinlock gt_lock;
+#else
 	struct mtx gt_lock;
+#endif
 
 	struct intel_gmbus gmbus[GMBUS_NUM_PORTS];
 
 	/** gmbus_mutex protects against concurrent usage of the single hw gmbus
 	 * controller on different i2c buses. */
+#ifdef FREEBSD_NOTYET
+	struct mutex gmbus_mutex;
+#else
 	struct sx gmbus_mutex;
+#endif
 
 	/**
 	 * Base address of the gmbus and gpio block.
@@ -659,10 +713,18 @@ typedef struct drm_i915_private {
 	atomic_t irq_received;
 
 	/* protects the irq masks */
+#ifdef FREEBSD_NOTYET
+	spinlock_t irq_lock;
+#else
 	struct mtx irq_lock;
+#endif
 
 	/* DPIO indirect register protection */
+#ifdef FREEBSD_NOTYET
+	spinlock_t dpio_lock;
+#else
 	struct sx dpio_lock;
+#endif
 
 	/** Cached value of IMR to avoid reads in updating the bitfield */
 	u32 pipestat[2];
@@ -671,7 +733,11 @@ typedef struct drm_i915_private {
 	u32 pch_irq_mask;
 
 	u32 hotplug_supported_mask;
+#ifdef FREEBSD_NOTYET
+	struct work_struct hotplug_work;
+#else
 	struct task hotplug_work;
+#endif
 
 	int num_pipe;
 	int num_pch_pll;
@@ -679,7 +745,11 @@ typedef struct drm_i915_private {
 	/* For hangcheck timer */
 #define DRM_I915_HANGCHECK_PERIOD 1500 /* in ms */
 #define DRM_I915_HANGCHECK_JIFFIES msecs_to_jiffies(DRM_I915_HANGCHECK_PERIOD)
+#ifdef FREEBSD_NOTYET
+	struct timer_list hangcheck_timer;
+#else
 	struct callout hangcheck_timer;
+#endif
 	int hangcheck_count;
 	uint32_t last_acthd[I915_NUM_RINGS];
 	uint32_t prev_instdone[I915_NUM_INSTDONE_REG];
@@ -735,12 +805,24 @@ typedef struct drm_i915_private {
 
 	unsigned int fsb_freq, mem_freq, is_ddr3;
 
+#ifdef FREEBSD_NOTYET
+	spinlock_t error_lock;
+#else
 	struct mtx error_lock;
+#endif
 	/* Protected by dev->error_lock. */
 	struct drm_i915_error_state *first_error;
+#ifdef FREEBSD_NOTYET
+	struct work_struct error_work;
+#else
 	struct task error_work;
+#endif
 	struct completion error_completion;
+#ifdef FREEBSD_NOTYET
+	struct workqueue_struct *wq;
+#else
 	struct taskqueue *wq;
+#endif
 
 	/* Display functions */
 	struct drm_i915_display_funcs display;
@@ -779,14 +861,20 @@ typedef struct drm_i915_private {
 
 #ifdef __linux__
 		struct io_mapping *gtt_mapping;
-#endif
+		phys_addr_t gtt_base_addr;
+#elif __FreeBSD__
 		vm_paddr_t gtt_base_addr;
+#endif
 		int gtt_mtrr;
 
 		/** PPGTT used for aliasing the PPGTT with the GTT */
 		struct i915_hw_ppgtt *aliasing_ppgtt;
 
+#ifdef FREEBSD_NOTYET
+		struct shrinker inactive_shrinker;
+#else
 		eventhandler_tag inactive_shrinker;
+#endif
 		bool shrinker_no_lock_stealing;
 
 		/**
@@ -913,7 +1001,11 @@ typedef struct drm_i915_private {
 	 * The console may be contended at resume, but we don't
 	 * want it to block on it.
 	 */
+#ifdef FREEBSD_NOTYET
+	struct work_struct console_resume_work;
+#else
 	struct task console_resume_work;
+#endif
 
 	struct backlight_device *backlight;
 
@@ -1060,7 +1152,11 @@ struct drm_i915_gem_object {
 	unsigned int has_global_gtt_mapping:1;
 	unsigned int has_dma_mapping:1;
 
+#ifdef __linux__
+	struct sg_table *pages;
+#elif __FreeBSD__
 	vm_page_t *pages;
+#endif
 	int pages_pin_count;
 
 	/**
@@ -1142,10 +1238,18 @@ struct drm_i915_gem_request {
 
 struct drm_i915_file_private {
 	struct {
+#ifdef FREEBSD_NOTYET
+		struct spinlock lock;
+#else
 		struct mtx lock;
+#endif
 		struct list_head request_list;
 	} mm;
+#ifdef FREEBSD_NOTYET
+	struct idr context_idr;
+#else
 	struct drm_gem_names context_idr;
+#endif
 };
 
 #define INTEL_INFO(dev)	(((struct drm_i915_private *) (dev)->dev_private)->info)
