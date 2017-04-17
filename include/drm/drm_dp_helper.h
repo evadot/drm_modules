@@ -23,8 +23,8 @@
 #ifndef _DRM_DP_HELPER_H_
 #define _DRM_DP_HELPER_H_
 
-#ifdef __linux__
 #include <linux/types.h>
+#ifdef __linux__
 #include <linux/i2c.h>
 #include <linux/delay.h>
 #endif
@@ -314,6 +314,14 @@
 #define MODE_I2C_READ	4
 #define MODE_I2C_STOP	8
 
+/**
+ * struct i2c_algo_dp_aux_data - driver interface structure for i2c over dp
+ * 				 aux algorithm
+ * @running: set by the algo indicating whether an i2c is ongoing or whether
+ * 	     the i2c bus is quiescent
+ * @address: i2c target address for the currently ongoing transfer
+ * @aux_ch: driver callback to transfer a single byte of the i2c payload
+ */
 struct iic_dp_aux_data {
 	bool running;
 	u16 address;
@@ -323,9 +331,14 @@ struct iic_dp_aux_data {
 	device_t port;
 };
 
+#ifdef __linux__
+int
+i2c_dp_aux_add_bus(struct i2c_adapter *adapter);
+#elif __FreeBSD__
 int iic_dp_aux_add_bus(device_t dev, const char *name,
     int (*ch)(device_t idev, int mode, uint8_t write_byte, uint8_t *read_byte),
     void *priv, device_t *bus, device_t *adapter);
+#endif
 
 
 #define DP_LINK_STATUS_SIZE	   6

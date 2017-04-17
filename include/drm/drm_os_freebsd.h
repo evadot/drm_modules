@@ -491,4 +491,131 @@ do {									\
 		printf("NOTYET: %s at %s:%d\n", __func__, __FILE__, __LINE__); \
 } while (0)
 
+#define	DRM_GEM_MAPPING_MASK	(3ULL << 62)
+#define	DRM_GEM_MAPPING_KEY	(2ULL << 62) /* Non-canonical address form */
+#define	DRM_GEM_MAX_IDX		0x3fffff
+#define	DRM_GEM_MAPPING_IDX(o)	(((o) >> 40) & DRM_GEM_MAX_IDX)
+#define	DRM_GEM_MAPPING_OFF(i)	(((uint64_t)(i)) << 40)
+#define	DRM_GEM_MAPPING_MAPOFF(o) \
+    ((o) & ~(DRM_GEM_MAPPING_OFF(DRM_GEM_MAX_IDX) | DRM_GEM_MAPPING_KEY))
+
+SYSCTL_DECL(_hw_drm);
+
+#define DRM_DEV_MODE	(S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP)
+#define DRM_DEV_UID	UID_ROOT
+#define DRM_DEV_GID	GID_VIDEO
+
+#define DRM_WAKEUP(w)		wakeup((void *)w)
+#define DRM_WAKEUP_INT(w)	wakeup(w)
+#define DRM_INIT_WAITQUEUE(queue) do {(void)(queue);} while (0)
+
+#define DRM_CURPROC		curthread
+#define DRM_STRUCTPROC		struct thread
+
+#define DRM_SYSCTL_HANDLER_ARGS	(SYSCTL_HANDLER_ARGS)
+
+enum {
+	DRM_IS_NOT_AGP,
+	DRM_IS_AGP,
+	DRM_MIGHT_BE_AGP
+};
+
+#define DRM_VERIFYAREA_READ( uaddr, size )		\
+	(!useracc(__DECONST(caddr_t, uaddr), size, VM_PROT_READ))
+
+#define DRM_COPY_TO_USER(user, kern, size) \
+	copyout(kern, user, size)
+#define DRM_COPY_FROM_USER(kern, user, size) \
+	copyin(user, kern, size)
+#define DRM_COPY_FROM_USER_UNCHECKED(arg1, arg2, arg3) 	\
+	copyin(arg2, arg1, arg3)
+#define DRM_COPY_TO_USER_UNCHECKED(arg1, arg2, arg3)	\
+	copyout(arg2, arg1, arg3)
+#define DRM_GET_USER_UNCHECKED(val, uaddr)		\
+	((val) = fuword32(uaddr), 0)
+
+#define DRM_GET_PRIV_SAREA(_dev, _ctx, _map) do {	\
+	(_map) = (_dev)->context_sareas[_ctx];		\
+} while(0)
+
+/* Returns -errno to shared code */
+#define DRM_WAIT_ON( ret, queue, timeout, condition )		\
+for ( ret = 0 ; !ret && !(condition) ; ) {			\
+	mutex_unlock(&dev->struct_mutex);			\
+	mtx_lock(&dev->irq_lock);				\
+	if (!(condition))					\
+	    ret = -mtx_sleep(&(queue), &dev->irq_lock, 		\
+		PCATCH, "drmwtq", (timeout));			\
+	    if (ret == -ERESTART)				\
+	        ret = -ERESTARTSYS;				\
+	mtx_unlock(&dev->irq_lock);				\
+	mutex_lock(&dev->struct_mutex);				\
+}
+
+#define	dev_err(dev, fmt, ...)						\
+	device_printf((dev), "error: " fmt, ## __VA_ARGS__)
+#define	dev_warn(dev, fmt, ...)						\
+	device_printf((dev), "warning: " fmt, ## __VA_ARGS__)
+#define	dev_info(dev, fmt, ...)						\
+	device_printf((dev), "info: " fmt, ## __VA_ARGS__)
+#define	dev_dbg(dev, fmt, ...) do {					\
+	if ((drm_debug& DRM_DEBUGBITS_KMS) != 0) {			\
+		device_printf((dev), "debug: " fmt, ## __VA_ARGS__);	\
+	}								\
+} while (0)
+
+struct drm_vblank_info {
+	wait_queue_head_t queue;	/* vblank wait queue */
+	atomic_t count;			/* number of VBLANK interrupts */
+					/* (driver must alloc the right number of counters) */
+	atomic_t refcount;		/* number of users of vblank interrupts */
+	u32 last;			/* protected by dev->vbl_lock, used */
+					/* for wraparound handling */
+	int enabled;			/* so we don't call enable more than */
+					/* once per disable */
+	int inmodeset;			/* Display driver is setting mode */
+};
+
+#ifndef DMA_BIT_MASK
+#define DMA_BIT_MASK(n) (((n) == 64) ? ~0ULL : (1ULL<<(n)) - 1)
+#endif
+
+#define upper_32_bits(n) ((u32)(((n) >> 16) >> 16))
+
+enum dmi_field {
+        DMI_NONE,
+        DMI_BIOS_VENDOR,
+        DMI_BIOS_VERSION,
+        DMI_BIOS_DATE,
+        DMI_SYS_VENDOR,
+        DMI_PRODUCT_NAME,
+        DMI_PRODUCT_VERSION,
+        DMI_PRODUCT_SERIAL,
+        DMI_PRODUCT_UUID,
+        DMI_BOARD_VENDOR,
+        DMI_BOARD_NAME,
+        DMI_BOARD_VERSION,
+        DMI_BOARD_SERIAL,
+        DMI_BOARD_ASSET_TAG,
+        DMI_CHASSIS_VENDOR,
+        DMI_CHASSIS_TYPE,
+        DMI_CHASSIS_VERSION,
+        DMI_CHASSIS_SERIAL,
+        DMI_CHASSIS_ASSET_TAG,
+        DMI_STRING_MAX,
+};
+
+struct dmi_strmatch {
+	unsigned char slot;
+	char substr[79];
+};
+
+struct dmi_system_id {
+        int (*callback)(const struct dmi_system_id *);
+        const char *ident;
+        struct dmi_strmatch matches[4];
+};
+#define	DMI_MATCH(a, b) {(a), (b)}
+bool dmi_check_system(const struct dmi_system_id *);
+
 #endif /* _DRM_OS_FREEBSD_H_ */

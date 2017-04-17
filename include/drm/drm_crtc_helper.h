@@ -33,10 +33,9 @@
 #ifndef __DRM_CRTC_HELPER_H__
 #define __DRM_CRTC_HELPER_H__
 
-#ifdef __linux__
-
 #include <linux/spinlock.h>
 #include <linux/types.h>
+#ifdef __linux__
 #include <linux/idr.h>
 
 #include <linux/fb.h>

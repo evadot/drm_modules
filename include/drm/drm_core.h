@@ -20,7 +20,6 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
-
 #define CORE_AUTHOR		"Gareth Hughes, Leif Delgass, José Fonseca, Jon Smirl"
 
 #define CORE_NAME		"drm"
