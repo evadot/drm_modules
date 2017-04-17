@@ -673,11 +673,7 @@ typedef struct drm_i915_private {
 	/** forcewake_count is protected by gt_lock */
 	unsigned forcewake_count;
 	/** gt_lock is also taken in irq contexts. */
-#ifdef FREEBSD_NOTYET
-	struct spinlock gt_lock;
-#else
-	struct mtx gt_lock;
-#endif
+	spinlock_t gt_lock;
 
 	struct intel_gmbus gmbus[GMBUS_NUM_PORTS];
 

@@ -4527,22 +4527,12 @@ static void __gen6_gt_force_wake_mt_get(struct drm_i915_private *dev_priv)
  */
 void gen6_gt_force_wake_get(struct drm_i915_private *dev_priv)
 {
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->gt_lock, irqflags);
-#else
-	mtx_lock(&dev_priv->gt_lock);
-#endif
 	if (dev_priv->forcewake_count++ == 0)
 		dev_priv->gt.force_wake_get(dev_priv);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->gt_lock, irqflags);
-#else
-	mtx_unlock(&dev_priv->gt_lock);
-#endif
 }
 
 void gen6_gt_check_fifodbg(struct drm_i915_private *dev_priv)
@@ -4575,22 +4565,12 @@ static void __gen6_gt_force_wake_mt_put(struct drm_i915_private *dev_priv)
  */
 void gen6_gt_force_wake_put(struct drm_i915_private *dev_priv)
 {
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev_priv->gt_lock, irqflags);
-#else
-	mtx_lock(&dev_priv->gt_lock);
-#endif
 	if (--dev_priv->forcewake_count == 0)
 		dev_priv->gt.force_wake_put(dev_priv);
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev_priv->gt_lock, irqflags);
-#else
-	mtx_unlock(&dev_priv->gt_lock);
-#endif
 }
 
 int __gen6_gt_wait_for_fifo(struct drm_i915_private *dev_priv)
@@ -4660,11 +4640,7 @@ void intel_gt_init(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_init(&dev_priv->gt_lock);
-#else
-	mtx_init(&dev_priv->gt_lock, "i915_gt_lock", NULL, MTX_DEF);
-#endif
 
 	intel_gt_reset(dev);
 

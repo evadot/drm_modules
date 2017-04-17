@@ -987,9 +987,9 @@ static int gen6_drpc_info(struct drm_device *dev, struct sbuf *m)
 	if (mutex_lock_interruptible(&dev->struct_mutex))
 		return -EINTR;
 
-	mtx_lock(&dev_priv->gt_lock);
+	spin_lock(&dev_priv->gt_lock);
 	forcewake_count = dev_priv->forcewake_count;
-	mtx_unlock(&dev_priv->gt_lock);
+	spin_unlock(&dev_priv->gt_lock);
 
 	if (forcewake_count) {
 		seq_printf(m, "RC information inaccurate because somebody "
@@ -1305,9 +1305,9 @@ static int i915_gen6_forcewake_count_info(struct drm_device *dev, struct sbuf *m
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	unsigned forcewake_count;
 
-	mtx_lock(&dev_priv->gt_lock);
+	spin_lock(&dev_priv->gt_lock);
 	forcewake_count = dev_priv->forcewake_count;
-	mtx_unlock(&dev_priv->gt_lock);
+	spin_unlock(&dev_priv->gt_lock);
 
 	seq_printf(m, "forcewake count = %u\n", forcewake_count);
 
