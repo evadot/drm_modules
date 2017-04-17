@@ -255,11 +255,7 @@ struct drm_framebuffer {
 	 * hold a ref to the fb even though it has already been removed from
 	 * userspace perspective.
 	 */
-#ifdef FREEBSD_NOTYET
 	struct kref refcount;
-#else
-	unsigned int refcount;
-#endif
 	struct list_head head;
 	struct drm_mode_object base;
 	const struct drm_framebuffer_funcs *funcs;

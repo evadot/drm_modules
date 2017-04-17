@@ -314,11 +314,7 @@ int drm_framebuffer_init(struct drm_device *dev, struct drm_framebuffer *fb,
 {
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	kref_init(&fb->refcount);
-#else
-	refcount_init(&fb->refcount, 1);
-#endif
 
 	ret = drm_mode_object_get(dev, &fb->base, DRM_MODE_OBJECT_FB);
 	if (ret)
@@ -333,15 +329,10 @@ int drm_framebuffer_init(struct drm_device *dev, struct drm_framebuffer *fb,
 }
 EXPORT_SYMBOL(drm_framebuffer_init);
 
-#ifdef __linux__
 static void drm_framebuffer_free(struct kref *kref)
 {
 	struct drm_framebuffer *fb =
 			container_of(kref, struct drm_framebuffer, refcount);
-#elif __FreeBSD__
-static void drm_framebuffer_free(struct drm_framebuffer *fb)
-{
-#endif
 	fb->funcs->destroy(fb);
 }
 
@@ -356,12 +347,7 @@ void drm_framebuffer_unreference(struct drm_framebuffer *fb)
 	struct drm_device *dev = fb->dev;
 	DRM_DEBUG("FB ID: %d\n", fb->base.id);
 	WARN_ON(!mutex_is_locked(&dev->mode_config.mutex));
-#ifdef FREEBSD_NOTYET
 	kref_put(&fb->refcount, drm_framebuffer_free);
-#else
-	if (refcount_release(&fb->refcount))
-		drm_framebuffer_free(fb);
-#endif
 }
 EXPORT_SYMBOL(drm_framebuffer_unreference);
 
@@ -371,11 +357,7 @@ EXPORT_SYMBOL(drm_framebuffer_unreference);
 void drm_framebuffer_reference(struct drm_framebuffer *fb)
 {
 	DRM_DEBUG("FB ID: %d\n", fb->base.id);
-#ifdef FREEBSD_NOTYET
 	kref_get(&fb->refcount);
-#else
-	refcount_acquire(&fb->refcount);
-#endif
 }
 EXPORT_SYMBOL(drm_framebuffer_reference);
 
