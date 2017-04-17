@@ -150,6 +150,7 @@
 #include <linux/kref.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
+#include <linux/workqueue.h>
 #include <asm/atomic.h>
 
 #include <drm/drm.h>

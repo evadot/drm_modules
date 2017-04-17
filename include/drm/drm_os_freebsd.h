@@ -262,7 +262,6 @@ capable(enum __drm_capabilities cap)
 #define	sigaddset(set, sig)	SIGADDSET(set, sig)
 
 extern unsigned long drm_linux_timer_hz_mask;
-#define	round_jiffies(j)	((unsigned long)(((j) + drm_linux_timer_hz_mask) & ~drm_linux_timer_hz_mask))
 #define	round_jiffies_up(j)		round_jiffies(j) /* TODO */
 #define	round_jiffies_up_relative(j)	round_jiffies_up(j) /* TODO */
 
