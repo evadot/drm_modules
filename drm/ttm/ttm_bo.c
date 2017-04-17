@@ -1525,7 +1525,7 @@ retry:
 out_no_shrink:
 	vm_page_free(glob->dummy_read_page);
 out_no_drp:
-	free(glob, M_DRM_GLOBAL);
+	kfree(glob);
 	return ret;
 }
 
