@@ -44,6 +44,10 @@
 
 static unsigned long i915_stolen_to_physical(struct drm_device *dev)
 {
+#ifdef __linux
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct pci_dev *pdev = dev_priv->bridge_dev;
+#endif
 	u32 base;
 
 	/* On the machines I have tested the Graphics Base of Stolen Memory
@@ -65,11 +69,19 @@ static unsigned long i915_stolen_to_physical(struct drm_device *dev)
 		 * Note that there is also a MCHBAR miror at 0x1080c0 or
 		 * we could use device 2:0x5c instead.
 		*/
+#ifdef __linux__
+		pci_read_config_dword(pdev, 0xB0, &base);
+#elif __FreeBSD__
 		pci_read_config_dword(dev->dev, 0xB0, &base);
+#endif
 		base &= ~4095; /* lower bits used for locking register */
 	} else if (INTEL_INFO(dev)->gen > 3 || IS_G33(dev)) {
 		/* Read Graphics Base of Stolen Memory directly */
+#ifdef __linux__
+		pci_read_config_dword(pdev, 0xA4, &base);
+#elif __FreeBSD__
 		pci_read_config_dword(dev->dev, 0xA4, &base);
+#endif
 #if 0
 	} else if (IS_GEN3(dev)) {
 		u8 val;
