@@ -276,9 +276,13 @@ extern unsigned long drm_linux_timer_hz_mask;
 #define	wake_up_all(queue)			wakeup((void *)queue)
 #define	wake_up_interruptible_all(queue)	wakeup((void *)queue)
 
+struct _completion_wait {
+	spinlock_t lock;
+};
+
 struct completion {
 	unsigned int done;
-	struct mtx lock;
+	struct _completion_wait wait;
 };
 
 #define	INIT_COMPLETION(c) ((c).done = 0);
@@ -287,7 +291,7 @@ static inline void
 init_completion(struct completion *c)
 {
 
-	mtx_init(&c->lock, "drmcompl", NULL, MTX_DEF);
+	spin_lock_init(&c->wait.lock);
 	c->done = 0;
 }
 
@@ -295,16 +299,16 @@ static inline void
 free_completion(struct completion *c)
 {
 
-	mtx_destroy(&c->lock);
+	spin_lock_destroy(&c->wait.lock);
 }
 
 static inline void
 complete_all(struct completion *c)
 {
 
-	mtx_lock(&c->lock);
+	spin_lock(&c->wait.lock);
 	c->done++;
-	mtx_unlock(&c->lock);
+	spin_unlock(&c->wait.lock);
 	wakeup(c);
 }
 
@@ -318,9 +322,9 @@ wait_for_completion_interruptible_timeout(struct completion *c,
 
 	start_jiffies = ticks;
 
-	mtx_lock(&c->lock);
+	spin_lock(&c->wait.lock);
 	while (c->done == 0 && !timeout_expired) {
-		ret = -msleep(c, &c->lock, PCATCH, "drmwco", timeout);
+		ret = -msleep(c, &c->wait.lock.m, PCATCH, "drmwco", timeout);
 		switch(ret) {
 		case -EWOULDBLOCK:
 			timeout_expired = true;
@@ -335,7 +339,7 @@ wait_for_completion_interruptible_timeout(struct completion *c,
 			break;
 		}
 	}
-	mtx_unlock(&c->lock);
+	spin_unlock(&c->wait.lock);
 
 	if (awakened) {
 		elapsed_jiffies = ticks - start_jiffies;

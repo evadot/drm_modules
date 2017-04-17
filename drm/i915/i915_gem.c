@@ -139,9 +139,7 @@ i915_gem_wait_for_error(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct completion *x = &dev_priv->error_completion;
-#ifdef FREEBSD_NOTYET
 	unsigned long flags;
-#endif
 	int ret;
 
 	if (!atomic_read(&dev_priv->mm.wedged))
@@ -166,17 +164,9 @@ i915_gem_wait_for_error(struct drm_device *dev)
 		 * end up waiting upon a subsequent completion event that
 		 * will never happen.
 		 */
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&x->wait.lock, flags);
-#else
-		mtx_lock(&x->lock);
-#endif
 		x->done++;
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&x->wait.lock, flags);
-#else
-		mtx_unlock(&x->lock);
-#endif
 	}
 	return 0;
 }
@@ -1096,22 +1086,12 @@ i915_gem_check_wedge(struct drm_i915_private *dev_priv,
 	if (atomic_read(&dev_priv->mm.wedged)) {
 		struct completion *x = &dev_priv->error_completion;
 		bool recovery_complete;
-#ifdef FREEBSD_NOTYET
 		unsigned long flags;
-#endif
 
 		/* Give the error handler a chance to run. */
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&x->wait.lock, flags);
-#else
-		mtx_lock(&x->lock);
-#endif
 		recovery_complete = x->done > 0;
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&x->wait.lock, flags);
-#else
-		mtx_unlock(&x->lock);
-#endif
 
 		/* Non-interruptible callers can't handle -EAGAIN, hence return
 		 * -EIO unconditionally for these. */
