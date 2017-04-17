@@ -218,6 +218,11 @@ bool drm_edid_block_valid(u8 *raw_edid, int block, bool print_bad_edid)
 
 bad:
 	if (raw_edid && print_bad_edid) {
+#ifdef FREEBSD_NOTYET
+		printk(KERN_ERR "Raw EDID:\n");
+		print_hex_dump(KERN_ERR, " \t", DUMP_PREFIX_NONE, 16, 1,
+			       raw_edid, EDID_LENGTH, false);
+#else
 		DRM_DEBUG_KMS("Raw EDID:\n");
 		for (i = 0; i < EDID_LENGTH; ) {
 			printf("%02x", raw_edid[i]);
@@ -229,6 +234,7 @@ bad:
 			else
 				printf(" ");
 		}
+#endif
 	}
 	return 0;
 }
