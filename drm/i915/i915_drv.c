@@ -1267,6 +1267,19 @@ static int __init i915_attach(device_t kdev)
 	return (-drm_attach_helper(kdev, pciidlist, &driver));
 }
 
+#ifdef __linux__
+static void __exit i915_exit(void)
+{
+	drm_pci_exit(&driver, &i915_pci_driver);
+}
+
+module_init(i915_init);
+module_exit(i915_exit);
+
+MODULE_AUTHOR(DRIVER_AUTHOR);
+MODULE_DESCRIPTION(DRIVER_DESC);
+MODULE_LICENSE("GPL and additional rights");
+#elif __FreeBSD__
 static struct fb_info *
 i915_fb_helper_getinfo(device_t kdev)
 {
@@ -1306,10 +1319,6 @@ static driver_t i915_driver = {
 	sizeof(struct drm_device)
 };
 
-MODULE_AUTHOR(DRIVER_AUTHOR);
-MODULE_DESCRIPTION(DRIVER_DESC);
-MODULE_LICENSE("GPL and additional rights");
-
 extern devclass_t drm_devclass;
 DRIVER_MODULE_ORDERED(i915kms, vgapci, i915_driver, drm_devclass, 0, 0,
     SI_ORDER_ANY);
@@ -1319,6 +1328,7 @@ MODULE_DEPEND(i915kms, iicbus, 1, 1, 1);
 MODULE_DEPEND(i915kms, iic, 1, 1, 1);
 MODULE_DEPEND(i915kms, iicbb, 1, 1, 1);
 MODULE_DEPEND(i915kms, linuxkpi, 1, 1, 1);
+#endif
 
 /* We give fast paths for the really cool registers */
 #define NEEDS_FORCE_WAKE(dev_priv, reg) \
