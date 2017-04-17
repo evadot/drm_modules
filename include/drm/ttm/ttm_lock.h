@@ -69,7 +69,12 @@
 
 struct ttm_lock {
 	struct ttm_base_object base;
+#ifdef FREEBSD_NOTYET
+	wait_queue_head_t queue;
+	spinlock_t lock;
+#else
 	struct mtx lock;
+#endif
 	int32_t rw;
 	uint32_t flags;
 	bool kill_takers;
@@ -123,6 +128,27 @@ extern int ttm_read_lock(struct ttm_lock *lock, bool interruptible);
  * -ERESTARTSYS If interrupted by a signal and interruptible is true.
  */
 extern int ttm_read_trylock(struct ttm_lock *lock, bool interruptible);
+
+/**
+ * ttm_write_unlock
+ *
+ * @lock: Pointer to a struct ttm_lock
+ *
+ * Releases a write lock.
+ */
+extern void ttm_write_unlock(struct ttm_lock *lock);
+
+/**
+ * ttm_write_lock
+ *
+ * @lock: Pointer to a struct ttm_lock
+ * @interruptible: Interruptible sleeping while waiting for a lock.
+ *
+ * Takes the lock in write mode.
+ * Returns:
+ * -ERESTARTSYS If interrupted by a signal and interruptible is true.
+ */
+extern int ttm_write_lock(struct ttm_lock *lock, bool interruptible);
 
 /**
  * ttm_lock_downgrade

@@ -68,11 +68,21 @@ struct ttm_mem_shrink {
 #define TTM_MEM_MAX_ZONES 2
 struct ttm_mem_zone;
 struct ttm_mem_global {
+#ifdef FREEBSD_NOTYET
+	struct kobject kobj;
+#else
 	u_int kobj_ref;
+#endif
 	struct ttm_mem_shrink *shrink;
+#ifdef FREEBSD_NOTYET
+	struct workqueue_struct *swap_queue;
+	struct work_struct work;
+	spinlock_t lock;
+#else
 	struct taskqueue *swap_queue;
 	struct task work;
 	struct mtx lock;
+#endif
 	struct ttm_mem_zone *zones[TTM_MEM_MAX_ZONES];
 	unsigned int num_zones;
 	struct ttm_mem_zone *zone_kernel;
@@ -105,13 +115,25 @@ static inline void ttm_mem_init_shrink(struct ttm_mem_shrink *shrink,
 static inline int ttm_mem_register_shrink(struct ttm_mem_global *glob,
 					  struct ttm_mem_shrink *shrink)
 {
+#ifdef FREEBSD_NOTYET
+	spin_lock(&glob->lock);
+#else
 	mtx_lock(&glob->lock);
+#endif
 	if (glob->shrink != NULL) {
+#ifdef FREEBSD_NOTYET
+		spin_unlock(&glob->lock);
+#else
 		mtx_unlock(&glob->lock);
+#endif
 		return -EBUSY;
 	}
 	glob->shrink = shrink;
+#ifdef FREEBSD_NOTYET
+	spin_unlock(&glob->lock);
+#else
 	mtx_unlock(&glob->lock);
+#endif
 	return 0;
 }
 
@@ -126,10 +148,22 @@ static inline int ttm_mem_register_shrink(struct ttm_mem_global *glob,
 static inline void ttm_mem_unregister_shrink(struct ttm_mem_global *glob,
 					     struct ttm_mem_shrink *shrink)
 {
+#ifdef FREEBSD_NOTYET
+	spin_lock(&glob->lock);
+#else
 	mtx_lock(&glob->lock);
+#endif
+#ifdef FREEBSD_NOTYET
+	BUG_ON(glob->shrink != shrink);
+#else
 	MPASS(glob->shrink == shrink);
+#endif
 	glob->shrink = NULL;
+#ifdef FREEBSD_NOTYET
+	spin_unlock(&glob->lock);
+#else
 	mtx_unlock(&glob->lock);
+#endif
 }
 
 struct vm_page;

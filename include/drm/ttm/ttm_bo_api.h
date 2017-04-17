@@ -32,7 +32,18 @@
 #ifndef _TTM_BO_API_H_
 #define _TTM_BO_API_H_
 
+#ifdef __linux__
+#include <drm/drm_hashtab.h>
+#include <linux/kref.h>
+#include <linux/list.h>
+#include <linux/wait.h>
+#include <linux/mutex.h>
+#include <linux/mm.h>
+#include <linux/rbtree.h>
+#include <linux/bitmap.h>
+#elif __FreeBSD__
 #include <drm/drmP.h>
+#endif
 
 struct ttm_bo_device;
 
@@ -201,16 +212,25 @@ struct ttm_buffer_object {
 	* Members not needing protection.
 	*/
 
+#ifdef FREEBSD_NOTYET
+	struct kref kref;
+	struct kref list_kref;
+	wait_queue_head_t event_queue;
+#else
 	u_int kref;
 	u_int list_kref;
-	/* wait_queue_head_t event_queue; */
+#endif
 
 	/**
 	 * Members protected by the bo::reserved lock.
 	 */
 
 	struct ttm_mem_reg mem;
+#ifdef __linux__
+	struct file *persistent_swap_storage;
+#elif __FreeBSD__
 	struct vm_object *persistent_swap_storage;
+#endif
 	struct ttm_tt *ttm;
 	bool evicted;
 
@@ -252,7 +272,11 @@ struct ttm_buffer_object {
 	 * Members protected by the bdev::vm_lock
 	 */
 
+#ifdef __linux__
+	struct rb_node vm_rb;
+#elif __FreeBSD__
 	RB_ENTRY(ttm_buffer_object) vm_rb;
+#endif
 	struct drm_mm_node *vm_node;
 
 
@@ -308,7 +332,11 @@ struct ttm_bo_kmap_obj {
 static inline struct ttm_buffer_object *
 ttm_bo_reference(struct ttm_buffer_object *bo)
 {
+#ifdef FREEBSD_NOTYET
+	kref_get(&bo->kref);
+#else
 	refcount_acquire(&bo->kref);
+#endif
 	return bo;
 }
 

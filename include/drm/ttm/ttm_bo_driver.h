@@ -27,7 +27,6 @@
 /*
  * Authors: Thomas Hellstrom <thellstrom-at-vmware-dot-com>
  */
-/* $FreeBSD$ */
 
 #ifndef _TTM_BO_DRIVER_H_
 #define _TTM_BO_DRIVER_H_
@@ -112,13 +111,22 @@ enum ttm_caching_state {
 struct ttm_tt {
 	struct ttm_bo_device *bdev;
 	struct ttm_backend_func *func;
+#ifdef __linux__
+	struct page *dummy_read_page;
+	struct page **pages;
+#elif __FreeBSD__
 	struct vm_page *dummy_read_page;
 	struct vm_page **pages;
+#endif
 	uint32_t page_flags;
 	unsigned long num_pages;
 	struct sg_table *sg; /* for SG objects via dma-buf */
 	struct ttm_bo_global *glob;
+#ifdef __linux__
+	struct file *swap_storage;
+#elif __FreeBSD__
 	struct vm_object *swap_storage;
+#endif
 	enum ttm_caching_state caching_state;
 	enum {
 		tt_bound,
@@ -278,7 +286,11 @@ struct ttm_mem_type_manager {
 	uint32_t default_caching;
 	const struct ttm_mem_type_manager_func *func;
 	void *priv;
+#ifdef FREEBSD_NOTYET
+	struct mutex io_reserve_mutex;
+#else
 	struct sx io_reserve_mutex;
+#endif
 	bool use_io_reserve_lru;
 	bool io_reserve_fastpath;
 
@@ -477,17 +489,31 @@ struct ttm_bo_global_ref {
  */
 
 struct ttm_bo_global {
+#ifdef __FreeBSD__
 	u_int kobj_ref;
+#endif
 
 	/**
 	 * Constant after init.
 	 */
 
+#ifdef FREEBSD_NOTYET
+	struct kobject kobj;
+#endif
 	struct ttm_mem_global *mem_glob;
+#ifdef __linux__
+	struct page *dummy_read_page;
+#elif __FreeBSD__
 	struct vm_page *dummy_read_page;
+#endif
 	struct ttm_mem_shrink shrink;
+#ifdef FREEBSD_NOTYET
+	struct mutex device_list_mutex;
+	spinlock_t lru_lock;
+#else
 	struct sx device_list_mutex;
 	struct mtx lru_lock;
+#endif
 
 	/**
 	 * Protected by device_list_mutex.
@@ -536,13 +562,26 @@ struct ttm_bo_device {
 	struct list_head device_list;
 	struct ttm_bo_global *glob;
 	struct ttm_bo_driver *driver;
+#ifdef __linux__
+	rwlock_t vm_lock;
+#elif __FreeBSD__
 	struct rwlock vm_lock;
+#endif
 	struct ttm_mem_type_manager man[TTM_NUM_MEM_TYPES];
+#ifdef FREEBSD_NOTYET
+	spinlock_t fence_lock;
+#else
 	struct mtx fence_lock;
+#endif
+
 	/*
 	 * Protected by the vm lock.
 	 */
+#ifdef FREEBSD_NOTYET
+	struct rb_root addr_space_rb;
+#else
 	RB_HEAD(ttm_bo_device_buffer_objects, ttm_buffer_object) addr_space_rb;
+#endif
 	struct drm_mm addr_space_mm;
 
 	/*
@@ -561,7 +600,11 @@ struct ttm_bo_device {
 	 * Internal protection.
 	 */
 
+#ifdef FREEBSD_NOTYET
+	struct delayed_work wq;
+#else
 	struct timeout_task wq;
+#endif
 
 	bool need_dma32;
 };

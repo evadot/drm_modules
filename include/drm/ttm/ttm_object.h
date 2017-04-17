@@ -119,12 +119,18 @@ struct ttm_object_device;
  */
 
 struct ttm_base_object {
-	/* struct rcu_head rhead;XXXKIB */
+#ifdef FREEBSD_NOTYET
+	struct rcu_head rhead;
+#endif
 	struct drm_hash_item hash;
 	enum ttm_object_type object_type;
 	bool shareable;
 	struct ttm_object_file *tfile;
+#ifdef FREEBSD_NOTYET
+	struct kref refcount;
+#else
 	u_int refcount;
+#endif
 	void (*refcount_release) (struct ttm_base_object **base);
 	void (*ref_obj_release) (struct ttm_base_object *base,
 				 enum ttm_ref_type ref_type);
