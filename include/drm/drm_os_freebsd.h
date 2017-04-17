@@ -12,8 +12,6 @@ __FBSDID("$FreeBSD$");
 #include <sys/fbio.h>
 #include <sys/smp.h>
 
-#define	wait_queue_head_t atomic_t
-
 #define	DRM_IRQ_ARGS		void *arg
 typedef void			irqreturn_t;
 #define	IRQ_HANDLED		/* nothing */
@@ -270,11 +268,6 @@ extern unsigned long drm_linux_timer_hz_mask;
 #define	round_jiffies(j)	((unsigned long)(((j) + drm_linux_timer_hz_mask) & ~drm_linux_timer_hz_mask))
 #define	round_jiffies_up(j)		round_jiffies(j) /* TODO */
 #define	round_jiffies_up_relative(j)	round_jiffies_up(j) /* TODO */
-
-#define	wake_up(queue)				wakeup_one((void *)queue)
-#define	wake_up_interruptible(queue)		wakeup_one((void *)queue)
-#define	wake_up_all(queue)			wakeup((void *)queue)
-#define	wake_up_interruptible_all(queue)	wakeup((void *)queue)
 
 struct _completion_wait {
 	spinlock_t lock;

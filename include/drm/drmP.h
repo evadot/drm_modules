@@ -140,7 +140,6 @@
 #define _LINUX_COMPLETION_H_
 #define _LINUX_LIST_H_
 #define _LINUX_SCHED_H_
-#define _LINUX_WAIT_H_
 #include <linux/kernel.h>
 #include <linux/mutex.h>
 #define spin_is_locked(_l) mtx_owned(&(_l)->m)
@@ -436,9 +435,7 @@ struct drm_freelist {
 	atomic_t count;		       /**< Number of free buffers */
 	struct drm_buf *next;	       /**< End pointer */
 
-#ifdef FREEBSD_NOTYET
 	wait_queue_head_t waiting;     /**< Processes waiting on free bufs */
-#endif /* defined(FREEBSD_NOTYET) */
 	int low_mark;		       /**< Low water mark */
 	int high_mark;		       /**< High water mark */
 	atomic_t wfh;		       /**< If waiting for high mark */
@@ -1325,9 +1322,9 @@ struct drm_device {
 	cycles_t lck_start;
 
 	struct fasync_struct *buf_async;/**< Processes waiting for SIGIO */
+#endif
 	wait_queue_head_t buf_readers;	/**< Processes waiting to read */
 	wait_queue_head_t buf_writers;	/**< Processes waiting to ctx switch */
-#endif
 
 	struct drm_agp_head *agp;	/**< AGP data */
 
