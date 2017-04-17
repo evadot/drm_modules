@@ -652,7 +652,7 @@ static int i915_error_state(struct drm_device *dev, struct sbuf *m,
 	spin_lock(&dev_priv->error_lock);
 	error = dev_priv->first_error;
 	if (error != NULL)
-		refcount_acquire(&error->ref);
+		kref_get(&error->ref);
 	spin_unlock(&dev_priv->error_lock);
 
 	if (!error) {
@@ -749,8 +749,7 @@ static int i915_error_state(struct drm_device *dev, struct sbuf *m,
 	if (error->display)
 		intel_display_print_error_state(m, dev, error->display);
 
-	if (refcount_release(&error->ref))
-		i915_error_state_free(error);
+	kref_put(&error->ref, i915_error_state_free);
 
 	return 0;
 }

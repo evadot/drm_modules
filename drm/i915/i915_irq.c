@@ -1054,17 +1054,11 @@ i915_error_object_free(struct drm_i915_error_object *obj)
 	kfree(obj);
 }
 
-#ifdef FREEBSD_NOTYET
 void
 i915_error_state_free(struct kref *error_ref)
 {
 	struct drm_i915_error_state *error = container_of(error_ref,
 							  typeof(*error), ref);
-#else
-void
-i915_error_state_free(struct drm_i915_error_state *error)
-{
-#endif
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(error->ring); i++) {
@@ -1335,11 +1329,7 @@ static void i915_capture_error_state(struct drm_device *dev)
 		 dev->sysctl_node_idx);
 #endif
 
-#ifdef FREEBSD_NOTYET
 	kref_init(&error->ref);
-#else
-	refcount_init(&error->ref, 1);
-#endif
 	error->eir = I915_READ(EIR);
 	error->pgtbl_er = I915_READ(PGTBL_ER);
 	error->ccid = I915_READ(CCID);
@@ -1431,11 +1421,7 @@ static void i915_capture_error_state(struct drm_device *dev)
 	spin_unlock_irqrestore(&dev_priv->error_lock, flags);
 
 	if (error)
-#ifdef FREEBSD_NOTYET
 		i915_error_state_free(&error->ref);
-#else
-		i915_error_state_free(error);
-#endif
 }
 
 void i915_destroy_error_state(struct drm_device *dev)
@@ -1449,13 +1435,8 @@ void i915_destroy_error_state(struct drm_device *dev)
 	dev_priv->first_error = NULL;
 	spin_unlock_irqrestore(&dev_priv->error_lock, flags);
 
-#ifdef FREEBSD_NOTYET
 	if (error)
 		kref_put(&error->ref, i915_error_state_free);
-#else
-	if (error && refcount_release(&error->ref))
-		i915_error_state_free(error);
-#endif
 }
 
 static void i915_report_and_clear_eir(struct drm_device *dev)

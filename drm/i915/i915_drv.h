@@ -191,11 +191,7 @@ struct sdvo_device_mapping {
 struct intel_display_error_state;
 
 struct drm_i915_error_state {
-#ifdef FREEBSD_NOTYET
 	struct kref ref;
-#else
-	u_int ref;
-#endif
 	u32 eir;
 	u32 pgtbl_er;
 	u32 ier;
@@ -1394,7 +1390,7 @@ extern void intel_irq_init(struct drm_device *dev);
 extern void intel_gt_init(struct drm_device *dev);
 extern void intel_gt_reset(struct drm_device *dev);
 
-void i915_error_state_free(struct drm_i915_error_state *error);
+void i915_error_state_free(struct kref *error_ref);
 
 void
 i915_enable_pipestat(drm_i915_private_t *dev_priv, int pipe, u32 mask);
