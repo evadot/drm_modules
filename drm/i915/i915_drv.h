@@ -1200,11 +1200,7 @@ struct drm_i915_gem_request {
 
 struct drm_i915_file_private {
 	struct {
-#ifdef FREEBSD_NOTYET
-		struct spinlock lock;
-#else
-		struct mtx lock;
-#endif
+		spinlock_t lock;
 		struct list_head request_list;
 	} mm;
 #ifdef FREEBSD_NOTYET

@@ -1960,11 +1960,7 @@ int i915_driver_open(struct drm_device *dev, struct drm_file *file)
 
 	file->driver_priv = file_priv;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_init(&file_priv->mm.lock);
-#else
-	mtx_init(&file_priv->mm.lock, "915fp", NULL, MTX_DEF);
-#endif
 	INIT_LIST_HEAD(&file_priv->mm.request_list);
 
 #ifdef FREEBSD_NOTYET
@@ -2024,7 +2020,7 @@ void i915_driver_postclose(struct drm_device *dev, struct drm_file *file)
 #ifdef FREEBSD_NOTYET
 	kfree(file_priv);
 #else
-	mtx_destroy(&file_priv->mm.lock);
+	spin_lock_destroy(&file_priv->mm.lock);
 	free(file_priv, DRM_MEM_FILES);
 #endif
 }

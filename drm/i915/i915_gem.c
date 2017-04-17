@@ -2389,11 +2389,11 @@ i915_add_request(struct intel_ring_buffer *ring,
 	if (file) {
 		struct drm_i915_file_private *file_priv = file->driver_priv;
 
-		mtx_lock(&file_priv->mm.lock);
+		spin_lock(&file_priv->mm.lock);
 		request->file_priv = file_priv;
 		list_add_tail(&request->client_list,
 			      &file_priv->mm.request_list);
-		mtx_unlock(&file_priv->mm.lock);
+		spin_unlock(&file_priv->mm.lock);
 	}
 
 	CTR2(KTR_DRM, "request_add %s %d", ring->name, request->seqno);
@@ -2425,12 +2425,12 @@ i915_gem_request_remove_from_client(struct drm_i915_gem_request *request)
 	if (!file_priv)
 		return;
 
-	mtx_lock(&file_priv->mm.lock);
+	spin_lock(&file_priv->mm.lock);
 	if (request->file_priv) {
 		list_del(&request->client_list);
 		request->file_priv = NULL;
 	}
-	mtx_unlock(&file_priv->mm.lock);
+	spin_unlock(&file_priv->mm.lock);
 }
 
 static void i915_gem_reset_ring_lists(struct drm_i915_private *dev_priv,
@@ -3817,7 +3817,7 @@ i915_gem_ring_throttle(struct drm_device *dev, struct drm_file *file)
 	if (atomic_read(&dev_priv->mm.wedged))
 		return -EIO;
 
-	mtx_lock(&file_priv->mm.lock);
+	spin_lock(&file_priv->mm.lock);
 	list_for_each_entry(request, &file_priv->mm.request_list, client_list) {
 		if (time_after_eq(request->emitted_jiffies, recent_enough))
 			break;
@@ -3825,7 +3825,7 @@ i915_gem_ring_throttle(struct drm_device *dev, struct drm_file *file)
 		ring = request->ring;
 		seqno = request->seqno;
 	}
-	mtx_unlock(&file_priv->mm.lock);
+	spin_unlock(&file_priv->mm.lock);
 
 	if (seqno == 0)
 		return 0;
@@ -4776,7 +4776,7 @@ void i915_gem_release(struct drm_device *dev, struct drm_file *file)
 	 * later retire_requests won't dereference our soon-to-be-gone
 	 * file_priv.
 	 */
-	mtx_lock(&file_priv->mm.lock);
+	spin_lock(&file_priv->mm.lock);
 	while (!list_empty(&file_priv->mm.request_list)) {
 		struct drm_i915_gem_request *request;
 
@@ -4786,7 +4786,7 @@ void i915_gem_release(struct drm_device *dev, struct drm_file *file)
 		list_del(&request->client_list);
 		request->file_priv = NULL;
 	}
-	mtx_unlock(&file_priv->mm.lock);
+	spin_unlock(&file_priv->mm.lock);
 }
 
 static void
