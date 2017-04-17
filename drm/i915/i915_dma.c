@@ -1695,9 +1695,9 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 #endif
 
 	spin_lock_init(&dev_priv->irq_lock);
-	spin_lock_init(&dev_priv->dpio_lock);
 	spin_lock_init(&dev_priv->error_lock);
 	spin_lock_init(&dev_priv->rps.lock);
+	spin_lock_init(&dev_priv->dpio_lock);
 
 	mutex_init(&dev_priv->rps.hw_lock);
 
@@ -1723,7 +1723,9 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 		}
 	}
 
+#ifdef __FreeBSD__
 	pci_enable_busmaster(dev->dev);
+#endif
 
 #ifdef __linux__
 	i915_setup_sysfs(dev);
