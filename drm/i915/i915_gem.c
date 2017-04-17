@@ -4556,7 +4556,7 @@ i915_gem_load(struct drm_device *dev)
 	i915_gem_reset_fences(dev);
 
 	i915_gem_detect_bit_6_swizzle(dev);
-	DRM_INIT_WAITQUEUE(&dev_priv->pending_flip_queue);
+	init_waitqueue_head(&dev_priv->pending_flip_queue);
 
 	dev_priv->mm.interruptible = true;
 

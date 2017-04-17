@@ -2255,24 +2255,13 @@ static int
 intel_finish_fb(struct drm_framebuffer *old_fb)
 {
 	struct drm_i915_gem_object *obj = to_intel_framebuffer(old_fb)->obj;
-	struct drm_device *dev = obj->base.dev;
 	struct drm_i915_private *dev_priv = obj->base.dev->dev_private;
 	bool was_interruptible = dev_priv->mm.interruptible;
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	wait_event(dev_priv->pending_flip_queue,
 		   atomic_read(&dev_priv->mm.wedged) ||
 		   atomic_read(&obj->pending_flip) == 0);
-#else
-	spin_lock(&dev->event_lock);
-	while (!(atomic_read(&dev_priv->mm.wedged) ||
-		 atomic_read(&obj->pending_flip) == 0)) {
-		msleep(&dev_priv->pending_flip_queue, &(dev->event_lock).m,
-		    0, "915flp", 0);
-	}
-	spin_unlock(&dev->event_lock);
-#endif
 
 	/* Big Hammer, we also need to ensure that any pending
 	 * MI_WAIT_FOR_EVENT inside a user batch buffer on the
@@ -2982,15 +2971,8 @@ static void intel_crtc_wait_for_pending_flips(struct drm_crtc *crtc)
 	if (crtc->fb == NULL)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	wait_event(dev_priv->pending_flip_queue,
 		   !intel_crtc_has_pending_flip(crtc));
-#else
-	while (intel_crtc_has_pending_flip(crtc)) {
-		msleep(&dev_priv->pending_flip_queue, &(dev->event_lock).m,
-		    0, "915flp", 0);
-	}
-#endif
 
 	mutex_lock(&dev->struct_mutex);
 	intel_finish_fb(crtc->fb);
