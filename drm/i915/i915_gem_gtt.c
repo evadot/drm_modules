@@ -25,10 +25,16 @@
 #include <drm/drmP.h>
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
+#ifdef __linux__
+#include "i915_trace.h"
+#endif
 #include "intel_drv.h"
+
+#ifdef __FreeBSD__
 #include <sys/sched.h>
 #include <sys/sf_buf.h>
 #include <vm/vm_pageout.h>
+#endif
 
 typedef uint32_t gtt_pte_t;
 
@@ -88,7 +94,9 @@ static void i915_ppgtt_clear_range(struct i915_hw_ppgtt *ppgtt,
 	unsigned act_pd = first_entry / I915_PPGTT_PT_ENTRIES;
 	unsigned first_pte = first_entry % I915_PPGTT_PT_ENTRIES;
 	unsigned last_pte, i;
+#ifdef __FreeBSD__
 	struct sf_buf *sf;
+#endif
 
 	scratch_pte = pte_encode(ppgtt->dev, ppgtt->scratch_page_dma_addr,
 				 I915_CACHE_LLC);
@@ -98,15 +106,23 @@ static void i915_ppgtt_clear_range(struct i915_hw_ppgtt *ppgtt,
 		if (last_pte > I915_PPGTT_PT_ENTRIES)
 			last_pte = I915_PPGTT_PT_ENTRIES;
 
+#ifdef __linux__
+		pt_vaddr = kmap_atomic(ppgtt->pt_pages[act_pd]);
+#elif __FreeBSD__
 		sched_pin();
 		sf = sf_buf_alloc(ppgtt->pt_pages[act_pd], SFB_CPUPRIVATE);
 		pt_vaddr = (uint32_t *)(uintptr_t)sf_buf_kva(sf);
+#endif
 
 		for (i = first_pte; i < last_pte; i++)
 			pt_vaddr[i] = scratch_pte;
 
+#ifdef __linux__
+		kunmap_atomic(pt_vaddr);
+#elif __FreeBSD__
 		sf_buf_free(sf);
 		sched_unpin();
+#endif
 
 		num_entries -= last_pte - first_pte;
 		first_pte = 0;
@@ -127,29 +143,48 @@ int i915_gem_init_aliasing_ppgtt(struct drm_device *dev)
 	 * now. */
 	first_pd_entry_in_global_pt = dev_priv->mm.gtt->gtt_total_entries - I915_PPGTT_PD_ENTRIES;
 
+#ifdef FREEBSD_NOTYET
+	ppgtt = kzalloc(sizeof(*ppgtt), GFP_KERNEL);
+#else
 	ppgtt = malloc(sizeof(*ppgtt), DRM_I915_GEM, M_WAITOK | M_ZERO);
+#endif
 	if (!ppgtt)
 		return ret;
 
 	ppgtt->dev = dev;
 	ppgtt->num_pd_entries = I915_PPGTT_PD_ENTRIES;
+#ifdef FREEBSD_NOTYET
+	ppgtt->pt_pages = kzalloc(sizeof(struct page *)*ppgtt->num_pd_entries,
+				  GFP_KERNEL);
+#else
 	ppgtt->pt_pages = malloc(sizeof(struct page *)*ppgtt->num_pd_entries,
 				  DRM_I915_GEM, M_WAITOK | M_ZERO);
+#endif
 	if (!ppgtt->pt_pages)
 		goto err_ppgtt;
 
 	for (i = 0; i < ppgtt->num_pd_entries; i++) {
+#ifdef __linux__
+		ppgtt->pt_pages[i] = alloc_page(GFP_KERNEL);
+#elif __FreeBSD__
 		ppgtt->pt_pages[i] = vm_page_alloc(NULL, 0,
 		    VM_ALLOC_NORMAL | VM_ALLOC_NOOBJ | VM_ALLOC_WIRED |
 		    VM_ALLOC_ZERO);
+#endif
 		if (!ppgtt->pt_pages[i])
 			goto err_pt_alloc;
 	}
 
 	if (dev_priv->mm.gtt->needs_dmar) {
+#ifdef FREEBSD_NOTYET
+		ppgtt->pt_dma_addr = kzalloc(sizeof(dma_addr_t)
+						*ppgtt->num_pd_entries,
+					     GFP_KERNEL);
+#else
 		ppgtt->pt_dma_addr = malloc(sizeof(dma_addr_t)
 						*ppgtt->num_pd_entries,
 					     DRM_I915_GEM, M_WAITOK | M_ZERO);
+#endif
 		if (!ppgtt->pt_dma_addr)
 			goto err_pt_alloc;
 
@@ -192,16 +227,33 @@ err_pd_pin:
 	}
 #endif
 err_pt_alloc:
+#ifdef FREEBSD_NOTYET
+	kfree(ppgtt->pt_dma_addr);
+#else
 	free(ppgtt->pt_dma_addr, DRM_I915_GEM);
+#endif
 	for (i = 0; i < ppgtt->num_pd_entries; i++) {
+#ifdef __linux__
+		if (ppgtt->pt_pages[i])
+			__free_page(ppgtt->pt_pages[i]);
+#elif __FreeBSD__
 		if (ppgtt->pt_pages[i]) {
 			vm_page_unwire(ppgtt->pt_pages[i], PQ_INACTIVE);
 			vm_page_free(ppgtt->pt_pages[i]);
 		}
+#endif
 	}
+#ifdef FREEBSD_NOTYET
+	kfree(ppgtt->pt_pages);
+#else
 	free(ppgtt->pt_pages, DRM_I915_GEM);
+#endif
 err_ppgtt:
+#ifdef FREEBSD_NOTYET
+	kfree(ppgtt);
+#else
 	free(ppgtt, DRM_I915_GEM);
+#endif
 
 	return ret;
 }
@@ -223,13 +275,27 @@ void i915_gem_cleanup_aliasing_ppgtt(struct drm_device *dev)
 	}
 #endif
 
+#ifdef FREEBSD_NOTYET
+	kfree(ppgtt->pt_dma_addr);
+#else
 	free(ppgtt->pt_dma_addr, DRM_I915_GEM);
+#endif
+#ifdef __linux__
+	for (i = 0; i < ppgtt->num_pd_entries; i++)
+		__free_page(ppgtt->pt_pages[i]);
+#elif __FreeBSD__
 	for (i = 0; i < ppgtt->num_pd_entries; i++) {
 		vm_page_unwire(ppgtt->pt_pages[i], PQ_INACTIVE);
 		vm_page_free(ppgtt->pt_pages[i]);
 	}
+#endif
+#ifdef FREEBSD_NOTYET
+	kfree(ppgtt->pt_pages);
+	kfree(ppgtt);
+#else
 	free(ppgtt->pt_pages, DRM_I915_GEM);
 	free(ppgtt, DRM_I915_GEM);
+#endif
 }
 
 static void i915_ppgtt_insert_pages(struct i915_hw_ppgtt *ppgtt,
