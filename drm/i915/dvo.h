@@ -23,10 +23,14 @@
 #ifndef _INTEL_DVO_H
 #define _INTEL_DVO_H
 
+#ifdef __linux__
+#include <linux/i2c.h>
+#elif __FreeBSD__
 #include <sys/types.h>
 #include <sys/bus.h>
 #include <dev/iicbus/iic.h>
 #include <dev/iicbus/iiconf.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include "intel_drv.h"
@@ -42,7 +46,11 @@ struct intel_dvo_device {
 
 	const struct intel_dvo_dev_ops *dev_ops;
 	void *dev_priv;
+#ifdef __linux__
+	struct i2c_adapter *i2c_bus;
+#elif __FreeBSD__
 	device_t i2c_bus;
+#endif
 };
 
 struct intel_dvo_dev_ops {
@@ -50,8 +58,13 @@ struct intel_dvo_dev_ops {
 	 * Initialize the device at startup time.
 	 * Returns NULL if the device does not exist.
 	 */
+#ifdef __linux__
+	bool (*init)(struct intel_dvo_device *dvo,
+		     struct i2c_adapter *i2cbus);
+#elif __FreeBSD__
 	bool (*init)(struct intel_dvo_device *dvo,
 		     device_t i2cbus);
+#endif
 
 	/*
 	 * Called to allow the output a chance to create properties after the

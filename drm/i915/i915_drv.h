@@ -142,6 +142,9 @@ struct intel_ddi_plls {
 
 struct drm_i915_gem_phys_object {
 	int id;
+#ifdef __linux__
+	struct page **page_list;
+#endif
 	drm_dma_handle_t *handle;
 	struct drm_i915_gem_object *cur_obj;
 };
@@ -382,7 +385,7 @@ struct i915_hw_ppgtt {
 /* This must match up with the value previously used for execbuf2.rsvd1. */
 #define DEFAULT_CONTEXT_ID 0
 struct i915_hw_context {
-	uint32_t id;
+	int id;
 	bool is_initialized;
 	struct drm_i915_file_private *file_priv;
 	struct intel_ring_buffer *ring;
@@ -420,13 +423,20 @@ struct intel_fbdev;
 struct intel_fbc_work;
 
 struct intel_gmbus {
+#ifdef __linux__
+	struct i2c_adapter adapter;
+#endif
+	u32 force_bit;
+	u32 reg0;
+	u32 gpio_reg;
+#ifdef __linux__
+	struct i2c_algo_bit_data bit_algo;
+#elif __FreeBSD__
 	device_t gmbus_bridge;
 	device_t gmbus;
 	device_t bbbus_bridge;
 	device_t bbbus;
-	u32 force_bit;
-	u32 reg0;
-	u32 gpio_reg;
+#endif
 	struct drm_i915_private *dev_priv;
 };
 
@@ -690,13 +700,21 @@ typedef struct drm_i915_private {
 	 */
 	uint32_t gpio_mmio_base;
 
+#ifdef __linux__
+	struct pci_dev *bridge_dev;
+#elif __FreeBSD__
 	device_t bridge_dev;
+#endif
 	struct intel_ring_buffer ring[I915_NUM_RINGS];
 	uint32_t next_seqno;
 
 	drm_dma_handle_t *status_page_dmah;
+#ifdef __linux__
+	struct resource mch_res;
+#elif __FreeBSD__
 	int mch_res_rid;
 	struct resource *mch_res;
+#endif
 
 	atomic_t irq_received;
 
@@ -886,7 +904,11 @@ typedef struct drm_i915_private {
 		 * fire periodically while the ring is running. When it
 		 * fires, go retire requests.
 		 */
+#ifdef FREEBSD_NOTYET
+		struct delayed_work retire_work;
+#else
 		struct timeout_task retire_work;
+#endif
 
 		/**
 		 * Are we in a non-interruptible section of code like
@@ -1432,6 +1454,7 @@ extern void i915_destroy_error_state(struct drm_device *dev);
 //#define i915_destroy_error_state(x)
 //#endif
 
+
 /* i915_gem.c */
 int i915_gem_init_ioctl(struct drm_device *dev, void *data,
 			struct drm_file *file_priv);
@@ -1656,6 +1679,7 @@ static inline void i915_gem_chipset_flush(struct drm_device *dev)
 	if (INTEL_INFO(dev)->gen < 6)
 		intel_gtt_chipset_flush();
 }
+
 
 /* i915_gem_evict.c */
 int __must_check i915_gem_evict_something(struct drm_device *dev, int min_size,

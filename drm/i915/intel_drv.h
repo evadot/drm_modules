@@ -21,12 +21,13 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
- *
- * $FreeBSD$
  */
 #ifndef __INTEL_DRV_H__
 #define __INTEL_DRV_H__
 
+#ifdef __linux__
+#include <linux/i2c.h>
+#endif
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
 #include <drm/drm_crtc.h>
@@ -386,8 +387,13 @@ struct intel_dp {
 	uint8_t lane_count;
 	uint8_t dpcd[DP_RECEIVER_CAP_SIZE];
 	uint8_t downstream_ports[DP_MAX_DOWNSTREAM_PORTS];
+#ifdef __linux__
+	struct i2c_adapter adapter;
+	struct i2c_algo_dp_aux_data algo;
+#elif __FreeBSD__
 	device_t dp_iic_bus;
 	device_t adapter;
+#endif
 	bool is_pch_edp;
 	uint8_t train_set[4];
 	int panel_power_up_delay;
@@ -395,7 +401,11 @@ struct intel_dp {
 	int panel_power_cycle_delay;
 	int backlight_on_delay;
 	int backlight_off_delay;
+#ifdef FREEBSD_NOTYET
+	struct delayed_work panel_vdd_work;
+#else
 	struct timeout_task panel_vdd_work;
+#endif
 	bool want_panel_vdd;
 	struct intel_connector *attached_connector;
 };
@@ -423,7 +433,11 @@ intel_get_crtc_for_plane(struct drm_device *dev, int plane)
 }
 
 struct intel_unpin_work {
+#ifdef FREEBSD_NOTYET
+	struct work_struct work;
+#else
 	struct task work;
+#endif
 	struct drm_crtc *crtc;
 	struct drm_i915_gem_object *old_fb_obj;
 	struct drm_i915_gem_object *pending_flip_obj;
@@ -436,7 +450,11 @@ struct intel_unpin_work {
 };
 
 struct intel_fbc_work {
+#ifdef FREEBSD_NOTYET
+	struct delayed_work work;
+#else
 	struct timeout_task work;
+#endif
 	struct drm_crtc *crtc;
 	struct drm_framebuffer *fb;
 	int interval;
