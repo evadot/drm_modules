@@ -1,11 +1,30 @@
-Failed attempts:
+Sync status with linux 3.8.13:
 
-Removing DRM_MEM_MAPS seems to fail when loading i915kms:
-drmn0: <Intel Haswell (ULT GT2 mobile)> on vgapci0
-info: [drm] Memory usable by graphics device = 2048M
-error: [drm:pid833:i915_driver_load] *ERROR* failed to map registers
-device_attach: drmn0 attach returned 5
-
-
-!!!!! Including linux/slab.h in drmP.h break everything !!!!!
-Resolved, PAGE_MASK was to blame
+drm/ati_pcigpart.c:	Synced with some ifdefs for FreeBSD
+drm/drm_agpsupport.c:	Synced with some ifdefs for FreeBSD
+drm/drm_auth.c:		100% Synced
+drm/drm_buffer.c:	98% Synced, minor changes
+drm/drm_bufs.c:		Synced with some ifdefs for FreeBSD and some minor changes
+drm/drm_context.c:	Synced with some ifdefs for FreeBSD and some minor changes
+drm/drm_crtc.c:		Synced with some ifdefs for FreeBSD and some minor changes
+drm/drm_crtc_helper.c:	Synced with some ifdefs for FreeBSD
+drm/drm_dma.c:		98% Synced, some includes are missing
+drm/drm_dp_helper.c:	98% Synced, some includes are missing and one ifdef on Linux/FreeBSD
+drm/drm_drv.c:		Synced with some ifdefs for FreeBSD and some minor changes
+drm/drm_edid.c:		Synced with some ifdefs for FreeBSD and some minor changes
+drm/drm_fb_helper.c:	Synced with some ifdefs for FreeBSD and some minor changes
+drm/drm_fops.c:		Synced with some ifdefs for FreeBSD and some minor changes
+drm/drm_gem.c:		Synced with some ifdefs for FreeBSD and some changes
+drm/drm_global.c:	100% Synced with local needed changes
+drm/drm_hashtab.c:	Need to sync
+drm/drm_ioc32.c:	Need to sync
+drm/drm_ioctl.c:	Synced with local needed changes
+drm/drm_irq.c:		Almost Synced with some ifdefs for FreeBSD and some changes
+drm/drm_lock.c:		Almost Synced with some ifdefs for FreeBSD and some changes
+drm/drm_memory.c:	Need to sync
+drm/drm_mm.c:		98% Synced
+drm/drm_modes.c:	98% Synced
+drm/drm_pci.c:		Need to sync
+drm/drm_scatter.c:	Need to sync
+drm/drm_stub.c:		Almost Synced with some ifdefs for FreeBSD and some changes
+drm/drm_vm.c:		Need to sync ?
