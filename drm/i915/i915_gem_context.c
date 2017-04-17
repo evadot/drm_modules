@@ -118,12 +118,7 @@ static int get_context_size(struct drm_device *dev)
 			ret = GEN7_CXT_TOTAL_SIZE(reg) * 64;
 		break;
 	default:
-#ifdef __linux__
 		BUG();
-#elif __FreeBSD__
-		panic("i915_gem_context: Unsupported Intel GPU generation %d",
-		    INTEL_INFO(dev)->gen);
-#endif
 	}
 
 	return ret;
@@ -131,10 +126,8 @@ static int get_context_size(struct drm_device *dev)
 
 static void do_destroy(struct i915_hw_context *ctx)
 {
-#if defined(INVARIANTS)
 	struct drm_device *dev = ctx->obj->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
-#endif
 
 	if (ctx->file_priv)
 #ifdef FREEBSD_NOTYET
@@ -143,12 +136,7 @@ static void do_destroy(struct i915_hw_context *ctx)
 		drm_gem_names_remove(&ctx->file_priv->context_idr, ctx->id);
 #endif
 	else
-#ifdef __linux__
 		BUG_ON(ctx != dev_priv->ring[RCS].default_context);
-#elif __FreeBSD__
-		KASSERT(ctx == dev_priv->ring[RCS].default_context,
-		    ("i915_gem_context: ctx != default_context"));
-#endif
 
 	drm_gem_object_unreference(&ctx->obj->base);
 #ifdef FREEBSD_NOTYET
@@ -351,11 +339,7 @@ static int context_idr_cleanup(uint32_t id, void *p, void *data)
 {
 	struct i915_hw_context *ctx = p;
 
-#ifdef FREEBSD_NOTYET
 	BUG_ON(id == DEFAULT_CONTEXT_ID);
-#else
-	KASSERT(id != DEFAULT_CONTEXT_ID, ("i915_gem_context: id == DEFAULT_CONTEXT_ID in cleanup"));
-#endif
 
 	do_destroy(ctx);
 
@@ -441,12 +425,7 @@ static int do_switch(struct i915_hw_context *to)
 	u32 hw_flags = 0;
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	BUG_ON(from_obj != NULL && from_obj->pin_count == 0);
-#else
-	KASSERT(!(from_obj != NULL && from_obj->pin_count == 0),
-	    ("i915_gem_context: invalid \"from\" context"));
-#endif
 
 	if (from_obj == to->obj)
 		return 0;
