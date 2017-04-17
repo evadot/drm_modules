@@ -620,7 +620,7 @@ static int i915_flush_ioctl(struct drm_device *dev, void *data,
 	return ret;
 }
 
-int i915_batchbuffer(struct drm_device *dev, void *data,
+static int i915_batchbuffer(struct drm_device *dev, void *data,
 			    struct drm_file *file_priv)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
@@ -676,7 +676,7 @@ fail_free:
 	return ret;
 }
 
-int i915_cmdbuffer(struct drm_device *dev, void *data,
+static int i915_cmdbuffer(struct drm_device *dev, void *data,
 			  struct drm_file *file_priv)
 {
 	drm_i915_private_t *dev_priv = (drm_i915_private_t *) dev->dev_private;
@@ -818,7 +818,7 @@ static int i915_wait_irq(struct drm_device * dev, int irq_nr)
 
 /* Needs the lock as it touches the ring.
  */
-int i915_irq_emit(struct drm_device *dev, void *data,
+static int i915_irq_emit(struct drm_device *dev, void *data,
 			 struct drm_file *file_priv)
 {
 	drm_i915_private_t *dev_priv = dev->dev_private;
@@ -927,7 +927,7 @@ static int i915_flip_bufs(struct drm_device *dev, void *data,
 	return ret;
 }
 
-int i915_getparam(struct drm_device *dev, void *data,
+static int i915_getparam(struct drm_device *dev, void *data,
 			 struct drm_file *file_priv)
 {
 	drm_i915_private_t *dev_priv = dev->dev_private;
