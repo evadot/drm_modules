@@ -1088,7 +1088,6 @@ struct drm_i915_gem_object {
 	 */
 	unsigned int fault_mappable:1;
 	unsigned int pin_mappable:1;
-	unsigned int pin_display:1;
 
 	/*
 	 * Is the GPU currently using a fence to access this buffer,
@@ -1108,6 +1107,10 @@ struct drm_i915_gem_object {
 	vm_page_t *pages;
 #endif
 	int pages_pin_count;
+
+	/* prime dma-buf support */
+	void *dma_buf_vmapping;
+	int vmapping_count;
 
 	/**
 	 * Used for performing relocations during execbuffer insertion.
