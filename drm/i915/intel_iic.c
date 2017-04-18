@@ -359,7 +359,7 @@ gmbus_xfer(device_t adapter,
 	int i, reg_offset;
 	int ret = 0;
 
-	sx_xlock(&dev_priv->gmbus_mutex);
+	mutex_lock(&dev_priv->gmbus_mutex);
 
 	if (bus->force_bit) {
 		ret = -IICBUS_TRANSFER(bus->bbbus, msgs, num);
@@ -461,7 +461,7 @@ timeout:
 	ret = -IICBUS_TRANSFER(bus->bbbus, msgs, num);
 
 out:
-	sx_xunlock(&dev_priv->gmbus_mutex);
+	mutex_unlock(&dev_priv->gmbus_mutex);
 	return -ret;
 }
 
@@ -623,7 +623,7 @@ int intel_setup_gmbus(struct drm_device *dev)
 	else
 		dev_priv->gpio_mmio_base = 0;
 
-	sx_init(&dev_priv->gmbus_mutex, "gmbus");
+	mutex_init(&dev_priv->gmbus_mutex);
 
 	/*
 	 * The Giant there is recursed, most likely.  Normally, the
@@ -726,7 +726,7 @@ err:
 			device_delete_child(dev->dev, bus->bbbus_bridge);
 	}
 	mtx_unlock(&Giant);
-	sx_destroy(&dev_priv->gmbus_mutex);
+	mutex_destroy(&dev_priv->gmbus_mutex);
 	return ret;
 }
 
@@ -780,5 +780,5 @@ void intel_teardown_gmbus(struct drm_device *dev)
 		    device_get_desc(bus->bbbus_bridge), ret));
 	}
 
-	sx_destroy(&dev_priv->gmbus_mutex);
+	mutex_destroy(&dev_priv->gmbus_mutex);
 }

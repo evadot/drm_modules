@@ -669,11 +669,7 @@ typedef struct drm_i915_private {
 
 	/** gmbus_mutex protects against concurrent usage of the single hw gmbus
 	 * controller on different i2c buses. */
-#ifdef FREEBSD_NOTYET
 	struct mutex gmbus_mutex;
-#else
-	struct sx gmbus_mutex;
-#endif
 
 	/**
 	 * Base address of the gmbus and gpio block.
