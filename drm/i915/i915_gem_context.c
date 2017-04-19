@@ -142,10 +142,9 @@ static void do_destroy(struct i915_hw_context *ctx)
 	kfree(ctx);
 }
 
-static int
+static struct i915_hw_context *
 create_hw_context(struct drm_device *dev,
-		  struct drm_i915_file_private *file_priv,
-		  struct i915_hw_context **ret_ctx)
+		  struct drm_i915_file_private *file_priv)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct i915_hw_context *ctx;
@@ -153,13 +152,13 @@ create_hw_context(struct drm_device *dev,
 
 	ctx = kzalloc(sizeof(*ctx), GFP_KERNEL);
 	if (ctx == NULL)
-		return (-ENOMEM);
+		return ERR_PTR(-ENOMEM);
 
 	ctx->obj = i915_gem_alloc_object(dev, dev_priv->hw_context_size);
 	if (ctx->obj == NULL) {
 		kfree(ctx);
 		DRM_DEBUG_DRIVER("Context object allocated failed\n");
-		return (-ENOMEM);
+		return ERR_PTR(-ENOMEM);
 	}
 
 	if (INTEL_INFO(dev)->gen >= 7) {
@@ -176,10 +175,8 @@ create_hw_context(struct drm_device *dev,
 	ctx->ring = &dev_priv->ring[RCS];
 
 	/* Default context will never have a file_priv */
-	if (file_priv == NULL) {
-		*ret_ctx = ctx;
-		return (0);
-	}
+	if (file_priv == NULL)
+		return ctx;
 
 	ctx->file_priv = file_priv;
 
@@ -205,12 +202,11 @@ again:
 	else if (ret)
 		goto err_out;
 
-	*ret_ctx = ctx;
-	return (0);
+	return ctx;
 
 err_out:
 	do_destroy(ctx);
-	return (ret);
+	return ERR_PTR(ret);
 }
 
 static inline bool is_default_context(struct i915_hw_context *ctx)
@@ -230,16 +226,9 @@ static int create_default_context(struct drm_i915_private *dev_priv)
 
 	BUG_ON(!mutex_is_locked(&dev_priv->dev->struct_mutex));
 
-#ifdef FREEBSD_NOTYET
 	ctx = create_hw_context(dev_priv->dev, NULL);
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
-#else
-
-	ret = create_hw_context(dev_priv->dev, NULL, &ctx);
-	if (ret != 0)
-		return (ret);
-#endif
 
 	/* We may need to do things with the shrinker which require us to
 	 * immediately switch back to the default context. This can cause a
@@ -536,19 +525,10 @@ int i915_gem_context_create_ioctl(struct drm_device *dev, void *data,
 	if (ret)
 		return ret;
 
-#ifdef FREEBSD_NOTYET
 	ctx = create_hw_context(dev, file_priv);
-#else
-	ret = create_hw_context(dev, file_priv, &ctx);
-#endif
 	mutex_unlock(&dev->struct_mutex);
-#ifdef FREEBSD_NOTYET
 	if (IS_ERR(ctx))
 		return PTR_ERR(ctx);
-#else
-	if (ret != 0)
-		return (ret);
-#endif
 
 	args->ctx_id = ctx->id;
 	DRM_DEBUG_DRIVER("HW context %d created\n", args->ctx_id);
