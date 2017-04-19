@@ -33,11 +33,17 @@
 #include "intel_drv.h"
 #include "intel_ringbuffer.h"
 
+#define DRM_I915_RING_DEBUG 1
+
+#ifdef __FreeBSD__
 #include <sys/sysctl.h>
 
 #define	seq_printf(m, fmt, ...)	sbuf_printf((m), (fmt), ##__VA_ARGS__)
+#endif
 
+#ifdef __linux__
 //#if defined(CONFIG_DEBUG_FS)
+#endif
 
 enum {
 	ACTIVE_LIST,
@@ -50,8 +56,15 @@ static const char *yesno(int v)
 	return v ? "yes" : "no";
 }
 
+#ifdef __linux__
+static int i915_capabilities(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_capabilities(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	const struct intel_device_info *info = INTEL_INFO(dev);
 
 	seq_printf(m, "gen: %d\n", info->gen);
@@ -95,9 +108,15 @@ static const char *cache_level_str(int type)
 	}
 }
 
+#ifdef __linux__
+static void
+describe_obj(struct seq_file *m, struct drm_i915_gem_object *obj)
+{
+#elif __FreeBSD__
 static void
 describe_obj(struct sbuf *m, struct drm_i915_gem_object *obj)
 {
+#endif
 	seq_printf(m, "%pK: %s%s %8zdKiB %04x %04x %d %d %d%s%s%s",
 		   &obj->base,
 		   get_pin_flag(obj),
@@ -133,17 +152,28 @@ describe_obj(struct sbuf *m, struct drm_i915_gem_object *obj)
 		seq_printf(m, " (%s)", obj->ring->name);
 }
 
+#ifdef __linux__
+static int i915_gem_object_list_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	uintptr_t list = (uintptr_t) node->info_ent->data;
+#elif __FreeBSD__
 static int i915_gem_object_list_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
 	uintptr_t list = (uintptr_t)data;
+#endif
 	struct list_head *head;
+#ifdef __linux__
+	struct drm_device *dev = node->minor->dev;
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	struct drm_i915_gem_object *obj;
 	size_t total_obj_size, total_gtt_size;
-	int count;
+	int count, ret;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	switch (list) {
 	case ACTIVE_LIST:
@@ -186,15 +216,24 @@ static int i915_gem_object_list_info(struct drm_device *dev, struct sbuf *m, voi
 	} \
 } while (0)
 
+#ifdef __linux__
+static int i915_gem_object_info(struct seq_file *m, void* data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_gem_object_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 count, mappable_count, purgeable_count;
 	size_t size, mappable_size, purgeable_size;
 	struct drm_i915_gem_object *obj;
+	int ret;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	seq_printf(m, "%u objects, %zu bytes\n",
 		   dev_priv->mm.object_count,
@@ -253,16 +292,25 @@ static int i915_gem_object_info(struct drm_device *dev, struct sbuf *m, void *da
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_gem_gtt_info(struct seq_file *m, void* data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+	uintptr_t list = (uintptr_t) node->info_ent->data;
+#elif __FreeBSD__
 static int i915_gem_gtt_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	uintptr_t list = (uintptr_t)data;
 	struct drm_i915_gem_object *obj;
 	size_t total_obj_size, total_gtt_size;
-	int count;
+	int count, ret;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	total_obj_size = total_gtt_size = count = 0;
 	list_for_each_entry(obj, &dev_priv->mm.bound_list, gtt_list) {
@@ -285,8 +333,16 @@ static int i915_gem_gtt_info(struct drm_device *dev, struct sbuf *m, void *data)
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_gem_pageflip_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_gem_pageflip_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
+	unsigned long flags;
 	struct intel_crtc *crtc;
 
 	list_for_each_entry(crtc, &dev->mode_config.crtc_list, base.head) {
@@ -294,7 +350,7 @@ static int i915_gem_pageflip_info(struct drm_device *dev, struct sbuf *m, void *
 		const char plane = plane_name(crtc->plane);
 		struct intel_unpin_work *work;
 
-		spin_lock(&dev->event_lock);
+		spin_lock_irqsave(&dev->event_lock, flags);
 		work = crtc->unpin_work;
 		if (work == NULL) {
 			seq_printf(m, "No flip due on pipe %c (plane %c)\n",
@@ -324,21 +380,29 @@ static int i915_gem_pageflip_info(struct drm_device *dev, struct sbuf *m, void *
 					seq_printf(m, "New framebuffer gtt_offset 0x%08x\n", obj->gtt_offset);
 			}
 		}
-		spin_unlock(&dev->event_lock);
+		spin_unlock_irqrestore(&dev->event_lock, flags);
 	}
 
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_gem_request_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_gem_request_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	struct intel_ring_buffer *ring;
 	struct drm_i915_gem_request *gem_request;
-	int count, i;
+	int ret, count, i;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	count = 0;
 	for_each_ring(ring, dev_priv, i) {
@@ -363,23 +427,37 @@ static int i915_gem_request_info(struct drm_device *dev, struct sbuf *m, void *d
 	return 0;
 }
 
+#ifdef __linux__
+static void i915_ring_seqno_info(struct seq_file *m,
+				 struct intel_ring_buffer *ring)
+{
+#elif __FreeBSD__
 static void i915_ring_seqno_info(struct sbuf *m,
 				 struct intel_ring_buffer *ring)
 {
+#endif
 	if (ring->get_seqno) {
 		seq_printf(m, "Current sequence (%s): %d\n",
 			   ring->name, ring->get_seqno(ring, false));
 	}
 }
 
+#ifdef __linux__
+static int i915_gem_seqno_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_gem_seqno_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	struct intel_ring_buffer *ring;
-	int i;
+	int ret, i;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	for_each_ring(ring, dev_priv, i)
 		i915_ring_seqno_info(m, ring);
@@ -390,14 +468,22 @@ static int i915_gem_seqno_info(struct drm_device *dev, struct sbuf *m, void *dat
 }
 
 
+#ifdef __linux__
+static int i915_interrupt_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_interrupt_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	struct intel_ring_buffer *ring;
-	int i, pipe;
+	int ret, i, pipe;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	if (IS_VALLEYVIEW(dev)) {
 		seq_printf(m, "Display IER:\t%08x\n",
@@ -483,13 +569,21 @@ static int i915_interrupt_info(struct drm_device *dev, struct sbuf *m, void *dat
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_gem_fence_regs_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_gem_fence_regs_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
-	int i;
+	int i, ret;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	seq_printf(m, "Reserved fences = %d\n", dev_priv->fence_reg_start);
 	seq_printf(m, "Total fences = %d\n", dev_priv->num_fence_regs);
@@ -509,14 +603,25 @@ static int i915_gem_fence_regs_info(struct drm_device *dev, struct sbuf *m, void
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_hws_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_hws_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	struct intel_ring_buffer *ring;
 	const volatile u32 __iomem *hws;
 	int i;
 
+#ifdef __linux__
+	ring = &dev_priv->ring[(uintptr_t)node->info_ent->data];
+#elif __FreeBSD__
 	ring = &dev_priv->ring[(uintptr_t)data];
+#endif
 	hws = (volatile u32 __iomem *)ring->status_page.page_addr;
 	if (hws == NULL)
 		return 0;
@@ -569,12 +674,19 @@ static const char *purgeable_flag(int purgeable)
 	return purgeable ? " purgeable" : "";
 }
 
+#ifdef __linux__
+static void print_error_buffers(struct seq_file *m,
+				const char *name,
+				struct drm_i915_error_buffer *err,
+				int count)
+{
+#elif __FreeBSD__
 static void print_error_buffers(struct sbuf *m,
 				const char *name,
 				struct drm_i915_error_buffer *err,
 				int count)
 {
-
+#endif
 	seq_printf(m, "%s [%d]:\n", name, count);
 
 	while (count--) {
@@ -602,12 +714,20 @@ static void print_error_buffers(struct sbuf *m,
 	}
 }
 
+#ifdef __linux__
+static void i915_ring_error_state(struct seq_file *m,
+				  struct drm_device *dev,
+				  struct drm_i915_error_state *error,
+				  unsigned ring)
+{
+#elif __FreeBSD__
 static void i915_ring_error_state(struct sbuf *m,
 				  struct drm_device *dev,
 				  struct drm_i915_error_state *error,
 				  unsigned ring)
 {
-	MPASS((ring < I915_NUM_RINGS));	/* shut up confused gcc */
+#endif
+	BUG_ON(ring >= I915_NUM_RINGS); /* shut up confused gcc */
 	seq_printf(m, "%s command stream:\n", ring_str(ring));
 	seq_printf(m, "  HEAD: 0x%08x\n", error->head[ring]);
 	seq_printf(m, "  TAIL: 0x%08x\n", error->tail[ring]);
@@ -639,19 +759,34 @@ static void i915_ring_error_state(struct sbuf *m,
 	seq_printf(m, "  ring->tail: 0x%08x\n", error->cpu_ring_tail[ring]);
 }
 
+#ifdef __linux__
+struct i915_error_state_file_priv {
+	struct drm_device *dev;
+	struct drm_i915_error_state *error;
+};
+
+static int i915_error_state(struct seq_file *m, void *unused)
+{
+	struct i915_error_state_file_priv *error_priv = m->private;
+	struct drm_device *dev = error_priv->dev;
+#elif __FreeBSD__
 static int i915_error_state(struct drm_device *dev, struct sbuf *m,
     void *unused)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	struct drm_i915_error_state *error;
 	struct intel_ring_buffer *ring;
 	int i, j, page, offset, elt;
 
+	/* FIXME Only in FreeBSD ??? */
+#ifdef __FreeBSD__
 	spin_lock(&dev_priv->error_lock);
 	error = dev_priv->first_error;
 	if (error != NULL)
 		kref_get(&error->ref);
 	spin_unlock(&dev_priv->error_lock);
+#endif
 
 	if (!error) {
 		seq_printf(m, "no error state collected\n");
@@ -747,31 +882,108 @@ static int i915_error_state(struct drm_device *dev, struct sbuf *m,
 	if (error->display)
 		intel_display_print_error_state(m, dev, error->display);
 
+	/* FIXME Only in FreeBSD ??? */
+#ifdef __FreeBSD__
 	kref_put(&error->ref, i915_error_state_free);
+#endif
 
 	return 0;
 }
 
+#ifdef __linux__
+static ssize_t
+i915_error_state_write(struct file *filp,
+		       const char __user *ubuf,
+		       size_t cnt,
+		       loff_t *ppos)
+{
+	struct seq_file *m = filp->private_data;
+	struct i915_error_state_file_priv *error_priv = m->private;
+	struct drm_device *dev = error_priv->dev;
+#elif __FreeBSD__
 static int
 i915_error_state_write(struct drm_device *dev, const char *str, void *unused)
 {
+#endif
+	int ret;
 
 	DRM_DEBUG_DRIVER("Resetting error state\n");
 
-	mutex_lock(&dev->struct_mutex);
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
+
 	i915_destroy_error_state(dev);
 	mutex_unlock(&dev->struct_mutex);
 
+#ifdef __linux__
+	return cnt;
+#elif __FreeBSD__
 	return (0);
+#endif
 }
 
+#ifdef __linux__
+static int i915_error_state_open(struct inode *inode, struct file *file)
+{
+	struct drm_device *dev = inode->i_private;
+	drm_i915_private_t *dev_priv = dev->dev_private;
+	struct i915_error_state_file_priv *error_priv;
+	unsigned long flags;
+
+	error_priv = kzalloc(sizeof(*error_priv), GFP_KERNEL);
+	if (!error_priv)
+		return -ENOMEM;
+
+	error_priv->dev = dev;
+
+	spin_lock_irqsave(&dev_priv->error_lock, flags);
+	error_priv->error = dev_priv->first_error;
+	if (error_priv->error)
+		kref_get(&error_priv->error->ref);
+	spin_unlock_irqrestore(&dev_priv->error_lock, flags);
+
+	return single_open(file, i915_error_state, error_priv);
+}
+
+static int i915_error_state_release(struct inode *inode, struct file *file)
+{
+	struct seq_file *m = file->private_data;
+	struct i915_error_state_file_priv *error_priv = m->private;
+
+	if (error_priv->error)
+		kref_put(&error_priv->error->ref, i915_error_state_free);
+	kfree(error_priv);
+
+	return single_release(inode, file);
+}
+
+static const struct file_operations i915_error_state_fops = {
+	.owner = THIS_MODULE,
+	.open = i915_error_state_open,
+	.read = seq_read,
+	.write = i915_error_state_write,
+	.llseek = default_llseek,
+	.release = i915_error_state_release,
+};
+#endif
+
+#ifdef __linux__
+static int i915_rstdby_delays(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_rstdby_delays(struct drm_device *dev, struct sbuf *m, void *unused)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	u16 crstanddelay;
+	int ret;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	crstanddelay = I915_READ16(CRSTANDVID);
 
@@ -782,9 +994,17 @@ static int i915_rstdby_delays(struct drm_device *dev, struct sbuf *m, void *unus
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_cur_delayinfo(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_cur_delayinfo(struct drm_device *dev, struct sbuf *m, void *unused)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
+	int ret;
 
 	if (IS_GEN5(dev)) {
 		u16 rgvswctl = I915_READ16(MEMSWCTL);
@@ -806,8 +1026,10 @@ static int i915_cur_delayinfo(struct drm_device *dev, struct sbuf *m, void *unus
 		int max_freq;
 
 		/* RPSTAT1 is in the GT power well */
-		if (mutex_lock_interruptible(&dev->struct_mutex))
-			return -EINTR;
+		ret = mutex_lock_interruptible(&dev->struct_mutex);
+		if (ret)
+			return ret;
+
 		gen6_gt_force_wake_get(dev_priv);
 
 		rpstat = I915_READ(GEN6_RPSTAT1);
@@ -866,14 +1088,22 @@ static int i915_cur_delayinfo(struct drm_device *dev, struct sbuf *m, void *unus
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_delayfreq_table(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_delayfreq_table(struct drm_device *dev, struct sbuf *m, void *unused)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	u32 delayfreq;
-	int i;
+	int ret, i;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	for (i = 0; i < 16; i++) {
 		delayfreq = I915_READ(PXVFREQ_BASE + i * 4);
@@ -891,14 +1121,22 @@ static inline int MAP_TO_MV(int map)
 	return 1250 - (map * 25);
 }
 
+#ifdef __linux__
+static int i915_inttoext_table(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_inttoext_table(struct drm_device *dev, struct sbuf *m, void *unused)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	u32 inttoext;
-	int i;
+	int ret, i;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	for (i = 1; i <= 32; i++) {
 		inttoext = I915_READ(INTTOEXT_BASE_ILK + i * 4);
@@ -910,14 +1148,23 @@ static int i915_inttoext_table(struct drm_device *dev, struct sbuf *m, void *unu
 	return 0;
 }
 
+#ifdef __linux__
+static int ironlake_drpc_info(struct seq_file *m)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int ironlake_drpc_info(struct drm_device *dev, struct sbuf *m)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	u32 rgvmodectl, rstdbyctl;
 	u16 crstandvid;
+	int ret;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	rgvmodectl = I915_READ(MEMMODECTL);
 	rstdbyctl = I915_READ(RSTDBYCTL);
@@ -973,20 +1220,29 @@ static int ironlake_drpc_info(struct drm_device *dev, struct sbuf *m)
 	return 0;
 }
 
+#ifdef __linux__
+static int gen6_drpc_info(struct seq_file *m)
+{
+
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int gen6_drpc_info(struct drm_device *dev, struct sbuf *m)
 {
+#endif
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 rpmodectl1, gt_core_status, rcctl1, rc6vids = 0;
 	unsigned forcewake_count;
-	int count=0;
+	int count=0, ret;
 
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
-	spin_lock(&dev_priv->gt_lock);
+	spin_lock_irq(&dev_priv->gt_lock);
 	forcewake_count = dev_priv->forcewake_count;
-	spin_unlock(&dev_priv->gt_lock);
+	spin_unlock_irq(&dev_priv->gt_lock);
 
 	if (forcewake_count) {
 		seq_printf(m, "RC information inaccurate because somebody "
@@ -998,7 +1254,11 @@ static int gen6_drpc_info(struct drm_device *dev, struct sbuf *m)
 		seq_printf(m, "RC information accurate: %s\n", yesno(count < 51));
 	}
 
+#ifdef __linux__
+	gt_core_status = readl(dev_priv->regs + GEN6_GT_CORE_STATUS);
+#elif __FreeBSD__
 	gt_core_status = DRM_READ32(dev_priv->mmio_map, GEN6_GT_CORE_STATUS);
+#endif
 	trace_i915_reg_rw(false, GEN6_GT_CORE_STATUS, gt_core_status, 4);
 
 	rpmodectl1 = I915_READ(GEN6_RP_CONTROL);
@@ -1067,17 +1327,39 @@ static int gen6_drpc_info(struct drm_device *dev, struct sbuf *m)
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_drpc_info(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_drpc_info(struct drm_device *dev, struct sbuf *m, void *unused)
 {
+#endif
 
 	if (IS_GEN6(dev) || IS_GEN7(dev))
+#ifdef __linux__
+		return gen6_drpc_info(m);
+#elif __FreeBSD__
 		return gen6_drpc_info(dev, m);
+#endif
 	else
+#ifdef __linux__
+		return ironlake_drpc_info(m);
+#elif __FreeBSD__
 		return ironlake_drpc_info(dev, m);
+#endif
 }
 
+#ifdef __linux__
+static int i915_fbc_status(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_fbc_status(struct drm_device *dev, struct sbuf *m, void *unused)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 
 	if (!I915_HAS_FBC(dev)) {
@@ -1122,8 +1404,15 @@ static int i915_fbc_status(struct drm_device *dev, struct sbuf *m, void *unused)
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_sr_status(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_sr_status(struct drm_device *dev, struct sbuf *m, void *unused)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	bool sr_enabled = false;
 
@@ -1142,16 +1431,25 @@ static int i915_sr_status(struct drm_device *dev, struct sbuf *m, void *unused)
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_emon_status(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_emon_status(struct drm_device *dev, struct sbuf *m, void *unused)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	unsigned long temp, chipset, gfx;
+	int ret;
 
 	if (!IS_GEN5(dev))
 		return -ENODEV;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	temp = i915_mch_val(dev_priv);
 	chipset = i915_chipset_val(dev_priv);
@@ -1166,10 +1464,18 @@ static int i915_emon_status(struct drm_device *dev, struct sbuf *m, void *unused
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_ring_freq_table(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_ring_freq_table(struct drm_device *dev, struct sbuf *m,
     void *unused)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
+	int ret;
 	int gpu_freq, ia_freq;
 
 	if (!(IS_GEN6(dev) || IS_GEN7(dev))) {
@@ -1177,7 +1483,9 @@ static int i915_ring_freq_table(struct drm_device *dev, struct sbuf *m,
 		return 0;
 	}
 
-	mutex_lock(&dev_priv->rps.hw_lock);
+	ret = mutex_lock_interruptible(&dev_priv->rps.hw_lock);
+	if (ret)
+		return ret;
 
 	seq_printf(m, "GPU freq (MHz)\tEffective CPU freq (MHz)\n");
 
@@ -1196,12 +1504,21 @@ static int i915_ring_freq_table(struct drm_device *dev, struct sbuf *m,
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_gfxec(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_gfxec(struct drm_device *dev, struct sbuf *m, void *unused)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
+	int ret;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
 
 	seq_printf(m, "GFXEC: %ld\n", (unsigned long)I915_READ(0x112f4));
 
@@ -1210,36 +1527,57 @@ static int i915_gfxec(struct drm_device *dev, struct sbuf *m, void *unused)
 	return 0;
 }
 
-#if 0
-static int i915_opregion(struct drm_device *dev, struct sbuf *m, void *unused)
+#ifdef __linux__
+static int i915_opregion(struct seq_file *m, void *unused)
 {
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	struct intel_opregion *opregion = &dev_priv->opregion;
+	void *data = kmalloc(OPREGION_SIZE, GFP_KERNEL);
+	int ret;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	if (data == NULL)
+		return -ENOMEM;
 
-	if (opregion->header)
-		seq_write(m, opregion->header, OPREGION_SIZE);
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		goto out;
+
+	if (opregion->header) {
+		memcpy_fromio(data, opregion->header, OPREGION_SIZE);
+		seq_write(m, data, OPREGION_SIZE);
+	}
 
 	mutex_unlock(&dev->struct_mutex);
 
+out:
+	kfree(data);
 	return 0;
 }
 #endif
 
+#ifdef __linux__
+static int i915_gem_framebuffer_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_gem_framebuffer_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	struct intel_fbdev *ifbdev;
 	struct intel_framebuffer *fb;
+	int ret;
 
-	if (mutex_lock_interruptible(&dev->struct_mutex))
-		return -EINTR;
+	ret = mutex_lock_interruptible(&dev->mode_config.mutex);
+	if (ret)
+		return ret;
 
 	ifbdev = dev_priv->fbdev;
 	if (ifbdev == NULL) {
-		mutex_unlock(&dev->struct_mutex);
+		mutex_unlock(&dev->mode_config.mutex);
 		return 0;
 	}
 	fb = to_intel_framebuffer(ifbdev->helper.fb);
@@ -1265,19 +1603,26 @@ static int i915_gem_framebuffer_info(struct drm_device *dev, struct sbuf *m, voi
 		seq_printf(m, "\n");
 	}
 
-	mutex_unlock(&dev->struct_mutex);
+	mutex_unlock(&dev->mode_config.mutex);
 
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_context_status(struct seq_file *m, void *unused)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_context_status(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	int ret;
 
 	ret = mutex_lock_interruptible(&dev->mode_config.mutex);
-	if (ret != 0)
-		return -EINTR;
+	if (ret)
+		return ret;
 
 	if (dev_priv->ips.pwrctx) {
 		seq_printf(m, "power context ");
@@ -1296,15 +1641,22 @@ static int i915_context_status(struct drm_device *dev, struct sbuf *m, void *dat
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_gen6_forcewake_count_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_gen6_forcewake_count_info(struct drm_device *dev, struct sbuf *m,
     void *data)
 {
+#endif
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	unsigned forcewake_count;
 
-	spin_lock(&dev_priv->gt_lock);
+	spin_lock_irq(&dev_priv->gt_lock);
 	forcewake_count = dev_priv->forcewake_count;
-	spin_unlock(&dev_priv->gt_lock);
+	spin_unlock_irq(&dev_priv->gt_lock);
 
 	seq_printf(m, "forcewake count = %u\n", forcewake_count);
 
@@ -1313,7 +1665,6 @@ static int i915_gen6_forcewake_count_info(struct drm_device *dev, struct sbuf *m
 
 static const char *swizzle_string(unsigned swizzle)
 {
-
 	switch(swizzle) {
 	case I915_BIT_6_SWIZZLE_NONE:
 		return "none";
@@ -1336,14 +1687,21 @@ static const char *swizzle_string(unsigned swizzle)
 	return "bug";
 }
 
+#ifdef __linux__
+static int i915_swizzle_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_swizzle_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	int ret;
 
 	ret = mutex_lock_interruptible(&dev->struct_mutex);
 	if (ret)
-		return -EINTR;
+		return ret;
 
 	seq_printf(m, "bit6 swizzle for X-tiling = %s\n",
 		   swizzle_string(dev_priv->mm.bit_6_swizzle_x));
@@ -1376,8 +1734,15 @@ static int i915_swizzle_info(struct drm_device *dev, struct sbuf *m, void *data)
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_ppgtt_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_ppgtt_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_ring_buffer *ring;
 	int i, ret;
@@ -1385,7 +1750,7 @@ static int i915_ppgtt_info(struct drm_device *dev, struct sbuf *m, void *data)
 
 	ret = mutex_lock_interruptible(&dev->struct_mutex);
 	if (ret)
-		return -EINTR;
+		return ret;
 	if (INTEL_INFO(dev)->gen == 6)
 		seq_printf(m, "GFX_MODE: 0x%08x\n", I915_READ(GFX_MODE));
 
@@ -1409,8 +1774,15 @@ static int i915_ppgtt_info(struct drm_device *dev, struct sbuf *m, void *data)
 	return 0;
 }
 
+#ifdef __linux__
+static int i915_dpio_info(struct seq_file *m, void *data)
+{
+	struct drm_info_node *node = (struct drm_info_node *) m->private;
+	struct drm_device *dev = node->minor->dev;
+#elif __FreeBSD__
 static int i915_dpio_info(struct drm_device *dev, struct sbuf *m, void *data)
 {
+#endif
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	int ret;
 
@@ -1422,7 +1794,7 @@ static int i915_dpio_info(struct drm_device *dev, struct sbuf *m, void *data)
 
 	ret = mutex_lock_interruptible(&dev->mode_config.mutex);
 	if (ret)
-		return -EINTR;
+		return ret;
 
 	seq_printf(m, "DPIO_CTL: 0x%08x\n", I915_READ(DPIO_CTL));
 
@@ -1454,6 +1826,63 @@ static int i915_dpio_info(struct drm_device *dev, struct sbuf *m, void *data)
 	return 0;
 }
 
+#ifdef __linux__
+static ssize_t
+i915_wedged_read(struct file *filp,
+		 char __user *ubuf,
+		 size_t max,
+		 loff_t *ppos)
+{
+	struct drm_device *dev = filp->private_data;
+	drm_i915_private_t *dev_priv = dev->dev_private;
+	char buf[80];
+	int len;
+
+	len = snprintf(buf, sizeof(buf),
+		       "wedged :  %d\n",
+		       atomic_read(&dev_priv->mm.wedged));
+
+	if (len > sizeof(buf))
+		len = sizeof(buf);
+
+	return simple_read_from_buffer(ubuf, max, ppos, buf, len);
+}
+
+static ssize_t
+i915_wedged_write(struct file *filp,
+		  const char __user *ubuf,
+		  size_t cnt,
+		  loff_t *ppos)
+{
+	struct drm_device *dev = filp->private_data;
+	char buf[20];
+	int val = 1;
+
+	if (cnt > 0) {
+		if (cnt > sizeof(buf) - 1)
+			return -EINVAL;
+
+		if (copy_from_user(buf, ubuf, cnt))
+			return -EFAULT;
+		buf[cnt] = 0;
+
+		val = simple_strtoul(buf, NULL, 0);
+	}
+
+	DRM_INFO("Manually setting wedged to %d\n", val);
+	i915_handle_error(dev, val);
+
+	return cnt;
+}
+
+static const struct file_operations i915_wedged_fops = {
+	.owner = THIS_MODULE,
+	.open = simple_open,
+	.read = i915_wedged_read,
+	.write = i915_wedged_write,
+	.llseek = default_llseek,
+};
+#elif __FreeBSD__
 static int
 i915_wedged(SYSCTL_HANDLER_ARGS)
 {
@@ -1474,7 +1903,71 @@ i915_wedged(SYSCTL_HANDLER_ARGS)
 
 	return (ret);
 }
+#endif
 
+#ifdef __linux__
+static ssize_t
+i915_ring_stop_read(struct file *filp,
+		    char __user *ubuf,
+		    size_t max,
+		    loff_t *ppos)
+{
+	struct drm_device *dev = filp->private_data;
+	drm_i915_private_t *dev_priv = dev->dev_private;
+	char buf[20];
+	int len;
+
+	len = snprintf(buf, sizeof(buf),
+		       "0x%08x\n", dev_priv->stop_rings);
+
+	if (len > sizeof(buf))
+		len = sizeof(buf);
+
+	return simple_read_from_buffer(ubuf, max, ppos, buf, len);
+}
+
+static ssize_t
+i915_ring_stop_write(struct file *filp,
+		     const char __user *ubuf,
+		     size_t cnt,
+		     loff_t *ppos)
+{
+	struct drm_device *dev = filp->private_data;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	char buf[20];
+	int val = 0, ret;
+
+	if (cnt > 0) {
+		if (cnt > sizeof(buf) - 1)
+			return -EINVAL;
+
+		if (copy_from_user(buf, ubuf, cnt))
+			return -EFAULT;
+		buf[cnt] = 0;
+
+		val = simple_strtoul(buf, NULL, 0);
+	}
+
+	DRM_DEBUG_DRIVER("Stopping rings 0x%08x\n", val);
+
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
+
+	dev_priv->stop_rings = val;
+	mutex_unlock(&dev->struct_mutex);
+
+	return cnt;
+}
+
+static const struct file_operations i915_ring_stop_fops = {
+	.owner = THIS_MODULE,
+	.open = simple_open,
+	.read = i915_ring_stop_read,
+	.write = i915_ring_stop_write,
+	.llseek = default_llseek,
+};
+#elif __FreeBSD__
 static int
 i915_ring_stop(SYSCTL_HANDLER_ARGS)
 {
@@ -1498,7 +1991,87 @@ i915_ring_stop(SYSCTL_HANDLER_ARGS)
 
 	return (0);
 }
+#endif
 
+#ifdef __linux__
+static ssize_t
+i915_max_freq_read(struct file *filp,
+		   char __user *ubuf,
+		   size_t max,
+		   loff_t *ppos)
+{
+	struct drm_device *dev = filp->private_data;
+	drm_i915_private_t *dev_priv = dev->dev_private;
+	char buf[80];
+	int len, ret;
+
+	if (!(IS_GEN6(dev) || IS_GEN7(dev)))
+		return -ENODEV;
+
+	ret = mutex_lock_interruptible(&dev_priv->rps.hw_lock);
+	if (ret)
+		return ret;
+
+	len = snprintf(buf, sizeof(buf),
+		       "max freq: %d\n", dev_priv->rps.max_delay * GT_FREQUENCY_MULTIPLIER);
+	mutex_unlock(&dev_priv->rps.hw_lock);
+
+	if (len > sizeof(buf))
+		len = sizeof(buf);
+
+	return simple_read_from_buffer(ubuf, max, ppos, buf, len);
+}
+
+static ssize_t
+i915_max_freq_write(struct file *filp,
+		  const char __user *ubuf,
+		  size_t cnt,
+		  loff_t *ppos)
+{
+	struct drm_device *dev = filp->private_data;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	char buf[20];
+	int val = 1, ret;
+
+	if (!(IS_GEN6(dev) || IS_GEN7(dev)))
+		return -ENODEV;
+
+	if (cnt > 0) {
+		if (cnt > sizeof(buf) - 1)
+			return -EINVAL;
+
+		if (copy_from_user(buf, ubuf, cnt))
+			return -EFAULT;
+		buf[cnt] = 0;
+
+		val = simple_strtoul(buf, NULL, 0);
+	}
+
+	DRM_DEBUG_DRIVER("Manually setting max freq to %d\n", val);
+
+	ret = mutex_lock_interruptible(&dev_priv->rps.hw_lock);
+	if (ret)
+		return ret;
+
+	/*
+	 * Turbo will still be enabled, but won't go above the set value.
+	 */
+	dev_priv->rps.max_delay = val / GT_FREQUENCY_MULTIPLIER;
+
+	gen6_set_rps(dev, val / GT_FREQUENCY_MULTIPLIER);
+	mutex_unlock(&dev_priv->rps.hw_lock);
+
+	return cnt;
+}
+
+static const struct file_operations i915_max_freq_fops = {
+	.owner = THIS_MODULE,
+	.open = simple_open,
+	.read = i915_max_freq_read,
+	.write = i915_max_freq_write,
+	.llseek = default_llseek,
+};
+#elif __FreeBSD__
 static int
 i915_max_freq(SYSCTL_HANDLER_ARGS)
 {
@@ -1532,7 +2105,83 @@ i915_max_freq(SYSCTL_HANDLER_ARGS)
 
 	return (ret);
 }
+#endif
 
+#ifdef __linux__
+static ssize_t
+i915_min_freq_read(struct file *filp, char __user *ubuf, size_t max,
+		   loff_t *ppos)
+{
+	struct drm_device *dev = filp->private_data;
+	drm_i915_private_t *dev_priv = dev->dev_private;
+	char buf[80];
+	int len, ret;
+
+	if (!(IS_GEN6(dev) || IS_GEN7(dev)))
+		return -ENODEV;
+
+	ret = mutex_lock_interruptible(&dev_priv->rps.hw_lock);
+	if (ret)
+		return ret;
+
+	len = snprintf(buf, sizeof(buf),
+		       "min freq: %d\n", dev_priv->rps.min_delay * GT_FREQUENCY_MULTIPLIER);
+	mutex_unlock(&dev_priv->rps.hw_lock);
+
+	if (len > sizeof(buf))
+		len = sizeof(buf);
+
+	return simple_read_from_buffer(ubuf, max, ppos, buf, len);
+}
+
+static ssize_t
+i915_min_freq_write(struct file *filp, const char __user *ubuf, size_t cnt,
+		    loff_t *ppos)
+{
+	struct drm_device *dev = filp->private_data;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	char buf[20];
+	int val = 1, ret;
+
+	if (!(IS_GEN6(dev) || IS_GEN7(dev)))
+		return -ENODEV;
+
+	if (cnt > 0) {
+		if (cnt > sizeof(buf) - 1)
+			return -EINVAL;
+
+		if (copy_from_user(buf, ubuf, cnt))
+			return -EFAULT;
+		buf[cnt] = 0;
+
+		val = simple_strtoul(buf, NULL, 0);
+	}
+
+	DRM_DEBUG_DRIVER("Manually setting min freq to %d\n", val);
+
+	ret = mutex_lock_interruptible(&dev_priv->rps.hw_lock);
+	if (ret)
+		return ret;
+
+	/*
+	 * Turbo will still be enabled, but won't go below the set value.
+	 */
+	dev_priv->rps.min_delay = val / GT_FREQUENCY_MULTIPLIER;
+
+	gen6_set_rps(dev, val / GT_FREQUENCY_MULTIPLIER);
+	mutex_unlock(&dev_priv->rps.hw_lock);
+
+	return cnt;
+}
+
+static const struct file_operations i915_min_freq_fops = {
+	.owner = THIS_MODULE,
+	.open = simple_open,
+	.read = i915_min_freq_read,
+	.write = i915_min_freq_write,
+	.llseek = default_llseek,
+};
+#elif __FreeBSD__
 static int
 i915_min_freq(SYSCTL_HANDLER_ARGS)
 {
@@ -1566,7 +2215,89 @@ i915_min_freq(SYSCTL_HANDLER_ARGS)
 
 	return (ret);
 }
+#endif
 
+#ifdef __linux__
+static ssize_t
+i915_cache_sharing_read(struct file *filp,
+		   char __user *ubuf,
+		   size_t max,
+		   loff_t *ppos)
+{
+	struct drm_device *dev = filp->private_data;
+	drm_i915_private_t *dev_priv = dev->dev_private;
+	char buf[80];
+	u32 snpcr;
+	int len, ret;
+
+	if (!(IS_GEN6(dev) || IS_GEN7(dev)))
+		return -ENODEV;
+
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
+
+	snpcr = I915_READ(GEN6_MBCUNIT_SNPCR);
+	mutex_unlock(&dev_priv->dev->struct_mutex);
+
+	len = snprintf(buf, sizeof(buf),
+		       "%d\n", (snpcr & GEN6_MBC_SNPCR_MASK) >>
+		       GEN6_MBC_SNPCR_SHIFT);
+
+	if (len > sizeof(buf))
+		len = sizeof(buf);
+
+	return simple_read_from_buffer(ubuf, max, ppos, buf, len);
+}
+
+static ssize_t
+i915_cache_sharing_write(struct file *filp,
+		  const char __user *ubuf,
+		  size_t cnt,
+		  loff_t *ppos)
+{
+	struct drm_device *dev = filp->private_data;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	char buf[20];
+	u32 snpcr;
+	int val = 1;
+
+	if (!(IS_GEN6(dev) || IS_GEN7(dev)))
+		return -ENODEV;
+
+	if (cnt > 0) {
+		if (cnt > sizeof(buf) - 1)
+			return -EINVAL;
+
+		if (copy_from_user(buf, ubuf, cnt))
+			return -EFAULT;
+		buf[cnt] = 0;
+
+		val = simple_strtoul(buf, NULL, 0);
+	}
+
+	if (val < 0 || val > 3)
+		return -EINVAL;
+
+	DRM_DEBUG_DRIVER("Manually setting uncore sharing to %d\n", val);
+
+	/* Update the cache sharing policy here as well */
+	snpcr = I915_READ(GEN6_MBCUNIT_SNPCR);
+	snpcr &= ~GEN6_MBC_SNPCR_MASK;
+	snpcr |= (val << GEN6_MBC_SNPCR_SHIFT);
+	I915_WRITE(GEN6_MBCUNIT_SNPCR, snpcr);
+
+	return cnt;
+}
+
+static const struct file_operations i915_cache_sharing_fops = {
+	.owner = THIS_MODULE,
+	.open = simple_open,
+	.read = i915_cache_sharing_read,
+	.write = i915_cache_sharing_write,
+	.llseek = default_llseek,
+};
+#elif __FreeBSD__
 static int
 i915_cache_sharing(SYSCTL_HANDLER_ARGS)
 {
@@ -1602,7 +2333,207 @@ i915_cache_sharing(SYSCTL_HANDLER_ARGS)
 
 	return (0);
 }
+#endif
 
+#ifdef __linux__
+/* As the drm_debugfs_init() routines are called before dev->dev_private is
+ * allocated we need to hook into the minor for release. */
+static int
+drm_add_fake_info_node(struct drm_minor *minor,
+		       struct dentry *ent,
+		       const void *key)
+{
+	struct drm_info_node *node;
+
+	node = kmalloc(sizeof(struct drm_info_node), GFP_KERNEL);
+	if (node == NULL) {
+		debugfs_remove(ent);
+		return -ENOMEM;
+	}
+
+	node->minor = minor;
+	node->dent = ent;
+	node->info_ent = (void *) key;
+
+	mutex_lock(&minor->debugfs_lock);
+	list_add(&node->list, &minor->debugfs_list);
+	mutex_unlock(&minor->debugfs_lock);
+
+	return 0;
+}
+
+static int i915_forcewake_open(struct inode *inode, struct file *file)
+{
+	struct drm_device *dev = inode->i_private;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+
+	if (INTEL_INFO(dev)->gen < 6)
+		return 0;
+
+	gen6_gt_force_wake_get(dev_priv);
+
+	return 0;
+}
+
+static int i915_forcewake_release(struct inode *inode, struct file *file)
+{
+	struct drm_device *dev = inode->i_private;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+
+	if (INTEL_INFO(dev)->gen < 6)
+		return 0;
+
+	gen6_gt_force_wake_put(dev_priv);
+
+	return 0;
+}
+
+static const struct file_operations i915_forcewake_fops = {
+	.owner = THIS_MODULE,
+	.open = i915_forcewake_open,
+	.release = i915_forcewake_release,
+};
+
+static int i915_forcewake_create(struct dentry *root, struct drm_minor *minor)
+{
+	struct drm_device *dev = minor->dev;
+	struct dentry *ent;
+
+	ent = debugfs_create_file("i915_forcewake_user",
+				  S_IRUSR,
+				  root, dev,
+				  &i915_forcewake_fops);
+	if (IS_ERR(ent))
+		return PTR_ERR(ent);
+
+	return drm_add_fake_info_node(minor, ent, &i915_forcewake_fops);
+}
+
+static int i915_debugfs_create(struct dentry *root,
+			       struct drm_minor *minor,
+			       const char *name,
+			       const struct file_operations *fops)
+{
+	struct drm_device *dev = minor->dev;
+	struct dentry *ent;
+
+	ent = debugfs_create_file(name,
+				  S_IRUGO | S_IWUSR,
+				  root, dev,
+				  fops);
+	if (IS_ERR(ent))
+		return PTR_ERR(ent);
+
+	return drm_add_fake_info_node(minor, ent, fops);
+}
+
+static struct drm_info_list i915_debugfs_list[] = {
+	{"i915_capabilities", i915_capabilities, 0},
+	{"i915_gem_objects", i915_gem_object_info, 0},
+	{"i915_gem_gtt", i915_gem_gtt_info, 0},
+	{"i915_gem_pinned", i915_gem_gtt_info, 0, (void *) PINNED_LIST},
+	{"i915_gem_active", i915_gem_object_list_info, 0, (void *) ACTIVE_LIST},
+	{"i915_gem_inactive", i915_gem_object_list_info, 0, (void *) INACTIVE_LIST},
+	{"i915_gem_pageflip", i915_gem_pageflip_info, 0},
+	{"i915_gem_request", i915_gem_request_info, 0},
+	{"i915_gem_seqno", i915_gem_seqno_info, 0},
+	{"i915_gem_fence_regs", i915_gem_fence_regs_info, 0},
+	{"i915_gem_interrupt", i915_interrupt_info, 0},
+	{"i915_gem_hws", i915_hws_info, 0, (void *)RCS},
+	{"i915_gem_hws_blt", i915_hws_info, 0, (void *)BCS},
+	{"i915_gem_hws_bsd", i915_hws_info, 0, (void *)VCS},
+	{"i915_rstdby_delays", i915_rstdby_delays, 0},
+	{"i915_cur_delayinfo", i915_cur_delayinfo, 0},
+	{"i915_delayfreq_table", i915_delayfreq_table, 0},
+	{"i915_inttoext_table", i915_inttoext_table, 0},
+	{"i915_drpc_info", i915_drpc_info, 0},
+	{"i915_emon_status", i915_emon_status, 0},
+	{"i915_ring_freq_table", i915_ring_freq_table, 0},
+	{"i915_gfxec", i915_gfxec, 0},
+	{"i915_fbc_status", i915_fbc_status, 0},
+	{"i915_sr_status", i915_sr_status, 0},
+	{"i915_opregion", i915_opregion, 0},
+	{"i915_gem_framebuffer", i915_gem_framebuffer_info, 0},
+	{"i915_context_status", i915_context_status, 0},
+	{"i915_gen6_forcewake_count", i915_gen6_forcewake_count_info, 0},
+	{"i915_swizzle_info", i915_swizzle_info, 0},
+	{"i915_ppgtt_info", i915_ppgtt_info, 0},
+	{"i915_dpio", i915_dpio_info, 0},
+};
+#define I915_DEBUGFS_ENTRIES ARRAY_SIZE(i915_debugfs_list)
+
+int i915_debugfs_init(struct drm_minor *minor)
+{
+	int ret;
+
+	ret = i915_debugfs_create(minor->debugfs_root, minor,
+				  "i915_wedged",
+				  &i915_wedged_fops);
+	if (ret)
+		return ret;
+
+	ret = i915_forcewake_create(minor->debugfs_root, minor);
+	if (ret)
+		return ret;
+
+	ret = i915_debugfs_create(minor->debugfs_root, minor,
+				  "i915_max_freq",
+				  &i915_max_freq_fops);
+	if (ret)
+		return ret;
+
+	ret = i915_debugfs_create(minor->debugfs_root, minor,
+				  "i915_min_freq",
+				  &i915_min_freq_fops);
+	if (ret)
+		return ret;
+
+	ret = i915_debugfs_create(minor->debugfs_root, minor,
+				  "i915_cache_sharing",
+				  &i915_cache_sharing_fops);
+	if (ret)
+		return ret;
+
+	ret = i915_debugfs_create(minor->debugfs_root, minor,
+				  "i915_ring_stop",
+				  &i915_ring_stop_fops);
+	if (ret)
+		return ret;
+
+	ret = i915_debugfs_create(minor->debugfs_root, minor,
+				  "i915_error_state",
+				  &i915_error_state_fops);
+	if (ret)
+		return ret;
+
+	return drm_debugfs_create_files(i915_debugfs_list,
+					I915_DEBUGFS_ENTRIES,
+					minor->debugfs_root, minor);
+}
+
+void i915_debugfs_cleanup(struct drm_minor *minor)
+{
+	drm_debugfs_remove_files(i915_debugfs_list,
+				 I915_DEBUGFS_ENTRIES, minor);
+	drm_debugfs_remove_files((struct drm_info_list *) &i915_forcewake_fops,
+				 1, minor);
+	drm_debugfs_remove_files((struct drm_info_list *) &i915_wedged_fops,
+				 1, minor);
+	drm_debugfs_remove_files((struct drm_info_list *) &i915_max_freq_fops,
+				 1, minor);
+	drm_debugfs_remove_files((struct drm_info_list *) &i915_min_freq_fops,
+				 1, minor);
+	drm_debugfs_remove_files((struct drm_info_list *) &i915_cache_sharing_fops,
+				 1, minor);
+	drm_debugfs_remove_files((struct drm_info_list *) &i915_ring_stop_fops,
+				 1, minor);
+	drm_debugfs_remove_files((struct drm_info_list *) &i915_error_state_fops,
+				 1, minor);
+}
+//#endif /* CONFIG_DEBUG_FS */
+#endif
+
+#ifdef __FreeBSD__
 static struct i915_info_sysctl_list {
 	const char *name;
 	int (*ptr)(struct drm_device *dev, struct sbuf *m, void *data);
@@ -1771,5 +2702,4 @@ i915_sysctl_cleanup(struct drm_device *dev)
 
 	free(dev->sysctl_private, DRM_MEM_DRIVER);
 }
-
-//#endif /* CONFIG_DEBUG_FS */
+#endif
