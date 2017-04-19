@@ -179,7 +179,7 @@ static void vblank_disable_and_save(struct drm_device *dev, int crtc)
 #endif
 }
 
-static void vblank_disable_fn(void *arg)
+static void vblank_disable_fn(unsigned long arg)
 {
 	struct drm_device *dev = (struct drm_device *)arg;
 	unsigned long irqflags;
@@ -205,13 +205,9 @@ void drm_vblank_cleanup(struct drm_device *dev)
 	if (dev->num_crtcs == 0)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	del_timer_sync(&dev->vblank_disable_timer);
-#else
-	callout_stop(&dev->vblank_disable_callout);
-#endif
 
-	vblank_disable_fn(dev);
+	vblank_disable_fn((unsigned long)dev);
 
 	kfree(dev->vbl_queue);
 	kfree(dev->_vblank_count);
@@ -235,13 +231,12 @@ int drm_vblank_init(struct drm_device *dev, int num_crtcs)
 {
 	int i, ret = -ENOMEM;
 
-#ifdef FREEBSD_NOTYET
 	setup_timer(&dev->vblank_disable_timer, vblank_disable_fn,
 		    (unsigned long)dev);
+	spin_lock_init(&dev->vbl_lock);
+#ifdef FREEBSD_NOTYET
 	spin_lock_init(&dev->vblank_time_lock);
 #else
-	callout_init(&dev->vblank_disable_callout, 1);
-	spin_lock_init(&dev->vbl_lock);
 	mtx_init(&dev->vblank_time_lock, "drmvtl", NULL, MTX_DEF);
 #endif
 
@@ -347,6 +342,9 @@ int drm_irq_install(struct drm_device *dev)
 {
 	int ret;
 	unsigned long sh_flags = 0;
+#ifdef __linux__
+	char *irqname;
+#endif
 
 	if (!drm_core_check_feature(dev, DRIVER_HAVE_IRQ))
 		return -EINVAL;
@@ -376,9 +374,11 @@ int drm_irq_install(struct drm_device *dev)
 		dev->driver->irq_preinstall(dev);
 
 	/* Install handler */
-#ifdef __FreeBSD__
+#ifdef __linux__
+	if (drm_core_check_feature(dev, DRIVER_IRQ_SHARED))
+		sh_flags = IRQF_SHARED;
+#elif __FreeBSD__
 	sh_flags = INTR_TYPE_TTY | INTR_MPSAFE;
-#endif
 	if (!drm_core_check_feature(dev, DRIVER_IRQ_SHARED))
 		/*
 		 * FIXME Linux<->FreeBSD: This seems to make
@@ -389,12 +389,16 @@ int drm_irq_install(struct drm_device *dev)
 		 * For now, no driver we have use that.
 		 */
 		sh_flags |= INTR_EXCL;
+#endif
 
 #ifdef __linux__
 	if (dev->devname)
 		irqname = dev->devname;
 	else
 		irqname = dev->driver->name;
+
+	ret = request_irq(drm_dev_to_irq(dev), dev->driver->irq_handler,
+			  sh_flags, irqname, dev);
 #elif __FreeBSD__
 	ret = -bus_setup_intr(dev->dev, dev->irqr, sh_flags, NULL,
 	    dev->driver->irq_handler, dev, &dev->irqh);
@@ -407,6 +411,11 @@ int drm_irq_install(struct drm_device *dev)
 		mutex_unlock(&dev->struct_mutex);
 		return ret;
 	}
+
+#ifdef __linux__
+	if (!drm_core_check_feature(dev, DRIVER_MODESET))
+		vga_client_register(dev->pdev, (void *)dev, drm_irq_vgaarb_nokms, NULL);
+#endif
 
 	/* After installing handler */
 	if (dev->driver->irq_postinstall)
@@ -1064,9 +1073,8 @@ void drm_vblank_put(struct drm_device *dev, int crtc)
 	/* Last user schedules interrupt disable */
 	if (atomic_dec_and_test(&dev->vblank_refcount[crtc]) &&
 	    (drm_vblank_offdelay > 0))
-		callout_reset(&dev->vblank_disable_callout,
-		    (drm_vblank_offdelay * DRM_HZ) / 1000,
-		    vblank_disable_fn, dev);
+		mod_timer(&dev->vblank_disable_timer,
+			  jiffies + ((drm_vblank_offdelay * DRM_HZ)/1000));
 }
 EXPORT_SYMBOL(drm_vblank_put);
 
@@ -1464,7 +1472,11 @@ bool drm_handle_vblank(struct drm_device *dev, int crtc)
 
 	/* Vblank irq handling disabled. Nothing to do. */
 	if (!dev->vblank_enabled[crtc]) {
+#ifdef FREEBSD_NOTYET
+		spin_unlock_irqrestore(&dev->vblank_time_lock, irqflags);
+#else
 		mtx_unlock(&dev->vblank_time_lock);
+#endif
 		return false;
 	}
 
@@ -1508,7 +1520,7 @@ bool drm_handle_vblank(struct drm_device *dev, int crtc)
 	drm_handle_vblank_events(dev, crtc);
 
 #ifdef FREEBSD_NOTYET
-	spin_lock_irqsave(&dev->vblank_time_lock, irqflags);
+	spin_unlock_irqrestore(&dev->vblank_time_lock, irqflags);
 #else
 	mtx_unlock(&dev->vblank_time_lock);
 #endif
