@@ -257,6 +257,11 @@ capable(enum __drm_capabilities cap)
 	}
 }
 
+#define spin_is_locked(_l) mtx_owned(&(_l)->m)
+
+#define preempt_disable	critical_enter
+#define preempt_enable	critical_exit
+
 #define	to_user_ptr(x)		((void *)(uintptr_t)(x))
 #define	sigemptyset(set)	SIGEMPTYSET(set)
 #define	sigaddset(set, sig)	SIGADDSET(set, sig)

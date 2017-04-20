@@ -36,13 +36,13 @@
 #include <drm/drmP.h>
 #ifdef __linux__
 #include "drm_trace.h"
-
 #include <linux/interrupt.h>	/* For task queue support */
-
+#endif
+#include <linux/slab.h>
+#ifdef FREEBSD_NOTYET
 #include <linux/vgaarb.h>
 #include <linux/export.h>
 #endif
-#include <linux/slab.h>
 
 /* Access macro for slots in vblank timestamp ringbuffer. */
 #define vblanktimestamp(dev, crtc, count) ( \
@@ -287,9 +287,7 @@ int drm_vblank_init(struct drm_device *dev, int num_crtcs)
 
 	/* Zero per-crtc vblank stuff */
 	for (i = 0; i < num_crtcs; i++) {
-#ifdef __linux__
 		init_waitqueue_head(&dev->vbl_queue[i]);
-#endif
 		atomic_set(&dev->_vblank_count[i], 0);
 		atomic_set(&dev->vblank_refcount[i], 0);
 	}
@@ -646,7 +644,8 @@ int drm_calc_vbltimestamp_from_scanoutpos(struct drm_device *dev, int crtc,
 					  unsigned flags,
 					  struct drm_crtc *refcrtc)
 {
-	struct timeval stime, raw_time;
+	ktime_t stime, etime/* , mono_time_offset */;
+	struct timeval tv_etime;
 	struct drm_display_mode *mode;
 	int vbl_status, vtotal, vdisplay;
 	int vpos, hpos, i;
@@ -692,22 +691,22 @@ int drm_calc_vbltimestamp_from_scanoutpos(struct drm_device *dev, int crtc,
 		/* Disable preemption to make it very likely to
 		 * succeed in the first iteration even on PREEMPT_RT kernel.
 		 */
-		critical_enter();
+		preempt_disable();
 
 		/* Get system timestamp before query. */
-		getmicrouptime(&stime);
+		stime = ktime_get();
 
 		/* Get vertical and horizontal scanout pos. vpos, hpos. */
 		vbl_status = dev->driver->get_scanout_position(dev, crtc, &vpos, &hpos);
 
 		/* Get system timestamp after query. */
-		getmicrouptime(&raw_time);
+		etime = ktime_get();
 #ifdef FREEBSD_NOTYET
 		if (!drm_timestamp_monotonic)
 			mono_time_offset = ktime_get_monotonic_offset();
 #endif /* FREEBSD_NOTYET */
 
-		critical_exit();
+		preempt_enable();
 
 		/* Return as no-op if scanout query unsupported or failed. */
 		if (!(vbl_status & DRM_SCANOUTPOS_VALID)) {
@@ -716,7 +715,7 @@ int drm_calc_vbltimestamp_from_scanoutpos(struct drm_device *dev, int crtc,
 			return -EIO;
 		}
 
-		duration_ns = timeval_to_ns(&raw_time) - timeval_to_ns(&stime);
+		duration_ns = ktime_to_ns(etime) - ktime_to_ns(stime);
 
 		/* Accept result with <  max_error nsecs timing uncertainty. */
 		if (duration_ns <= (s64) *max_error)
@@ -766,19 +765,21 @@ int drm_calc_vbltimestamp_from_scanoutpos(struct drm_device *dev, int crtc,
 #ifdef FREEBSD_NOTYET
 	if (!drm_timestamp_monotonic)
 		etime = ktime_sub(etime, mono_time_offset);
+#endif /* FREEBSD_NOTYET */
 
 	/* save this only for debugging purposes */
 	tv_etime = ktime_to_timeval(etime);
-#endif /* FREEBSD_NOTYET */
 	/* Subtract time delta from raw timestamp to get final
 	 * vblank_time timestamp for end of vblank.
 	 */
-	*vblank_time = ns_to_timeval(timeval_to_ns(&raw_time) - delta_ns);
+	etime = ktime_sub_ns(etime, delta_ns);
+	*vblank_time = ktime_to_timeval(etime);
 
-	DRM_DEBUG("crtc %d : v %d p(%d,%d)@ %jd.%jd -> %jd.%jd [e %d us, %d rep]\n",
-		  crtc, (int)vbl_status, hpos, vpos, (uintmax_t)raw_time.tv_sec,
-		  (uintmax_t)raw_time.tv_usec, (uintmax_t)vblank_time->tv_sec,
-		  (uintmax_t)vblank_time->tv_usec, (int)duration_ns/1000, i);
+	DRM_DEBUG("crtc %d : v %d p(%d,%d)@ %ld.%ld -> %ld.%ld [e %d us, %d rep]\n",
+		  crtc, (int)vbl_status, hpos, vpos,
+		  (long)tv_etime.tv_sec, (long)tv_etime.tv_usec,
+		  (long)vblank_time->tv_sec, (long)vblank_time->tv_usec,
+		  (int)duration_ns/1000, i);
 
 	vbl_status = DRM_VBLANKTIME_SCANOUTPOS_METHOD;
 	if (invbl)
@@ -790,15 +791,15 @@ EXPORT_SYMBOL(drm_calc_vbltimestamp_from_scanoutpos);
 
 static struct timeval get_drm_timestamp(void)
 {
-	struct timeval now;
+	ktime_t now;
 
-	microtime(&now);
+	now = ktime_get();
 #ifdef FREEBSD_NOTYET
 	if (!drm_timestamp_monotonic)
 		now = ktime_sub(now, ktime_get_monotonic_offset());
-#endif /* defined(FREEBSD_NOTYET) */
+#endif
 
-	return now;
+	return ktime_to_timeval(now);
 }
 
 /**
@@ -1384,14 +1385,12 @@ int drm_wait_vblank(struct drm_device *dev, void *data,
 	mtx_unlock(&dev->vblank_time_lock);
 	if (ret != -EINTR) {
 		struct timeval now;
-		long reply_seq;
 
-		reply_seq = drm_vblank_count_and_time(dev, crtc, &now);
+		vblwait->reply.sequence = drm_vblank_count_and_time(dev, crtc, &now);
 		CTR5(KTR_DRM, "wait_vblank %d %d rt %x success %d %d",
 		    curproc->p_pid, crtc, vblwait->request.type,
-		    vblwait->request.sequence, reply_seq);
+		    vblwait->request.sequence, vblwait->reply.sequence);
 
-		vblwait->reply.sequence = reply_seq;
 		vblwait->reply.tval_sec = now.tv_sec;
 		vblwait->reply.tval_usec = now.tv_usec;
 
