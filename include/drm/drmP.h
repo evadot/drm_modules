@@ -109,6 +109,7 @@
 #include <sys/sbuf.h>
 #include <sys/taskqueue.h>
 #include <sys/tree.h>
+#include <sys/vmmeter.h>
 #include <vm/vm.h>
 #include <vm/pmap.h>
 #include <vm/vm_extern.h>
