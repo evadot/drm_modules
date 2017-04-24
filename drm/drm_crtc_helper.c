@@ -970,18 +970,10 @@ void drm_kms_helper_hotplug_event(struct drm_device *dev)
 EXPORT_SYMBOL(drm_kms_helper_hotplug_event);
 
 #define DRM_OUTPUT_POLL_PERIOD (10*HZ)
-#ifdef FREEBSD_NOTYET
 static void output_poll_execute(struct work_struct *work)
-#else
-static void output_poll_execute(void *ctx, int pending)
-#endif
 {
-#ifdef FREEBSD_NOTYET
 	struct delayed_work *delayed_work = to_delayed_work(work);
 	struct drm_device *dev = container_of(delayed_work, struct drm_device, mode_config.output_poll_work);
-#else
-	struct drm_device *dev = ctx;
-#endif
 	struct drm_connector *connector;
 	enum drm_connector_status old_status;
 	bool repoll = false, changed = false;
@@ -1025,25 +1017,14 @@ static void output_poll_execute(void *ctx, int pending)
 		drm_kms_helper_hotplug_event(dev);
 
 	if (repoll)
-#ifdef FREEBSD_NOTYET
 		schedule_delayed_work(delayed_work, DRM_OUTPUT_POLL_PERIOD);
-#else
-		taskqueue_enqueue_timeout(taskqueue_thread,
-		    &dev->mode_config.output_poll_work,
-		    DRM_OUTPUT_POLL_PERIOD);
-#endif
 }
 
 void drm_kms_helper_poll_disable(struct drm_device *dev)
 {
 	if (!dev->mode_config.poll_enabled)
 		return;
-#ifdef FREEBSD_NOTYET
 	cancel_delayed_work_sync(&dev->mode_config.output_poll_work);
-#else
-	taskqueue_cancel_timeout(taskqueue_thread,
-	    &dev->mode_config.output_poll_work, NULL);
-#endif
 }
 EXPORT_SYMBOL(drm_kms_helper_poll_disable);
 
@@ -1062,23 +1043,13 @@ void drm_kms_helper_poll_enable(struct drm_device *dev)
 	}
 
 	if (poll)
-#ifdef FREEBSD_NOTYET
 		schedule_delayed_work(&dev->mode_config.output_poll_work, DRM_OUTPUT_POLL_PERIOD);
-#else
-		taskqueue_enqueue_timeout(taskqueue_thread,
-		    &dev->mode_config.output_poll_work, DRM_OUTPUT_POLL_PERIOD);
-#endif
 }
 EXPORT_SYMBOL(drm_kms_helper_poll_enable);
 
 void drm_kms_helper_poll_init(struct drm_device *dev)
 {
-#ifdef FREEBSD_NOTYET
 	INIT_DELAYED_WORK(&dev->mode_config.output_poll_work, output_poll_execute);
-#else
-	TIMEOUT_TASK_INIT(taskqueue_thread, &dev->mode_config.output_poll_work,
-	    0, output_poll_execute, dev);
-#endif
 	dev->mode_config.poll_enabled = true;
 
 	drm_kms_helper_poll_enable(dev);

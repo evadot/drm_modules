@@ -801,11 +801,7 @@ struct drm_mode_config {
 	/* output poll support */
 	bool poll_enabled;
 	bool poll_running;
-#ifdef FREEBSD_NOTYET
 	struct delayed_work output_poll_work;
-#else
-	struct timeout_task output_poll_work;
-#endif
 
 	/* pointers to standard properties */
 	struct list_head property_blob_list;
