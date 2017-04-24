@@ -5199,6 +5199,10 @@ i915_gem_inactive_shrink(void *arg)
 	int pass1, pass2;
 
 	if (!mutex_lock_interruptible(&dev->struct_mutex)) {
+		/* 
+		 * We need mutex_is_locked_by macros otherwise
+		 * We could unlock an non-locked mutex
+		 */
 		return;
 	}
 
