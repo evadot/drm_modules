@@ -3582,13 +3582,6 @@ out:
 	return ret;
 }
 
-static void
-free_vblank_event(void *arg)
-{
-
-	kfree(arg);
-}
-
 int drm_mode_page_flip_ioctl(struct drm_device *dev,
 			     void *data, struct drm_file *file_priv)
 {
@@ -3668,13 +3661,8 @@ int drm_mode_page_flip_ioctl(struct drm_device *dev,
 		e->event.user_data = page_flip->user_data;
 		e->base.event = &e->event.base;
 		e->base.file_priv = file_priv;
-#ifdef FREEBSD_NOTYET
 		e->base.destroy =
 			(void (*) (struct drm_pending_event *)) kfree;
-#else
-		e->base.destroy =
-			(void (*) (struct drm_pending_event *)) free_vblank_event;
-#endif
 	}
 
 	ret = crtc->funcs->page_flip(crtc, fb, e);
