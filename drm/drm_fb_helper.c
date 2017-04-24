@@ -161,12 +161,7 @@ int drm_fb_helper_single_add_all_connectors(struct drm_fb_helper *fb_helper)
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
 		struct drm_fb_helper_connector *fb_helper_connector;
 
-#ifdef FREEBSD_NOTYET
 		fb_helper_connector = kzalloc(sizeof(struct drm_fb_helper_connector), GFP_KERNEL);
-#else
-		fb_helper_connector = malloc(sizeof(struct drm_fb_helper_connector),
-		    DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 		if (!fb_helper_connector)
 			goto fail;
 
@@ -176,11 +171,7 @@ int drm_fb_helper_single_add_all_connectors(struct drm_fb_helper *fb_helper)
 	return 0;
 fail:
 	for (i = 0; i < fb_helper->connector_count; i++) {
-#ifdef FREEBSD_NOTYET
 		kfree(fb_helper->connector_info[i]);
-#else
-		free(fb_helper->connector_info[i], DRM_MEM_KMS);
-#endif
 		fb_helper->connector_info[i] = NULL;
 	}
 	fb_helper->connector_count = 0;
@@ -504,27 +495,14 @@ static void drm_fb_helper_crtc_free(struct drm_fb_helper *helper)
 	int i;
 
 	for (i = 0; i < helper->connector_count; i++)
-#ifdef FREEBSD_NOTYET
 		kfree(helper->connector_info[i]);
 	kfree(helper->connector_info);
-#else
-		free(helper->connector_info[i], DRM_MEM_KMS);
-	free(helper->connector_info, DRM_MEM_KMS);
-#endif
 	for (i = 0; i < helper->crtc_count; i++) {
-#ifdef FREEBSD_NOTYET
 		kfree(helper->crtc_info[i].mode_set.connectors);
-#else
-		free(helper->crtc_info[i].mode_set.connectors, DRM_MEM_KMS);
-#endif
 		if (helper->crtc_info[i].mode_set.mode)
 			drm_mode_destroy(helper->dev, helper->crtc_info[i].mode_set.mode);
 	}
-#ifdef FREEBSD_NOTYET
 	kfree(helper->crtc_info);
-#else
-	free(helper->crtc_info, DRM_MEM_KMS);
-#endif
 }
 
 int drm_fb_helper_init(struct drm_device *dev,
@@ -538,43 +516,23 @@ int drm_fb_helper_init(struct drm_device *dev,
 
 	INIT_LIST_HEAD(&fb_helper->kernel_fb_list);
 
-#ifdef FREEBSD_NOTYET
 	fb_helper->crtc_info = kcalloc(crtc_count, sizeof(struct drm_fb_helper_crtc), GFP_KERNEL);
-#else
-	fb_helper->crtc_info = malloc(crtc_count * sizeof(struct drm_fb_helper_crtc),
-	    DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 	if (!fb_helper->crtc_info)
 		return -ENOMEM;
 
 	fb_helper->crtc_count = crtc_count;
-#ifdef FREEBSD_NOTYET
 	fb_helper->connector_info = kcalloc(dev->mode_config.num_connector, sizeof(struct drm_fb_helper_connector *), GFP_KERNEL);
-#else
-	fb_helper->connector_info = malloc(dev->mode_config.num_connector * sizeof(struct drm_fb_helper_connector *),
-	    DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 	if (!fb_helper->connector_info) {
-#ifdef FREEBSD_NOTYET
 		kfree(fb_helper->crtc_info);
-#else
-		free(fb_helper->crtc_info, DRM_MEM_KMS);
-#endif
 		return -ENOMEM;
 	}
 	fb_helper->connector_count = 0;
 
 	for (i = 0; i < crtc_count; i++) {
 		fb_helper->crtc_info[i].mode_set.connectors =
-#ifdef FREEBSD_NOTYET
 			kcalloc(max_conn_count,
 				sizeof(struct drm_connector *),
 				GFP_KERNEL);
-#else
-			malloc(max_conn_count *
-				sizeof(struct drm_connector *),
-				DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 
 		if (!fb_helper->crtc_info[i].mode_set.connectors)
 			goto out_free;
@@ -1401,13 +1359,8 @@ static int drm_pick_crtcs(struct drm_fb_helper *fb_helper,
 	if (modes[n] == NULL)
 		return best_score;
 
-#ifdef FREEBSD_NOTYET
 	crtcs = kzalloc(dev->mode_config.num_connector *
 			sizeof(struct drm_fb_helper_crtc *), GFP_KERNEL);
-#else
-	crtcs = malloc(dev->mode_config.num_connector *
-			sizeof(struct drm_fb_helper_crtc *), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 	if (!crtcs)
 		return best_score;
 
@@ -1458,11 +1411,7 @@ static int drm_pick_crtcs(struct drm_fb_helper *fb_helper,
 		}
 	}
 out:
-#ifdef FREEBSD_NOTYET
 	kfree(crtcs);
-#else
-	free(crtcs, DRM_MEM_KMS);
-#endif
 	return best_score;
 }
 
@@ -1481,21 +1430,12 @@ static void drm_setup_crtcs(struct drm_fb_helper *fb_helper)
 	width = dev->mode_config.max_width;
 	height = dev->mode_config.max_height;
 
-#ifdef FREEBSD_NOTYET
 	crtcs = kcalloc(dev->mode_config.num_connector,
 			sizeof(struct drm_fb_helper_crtc *), GFP_KERNEL);
 	modes = kcalloc(dev->mode_config.num_connector,
 			sizeof(struct drm_display_mode *), GFP_KERNEL);
 	enabled = kcalloc(dev->mode_config.num_connector,
 			  sizeof(bool), GFP_KERNEL);
-#else
-	crtcs = malloc(dev->mode_config.num_connector *
-			sizeof(struct drm_fb_helper_crtc *), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-	modes = malloc(dev->mode_config.num_connector *
-			sizeof(struct drm_display_mode *), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-	enabled = malloc(dev->mode_config.num_connector *
-			  sizeof(bool), DRM_MEM_KMS, M_NOWAIT | M_ZERO);
-#endif
 	if (!crtcs || !modes || !enabled) {
 		DRM_ERROR("Memory allocation failed\n");
 		goto out;
@@ -1540,15 +1480,9 @@ static void drm_setup_crtcs(struct drm_fb_helper *fb_helper)
 	}
 
 out:
-#ifdef FREEBSD_NOTYET
 	kfree(crtcs);
 	kfree(modes);
 	kfree(enabled);
-#else
-	free(crtcs, DRM_MEM_KMS);
-	free(modes, DRM_MEM_KMS);
-	free(enabled, DRM_MEM_KMS);
-#endif
 }
 
 /**
