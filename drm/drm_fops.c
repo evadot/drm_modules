@@ -89,11 +89,7 @@ static int drm_setup(struct drm_device * dev)
 	dev->last_context = 0;
 	dev->last_switch = 0;
 	dev->last_checked = 0;
-#ifdef FREEBSD_NOTYET
 	init_waitqueue_head(&dev->context_wait);
-#else
-	DRM_INIT_WAITQUEUE(&dev->context_wait);
-#endif
 	dev->if_version = 0;
 
 #ifdef FREEBSD_NOTYET
