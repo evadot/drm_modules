@@ -1373,7 +1373,6 @@ struct drm_device {
 #ifdef __FreeBSD__
 				/* Locks */
 	struct mtx	  dma_lock;	/* protects dev->dma */
-	struct mtx	  irq_lock;	/* protects irq condition checks */
 
 				/* Context support */
 	int		  irq;		/* Interrupt used by board	   */
