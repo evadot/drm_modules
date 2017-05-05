@@ -5129,20 +5129,25 @@ void i915_gem_release(struct drm_device *dev, struct drm_file *file)
 }
 
 #ifdef __linux__
-
 static bool mutex_is_locked_by(struct mutex *mutex, struct task_struct *task)
+#elif __FreeBSD__
+static bool mutex_is_locked_by(struct mutex *mutex, struct thread *thread)
+#endif
 {
 	if (!mutex_is_locked(mutex))
 		return false;
 
+#ifdef __linux__
 #if defined(CONFIG_SMP) || defined(CONFIG_DEBUG_MUTEXES)
 	return mutex->owner == task;
 #else
 	/* Since UP may be pre-empted, we cannot assume that we own the lock */
 	return false;
 #endif
-}
+#elif __FreeBSD__
+	return sx_xholder(&mutex->sx) == thread;
 #endif
+}
 
 #ifdef __linux__
 
@@ -5197,13 +5202,16 @@ i915_gem_inactive_shrink(void *arg)
 	struct drm_device *dev = arg;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	int pass1, pass2;
+	bool unlock = true;
 
-	if (!mutex_lock_interruptible(&dev->struct_mutex)) {
-		/* 
-		 * We need mutex_is_locked_by macros otherwise
-		 * We could unlock an non-locked mutex
-		 */
-		return;
+	if (!mutex_trylock(&dev->struct_mutex)) {
+		if (!mutex_is_locked_by(&dev->struct_mutex, curthread))
+			return;
+
+		if (dev_priv->mm.shrinker_no_lock_stealing)
+			return;
+
+		unlock = false;
 	}
 
 	CTR0(KTR_DRM, "gem_lowmem");
@@ -5214,7 +5222,8 @@ i915_gem_inactive_shrink(void *arg)
 	if (pass2 <= pass1 / 100)
 		i915_gem_shrink_all(dev_priv);
 
-	mutex_unlock(&dev->struct_mutex);
+	if (unlock)
+		mutex_unlock(&dev->struct_mutex);
 }
 
 static vm_page_t
