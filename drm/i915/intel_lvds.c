@@ -466,7 +466,7 @@ static int intel_lvds_get_modes(struct drm_connector *connector)
 	struct drm_display_mode *mode;
 
 	/* use cached edid if we have one */
-	if (lvds_connector->base.edid)
+	if (!IS_ERR_OR_NULL(lvds_connector->base.edid))
 		return drm_add_edid_modes(connector, lvds_connector->base.edid);
 
 	mode = drm_mode_duplicate(dev, lvds_connector->base.panel.fixed_mode);
@@ -563,14 +563,14 @@ static void intel_lvds_destroy(struct drm_connector *connector)
 		acpi_lid_notifier_unregister(&lvds_connector->lid_notifier);
 #endif /* FREEBSD_WIP */
 
-#ifdef FREEBSD_NOTYET
 	if (!IS_ERR_OR_NULL(lvds_connector->base.edid))
-#else
 		kfree(lvds_connector->base.edid);
-#endif
 
 	intel_panel_fini(&lvds_connector->base.panel);
 
+#ifdef __linux__
+	drm_sysfs_connector_remove(connector);
+#endif
 	drm_connector_cleanup(connector);
 	kfree(connector);
 }
@@ -945,7 +945,6 @@ bool intel_lvds_init(struct drm_device *dev)
 	struct drm_display_mode *scan; /* *modes, *bios_mode; */
 	struct drm_display_mode *fixed_mode = NULL;
 	struct edid *edid;
-	int edid_err = 0;
 	struct drm_crtc *crtc;
 	u32 lvds;
 	int pipe;
@@ -1048,25 +1047,14 @@ bool intel_lvds_init(struct drm_device *dev)
 								edid);
 		} else {
 			kfree(edid);
-#ifdef FREEBSD_NOTYET
 			edid = ERR_PTR(-EINVAL);
-#else
-			edid = NULL;
-			edid_err = -EINVAL;
-#endif
 		}
 	} else {
-#ifdef FREEBSD_NOTYET
 		edid = ERR_PTR(-ENOENT);
-#else
-		edid = NULL;
-		edid_err = -ENOENT;
-#endif
 	}
 	lvds_connector->base.edid = edid;
-	lvds_connector->base.edid_err = edid_err;
 
-	if (edid_err) {
+	if (IS_ERR_OR_NULL(edid)) {
 		/* Didn't get an EDID, so
 		 * Set wide sync ranges so we get all modes
 		 * handed to valid_mode for checking
@@ -1150,6 +1138,9 @@ out:
 		lvds_connector->lid_notifier.notifier_call = NULL;
 	}
 #endif /* FREEBSD_WIP */
+#ifdef __linux__
+	drm_sysfs_connector_add(connector);
+#endif
 
 	intel_panel_init(&intel_connector->panel, fixed_mode);
 	intel_panel_setup_backlight(connector);
