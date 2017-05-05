@@ -84,22 +84,13 @@ static int intelfb_create(struct intel_fbdev *ifbdev,
 	mode_cmd.width = sizes->surface_width;
 	mode_cmd.height = sizes->surface_height;
 
-#ifdef FREEBSD_NOTYET
 	mode_cmd.pitches[0] = ALIGN(mode_cmd.width * ((sizes->surface_bpp + 7) /
 						      8), 64);
-#else
-	mode_cmd.pitches[0] = roundup2(mode_cmd.width * ((sizes->surface_bpp + 7) /
-						      8), 64);
-#endif
 	mode_cmd.pixel_format = drm_mode_legacy_fb_format(sizes->surface_bpp,
 							  sizes->surface_depth);
 
 	size = mode_cmd.pitches[0] * mode_cmd.height;
-#ifdef FREEBSD_NOTYET
 	size = ALIGN(size, PAGE_SIZE);
-#else
-	size = roundup2(size, PAGE_SIZE);
-#endif
 	obj = i915_gem_alloc_object(dev, size);
 	if (!obj) {
 		DRM_ERROR("failed to allocate framebuffer\n");
@@ -144,6 +135,42 @@ static int intelfb_create(struct intel_fbdev *ifbdev,
 
 	ifbdev->helper.fb = fb;
 	ifbdev->helper.fbdev = info;
+
+#ifdef __linux__
+	strcpy(info->fix.id, "inteldrmfb");
+
+	info->flags = FBINFO_DEFAULT | FBINFO_CAN_FORCE_OUTPUT;
+	info->fbops = &intelfb_ops;
+
+	ret = fb_alloc_cmap(&info->cmap, 256, 0);
+	if (ret) {
+		ret = -ENOMEM;
+		goto out_unpin;
+	}
+	/* setup aperture base/size for vesafb takeover */
+	info->apertures = alloc_apertures(1);
+	if (!info->apertures) {
+		ret = -ENOMEM;
+		goto out_unpin;
+	}
+	info->apertures->ranges[0].base = dev->mode_config.fb_base;
+	info->apertures->ranges[0].size =
+		dev_priv->mm.gtt->gtt_mappable_entries << PAGE_SHIFT;
+
+	info->fix.smem_start = dev->mode_config.fb_base + obj->gtt_offset;
+	info->fix.smem_len = size;
+
+	info->screen_base =
+		ioremap_wc(dev_priv->mm.gtt_base_addr + obj->gtt_offset,
+			   size);
+	if (!info->screen_base) {
+		ret = -ENOSPC;
+		goto out_unpin;
+	}
+	info->screen_size = size;
+
+//	memset(info->screen_base, 0, size);
+#endif
 
 	drm_fb_helper_fill_fix(info, fb->pitches[0], fb->depth);
 	drm_fb_helper_fill_var(info, &ifbdev->helper, sizes->fb_width, sizes->fb_height);
@@ -200,8 +227,15 @@ static void intel_fbdev_destroy(struct drm_device *dev,
 
 	if (ifbdev->helper.fbdev) {
 		info = ifbdev->helper.fbdev;
+#ifdef __linux__
+		unregister_framebuffer(info);
+		iounmap(info->screen_base);
+		if (info->cmap.len)
+			fb_dealloc_cmap(&info->cmap);
+#elif __FreeBSD__
 		if (info->fb_fbd_dev != NULL)
 			device_delete_child(dev->dev, info->fb_fbd_dev);
+#endif
 		framebuffer_release(info);
 	}
 
@@ -214,8 +248,10 @@ static void intel_fbdev_destroy(struct drm_device *dev,
 	}
 }
 
+#ifdef _FreeBSD__
 #ifdef DEV_SC
 extern int sc_txtmouse_no_retrace_wait;
+#endif
 #endif
 
 int intel_fbdev_init(struct drm_device *dev)
