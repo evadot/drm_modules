@@ -1184,9 +1184,8 @@ static int __wait_seqno(struct intel_ring_buffer *ring, u32 seqno,
 {
 	drm_i915_private_t *dev_priv = ring->dev->dev_private;
 	struct timespec before, now, wait_time={1,0};
-#ifdef __linux__
 	unsigned long timeout_jiffies;
-#elif __FreeBSD__
+#ifdef __FreeBSD__
 	sbintime_t timeout_sbt;
 #endif
 	long end;
@@ -1207,9 +1206,8 @@ static int __wait_seqno(struct intel_ring_buffer *ring, u32 seqno,
 		wait_forever = false;
 	}
 
-#ifdef __linux__
 	timeout_jiffies = timespec_to_jiffies(&wait_time);
-#elif __FreeBSD__
+#ifdef __FreeBSD__
 	timeout_sbt = tstosbt(wait_time);
 #endif
 
@@ -1285,13 +1283,8 @@ static int __wait_seqno(struct intel_ring_buffer *ring, u32 seqno,
 #undef EXIT_COND
 
 	if (timeout) {
-#ifdef __linux__
 		struct timespec sleep_time = timespec_sub(now, before);
 		*timeout = timespec_sub(*timeout, sleep_time);
-#elif __FreeBSD__
-		timespecsub(&now, &before);
-		timespecsub(timeout, &now);
-#endif
 	}
 
 	switch (end) {
@@ -1597,43 +1590,6 @@ out:
 #endif
 }
 
-static int
-i915_gem_pager_ctor(void *handle, vm_ooffset_t size, vm_prot_t prot,
-    vm_ooffset_t foff, struct ucred *cred, u_short *color)
-{
-
-	/*
-	 * NOTE Linux<->FreeBSD: drm_gem_mmap_single() takes care of
-	 * calling drm_gem_object_reference(). That's why we don't
-	 * do this here. i915_gem_pager_dtor(), below, will call
-	 * drm_gem_object_unreference().
-	 *
-	 * On Linux, drm_gem_vm_open() references the object because
-	 * it's called the mapping is copied. drm_gem_vm_open() is not
-	 * called when the mapping is created. So the possible sequences
-	 * are:
-	 *     1. drm_gem_mmap():     ref++
-	 *     2. drm_gem_vm_close(): ref--
-	 *
-	 *     1. drm_gem_mmap():     ref++
-	 *     2. drm_gem_vm_open():  ref++ (for the copied vma)
-	 *     3. drm_gem_vm_close(): ref-- (for the copied vma)
-	 *     4. drm_gem_vm_close(): ref-- (for the initial vma)
-	 *
-	 * On FreeBSD, i915_gem_pager_ctor() is called once during the
-	 * creation of the mapping. No callback is called when the
-	 * mapping is shared during a fork(). i915_gem_pager_dtor() is
-	 * called when the last reference to the mapping is dropped. So
-	 * the only sequence is:
-	 *     1. drm_gem_mmap_single(): ref++
-	 *     2. i915_gem_pager_ctor(): <noop>
-	 *     3. i915_gem_pager_dtor(): ref--
-	 */
-
-	*color = 0; /* XXXKIB */
-	return (0);
-}
-
 /**
  * i915_gem_fault - fault a page into the GTT
  * vma: VMA in question
@@ -1862,6 +1818,43 @@ out:
 	}
 	VM_OBJECT_WLOCK(vm_obj);
 	return (VM_PAGER_ERROR);
+}
+
+static int
+i915_gem_pager_ctor(void *handle, vm_ooffset_t size, vm_prot_t prot,
+    vm_ooffset_t foff, struct ucred *cred, u_short *color)
+{
+
+	/*
+	 * NOTE Linux<->FreeBSD: drm_gem_mmap_single() takes care of
+	 * calling drm_gem_object_reference(). That's why we don't
+	 * do this here. i915_gem_pager_dtor(), below, will call
+	 * drm_gem_object_unreference().
+	 *
+	 * On Linux, drm_gem_vm_open() references the object because
+	 * it's called the mapping is copied. drm_gem_vm_open() is not
+	 * called when the mapping is created. So the possible sequences
+	 * are:
+	 *     1. drm_gem_mmap():     ref++
+	 *     2. drm_gem_vm_close(): ref--
+	 *
+	 *     1. drm_gem_mmap():     ref++
+	 *     2. drm_gem_vm_open():  ref++ (for the copied vma)
+	 *     3. drm_gem_vm_close(): ref-- (for the copied vma)
+	 *     4. drm_gem_vm_close(): ref-- (for the initial vma)
+	 *
+	 * On FreeBSD, i915_gem_pager_ctor() is called once during the
+	 * creation of the mapping. No callback is called when the
+	 * mapping is shared during a fork(). i915_gem_pager_dtor() is
+	 * called when the last reference to the mapping is dropped. So
+	 * the only sequence is:
+	 *     1. drm_gem_mmap_single(): ref++
+	 *     2. i915_gem_pager_ctor(): <noop>
+	 *     3. i915_gem_pager_dtor(): ref--
+	 */
+
+	*color = 0; /* XXXKIB */
+	return (0);
 }
 
 static void
@@ -2713,7 +2706,11 @@ i915_add_request(struct intel_ring_buffer *ring,
 		spin_unlock(&file_priv->mm.lock);
 	}
 
+#ifdef __linux__
+	trace_i915_gem_request_add(ring, request->seqno);
+#elif __FreeBSD__
 	CTR2(KTR_DRM, "request_add %s %d", ring->name, request->seqno);
+#endif
 	ring->outstanding_lazy_request = 0;
 
 	if (!dev_priv->mm.suspended) {
