@@ -1012,6 +1012,12 @@ i915_get_device_id(int device)
 }
 #endif
 
+#ifdef __linux__
+static int i915_pci_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
+{
+	struct intel_device_info *intel_info =
+		(struct intel_device_info *) ent->driver_data;
+#elif __FreeBSD__
 static int i915_probe(device_t kdev)
 {
 	const struct intel_device_info *intel_info =
@@ -1019,6 +1025,8 @@ static int i915_probe(device_t kdev)
 
 	if (intel_info == NULL)
 		return (ENXIO);
+#endif
+
 	if (intel_info->is_valleyview)
 		if(!i915_preliminary_hw_support) {
 			DRM_ERROR("Preliminary hardware support disabled\n");
@@ -1030,8 +1038,13 @@ static int i915_probe(device_t kdev)
 	 * us confusion instead, especially on the systems where both
 	 * functions have the same PCI-ID!
 	 */
+#ifdef ___linux__
+	if (PCI_FUNC(pdev->devfn))
+		return -ENODEV;
+#elif __FreeBSD__
 	if (pci_get_function(kdev))
 		return (ENXIO);
+#endif
 
 	/* We've managed to ship a kms-enabled ddx that shipped with an XvMC
 	 * implementation for gen3 (and only gen3) that used legacy drm maps
@@ -1042,10 +1055,18 @@ static int i915_probe(device_t kdev)
 			~(DRIVER_USE_AGP | DRIVER_REQUIRE_AGP);
 	} else if (!intel_agp_enabled) {
 		DRM_ERROR("drm/i915 can't work without intel_agp module!\n");
+#ifdef __linux__
+		return -ENODEV;
+#elif __FreeBSD__
 		return (ENXIO);
+#endif
 	}
 
+#ifdef __linux__
+	return drm_get_pci_dev(pdev, ent, &driver);
+#elif __FreeBSD__
 	return -drm_probe_helper(kdev, pciidlist);
+#endif
 }
 
 #ifdef __linux__
@@ -1227,8 +1248,12 @@ static struct pci_driver i915_pci_driver = {
 };
 #endif
 
+#ifdef __linux__
+static int __init i915_init(void)
+#elif __FreeBSD__
 static int __init i915_attach(device_t kdev)
 {
+#endif
 	driver.num_ioctls = i915_max_ioctl;
 
 	/*
@@ -1255,7 +1280,11 @@ static int __init i915_attach(device_t kdev)
 	if (!(driver.driver_features & DRIVER_MODESET))
 		driver.get_vblank_timestamp = NULL;
 
+#ifdef __linux__
+	return drm_pci_init(&driver, &i915_pci_driver);
+#elif __FreeBSD__
 	return (-drm_attach_helper(kdev, pciidlist, &driver));
+#endif
 }
 
 #ifdef __linux__
