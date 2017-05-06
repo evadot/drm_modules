@@ -324,17 +324,8 @@ drm_do_probe_ddc_edid(device_t adapter, unsigned char *buf,
 
 static bool drm_edid_is_zero(u8 *in_edid, int length)
 {
-#ifdef FREEBSD_NOTYET
 	if (memchr_inv(in_edid, 0, length))
 		return false;
-#else
-	int i;
-	u32 *raw_edid = (u32 *)in_edid;
-
-	for (i = 0; i < length / 4; i++)
-		if (*(raw_edid + i) != 0)
-			return false;
-#endif
 
 	return true;
 }
