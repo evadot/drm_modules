@@ -427,7 +427,7 @@ static int do_switch(struct i915_hw_context *to)
 
 	if (!to->is_initialized || is_default_context(to))
 		hw_flags |= MI_RESTORE_INHIBIT;
-	else if (from_obj == to->obj) /* not yet expected */
+	else if (WARN_ON_ONCE(from_obj == to->obj)) /* not yet expected */
 		hw_flags |= MI_FORCE_RESTORE;
 
 	ret = mi_set_context(ring, to, hw_flags);
@@ -453,7 +453,7 @@ static int do_switch(struct i915_hw_context *to)
 		 * swapped, but there is no way to do that yet.
 		 */
 		from_obj->dirty = 1;
-		KASSERT(from_obj->ring == ring, ("i915_gem_context: from_ring != ring"));
+		BUG_ON(from_obj->ring != ring);
 		i915_gem_object_unpin(from_obj);
 
 		drm_gem_object_unreference(&from_obj->base);
