@@ -653,8 +653,11 @@ typedef struct drm_i915_private {
 
 	int relative_constants_mode;
 
-	/* FIXME Linux<->FreeBSD: "void *regs" on Linux. */
+#ifdef __linux__
+	void __iomem *regs;
+#elif __FreeBSD__
 	drm_local_map_t *mmio_map;
+#endif
 
 	struct drm_i915_gt_funcs gt;
 	/** gt_fifo_count and the subsequent register write are synchronized
@@ -824,9 +827,9 @@ typedef struct drm_i915_private {
 		/** PPGTT used for aliasing the PPGTT with the GTT */
 		struct i915_hw_ppgtt *aliasing_ppgtt;
 
-#ifdef FREEBSD_NOTYET
+#ifdef __linux__
 		struct shrinker inactive_shrinker;
-#else
+#elif __FreeBSD__
 		eventhandler_tag inactive_shrinker;
 #endif
 		bool shrinker_no_lock_stealing;
@@ -1175,7 +1178,7 @@ struct drm_i915_gem_request {
 	/** GEM sequence number associated with this request. */
 	uint32_t seqno;
 
-	/** Position in the ringbuffer of the end of the request */
+	/** Postion in the ringbuffer of the end of the request */
 	u32 tail;
 
 	/** Time at which this request was emitted, in jiffies. */
@@ -1300,6 +1303,10 @@ struct drm_i915_file_private {
 
 #define GT_FREQUENCY_MULTIPLIER 50
 
+#ifdef FREEBSD_NOTYET
+#include "i915_trace.h"
+#endif
+
 /**
  * RC6 is a special power stage which allows the GPU to enter an very
  * low-voltage mode when idle, using down to 0V while at this stage.  This
@@ -1337,6 +1344,7 @@ extern int i915_enable_hangcheck __read_mostly;
 extern int i915_enable_ppgtt __read_mostly;
 extern unsigned int i915_preliminary_hw_support __read_mostly;
 
+#ifdef __FreeBSD__
 extern struct drm_driver i915_driver_info;
 extern struct cdev_pager_ops i915_gem_pager_ops;
 extern int intel_iommu_gfx_mapped;
@@ -1347,6 +1355,7 @@ const struct intel_device_info *i915_get_device_id(int device);
 int i915_sysctl_init(struct drm_device *dev, struct sysctl_ctx_list *ctx,
     struct sysctl_oid *top);
 void i915_sysctl_cleanup(struct drm_device *dev);
+#endif
 
 extern int i915_suspend(struct drm_device *dev, pm_message_t state);
 extern int i915_resume(struct drm_device *dev);
@@ -1470,16 +1479,30 @@ void i915_gem_release_mmap(struct drm_i915_gem_object *obj);
 void i915_gem_lastclose(struct drm_device *dev);
 
 int __must_check i915_gem_object_get_pages(struct drm_i915_gem_object *obj);
-uint32_t i915_get_gem_seqno(struct drm_device *dev);
+#ifdef __linux__
+static inline struct page *i915_gem_object_get_page(struct drm_i915_gem_object *obj, int n)
+{
+	struct scatterlist *sg = obj->pages->sgl;
+	int nents = obj->pages->nents;
+	while (nents > SG_MAX_SINGLE_ALLOC) {
+		if (n < SG_MAX_SINGLE_ALLOC - 1)
+			break;
+
+		sg = sg_chain_ptr(sg + SG_MAX_SINGLE_ALLOC - 1);
+		n -= SG_MAX_SINGLE_ALLOC - 1;
+		nents -= SG_MAX_SINGLE_ALLOC - 1;
+	}
+	return sg_page(sg+n);
+}
+#endif
 static inline void i915_gem_object_pin_pages(struct drm_i915_gem_object *obj)
 {
-	/* KASSERT(obj->pages != NULL, ("pin and NULL pages")); */
+	BUG_ON(obj->pages == NULL);
 	obj->pages_pin_count++;
 }
-
 static inline void i915_gem_object_unpin_pages(struct drm_i915_gem_object *obj)
 {
-	KASSERT(obj->pages_pin_count != 0, ("zero pages_pin_count"));
+	BUG_ON(obj->pages_pin_count == 0);
 	obj->pages_pin_count--;
 }
 
@@ -1565,7 +1588,6 @@ int __must_check
 i915_gem_object_pin_to_display_plane(struct drm_i915_gem_object *obj,
 				     u32 alignment,
 				     struct intel_ring_buffer *pipelined);
-void i915_gem_object_unpin_from_display_plane(struct drm_i915_gem_object *obj);
 int i915_gem_attach_phys_object(struct drm_device *dev,
 				struct drm_i915_gem_object *obj,
 				int id,
