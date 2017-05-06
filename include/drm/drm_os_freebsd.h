@@ -133,32 +133,12 @@ __copy_to_user(void __user *to, const void *from, unsigned long n)
 }
 #define	copy_to_user(to, from, n) __copy_to_user((to), (from), (n))
 
-static inline int
-__put_user(size_t size, void *ptr, void *x)
-{
-
-	size = copy_to_user(ptr, x, size);
-
-	return (size ? -EFAULT : size);
-}
-#define	put_user(x, ptr) __put_user(sizeof(*ptr), (ptr), &(x))
-
 static inline unsigned long
 __copy_from_user(void *to, const void __user *from, unsigned long n)
 {
 	return ((copyin(__DECONST(void *, from), to, n) != 0 ? n : 0));
 }
 #define	copy_from_user(to, from, n) __copy_from_user((to), (from), (n))
-
-static inline int
-__get_user(size_t size, const void *ptr, void *x)
-{
-
-	size = copy_from_user(x, ptr, size);
-
-	return (size ? -EFAULT : size);
-}
-#define	get_user(x, ptr) __get_user(sizeof(*ptr), (ptr), &(x))
 
 static inline int
 __copy_to_user_inatomic(void __user *to, const void *from, unsigned n)
