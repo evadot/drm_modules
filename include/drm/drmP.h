@@ -153,6 +153,7 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/string.h>
+#include <linux/printk.h>
 #include <asm/atomic.h>
 
 #include <drm/drm.h>
