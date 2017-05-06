@@ -60,8 +60,11 @@
 struct sx drm_global_mutex;
 #endif
 
-static int	drm_version(struct drm_device *dev, void *data,
-		    struct drm_file *file_priv);
+static int drm_version(struct drm_device *dev, void *data,
+		       struct drm_file *file_priv);
+
+#define DRM_IOCTL_DEF(ioctl, _func, _flags) \
+	[DRM_IOCTL_NR(ioctl)] = {.cmd = ioctl, .func = _func, .flags = _flags, .cmd_drv = 0}
 
 /** Ioctl table */
 static struct drm_ioctl_desc drm_ioctls[] = {
@@ -412,16 +415,36 @@ static int drm_version(struct drm_device *dev, void *data,
  * Looks up the ioctl function in the ::ioctls table, checking for root
  * previleges if so required, and dispatches to the respective function.
  */
+#ifdef __linux__
+long drm_ioctl(struct file *filp,
+	      unsigned int cmd, unsigned long arg)
+{
+	struct drm_file *file_priv = filp->private_data;
+#elif __FreeBSD__
 int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
     DRM_STRUCTPROC *p)
 {
 	struct drm_file *file_priv;
+#endif
 	struct drm_device *dev;
 	struct drm_ioctl_desc *ioctl;
 	drm_ioctl_t *func;
 	unsigned int nr = DRM_IOCTL_NR(cmd);
+#ifdef __linux__
+	int retcode = -EINVAL;
+	char stack_kdata[128];
+	char *kdata = NULL;
+	unsigned int usize, asize;
+#elif __FreeBSD__
 	int retcode;
+#endif
 
+#ifdef __linux__
+	dev = file_priv->minor->dev;
+
+	if (drm_device_is_unplugged(dev))
+		return -ENODEV;
+#elif __FreeBSD__
 	dev = drm_get_device_from_kdev(kdev);
 
 	retcode = devfs_get_cdevpriv((void **)&file_priv);
@@ -431,11 +454,18 @@ int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
 	}
 
 	retcode = -EINVAL;
+#endif
 
 	atomic_inc(&dev->ioctl_count);
 	atomic_inc(&dev->counts[_DRM_STAT_IOCTLS]);
 	++file_priv->ioctl_count;
 
+#ifdef __linux__
+	DRM_DEBUG("pid=%d, cmd=0x%02x, nr=0x%02x, dev 0x%lx, auth=%d\n",
+		  task_pid_nr(current), cmd, nr,
+		  (long)old_encode_dev(file_priv->minor->device),
+		  file_priv->authenticated);
+#elif __FreeBSD__
 	DRM_DEBUG("pid=%d, cmd=0x%02lx, nr=0x%02x, dev 0x%lx, auth=%d\n",
 		  DRM_CURRENTPID, cmd, nr,
 		  (long)file_priv->minor->device,
@@ -456,6 +486,7 @@ int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
 		*(int *) data = fgetown(&file_priv->minor->buf_sigio);
 		return 0;
 	}
+#endif
 
 	if (IOCGROUP(cmd) != DRM_IOCTL_BASE) {
 		atomic_dec(&dev->ioctl_count);
@@ -466,7 +497,7 @@ int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
 	if ((nr >= DRM_CORE_IOCTL_COUNT) &&
 	    ((nr < DRM_COMMAND_BASE) || (nr >= DRM_COMMAND_END)))
 		goto err_i1;
-#ifdef COMPAT_FREEBSD32
+#if defined(__FreeBSD__) && defined(COMPAT_FREEBSD32)
 	if (SV_CURPROC_FLAG(SV_ILP32) &&
 	    (nr >= DRM_COMMAND_BASE) && (nr < DRM_COMMAND_END) &&
 	    (nr < DRM_COMMAND_BASE + *dev->driver->num_compat_ioctls) &&
@@ -476,10 +507,23 @@ int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
 #endif
 	if ((nr >= DRM_COMMAND_BASE) && (nr < DRM_COMMAND_END) &&
 	    (nr < DRM_COMMAND_BASE + dev->driver->num_ioctls)) {
+#ifdef __linux__
+		u32 drv_size;
 		ioctl = &dev->driver->ioctls[nr - DRM_COMMAND_BASE];
+		drv_size = _IOC_SIZE(ioctl->cmd_drv);
+		usize = asize = _IOC_SIZE(cmd);
+		if (drv_size > asize)
+			asize = drv_size;
+#elif __FreeBSD__
+		ioctl = &dev->driver->ioctls[nr - DRM_COMMAND_BASE];
+#endif
 	}
 	else if ((nr >= DRM_COMMAND_END) || (nr < DRM_COMMAND_BASE)) {
-#ifdef COMPAT_FREEBSD32
+#ifdef __linux__
+		ioctl = &drm_ioctls[nr];
+		cmd = ioctl->cmd;
+		usize = asize = _IOC_SIZE(cmd);
+#elif defined(__FreeBSD__) && defined(COMPAT_FREEBSD32)
 		/*
 		 * Called whenever a 32-bit process running under a 64-bit
 		 * kernel performs an ioctl on /dev/drm.
@@ -515,23 +559,71 @@ int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
 	if (!func) {
 		DRM_DEBUG("no function\n");
 		retcode = -EINVAL;
-	} else if (((ioctl->flags & DRM_ROOT_ONLY) && !DRM_SUSER(p)) ||
+	} else if (((ioctl->flags & DRM_ROOT_ONLY) && !capable(CAP_SYS_ADMIN)) ||
 		   ((ioctl->flags & DRM_AUTH) && !file_priv->authenticated) ||
 		   ((ioctl->flags & DRM_MASTER) && !file_priv->is_master) ||
 		   (!(ioctl->flags & DRM_CONTROL_ALLOW) && (file_priv->minor->type == DRM_MINOR_CONTROL))) {
 		retcode = -EACCES;
 	} else {
+#ifdef __linux__
+		if (cmd & (IOC_IN | IOC_OUT)) {
+			if (asize <= sizeof(stack_kdata)) {
+				kdata = stack_kdata;
+			} else {
+				kdata = kmalloc(asize, GFP_KERNEL);
+				if (!kdata) {
+					retcode = -ENOMEM;
+					goto err_i1;
+				}
+			}
+			if (asize > usize)
+				memset(kdata + usize, 0, asize - usize);
+		}
+
+		if (cmd & IOC_IN) {
+			if (copy_from_user(kdata, (void __user *)arg,
+					   usize) != 0) {
+				retcode = -EFAULT;
+				goto err_i1;
+			}
+		} else
+			memset(kdata, 0, usize);
+#endif
+
 		if (ioctl->flags & DRM_UNLOCKED)
+#ifdef __linux__
+			retcode = func(dev, kdata, file_priv);
+#elif __FreeBSD__
 			retcode = func(dev, data, file_priv);
+#endif
 		else {
+#ifdef __linux__
+			mutex_lock(&drm_global_mutex);
+			retcode = func(dev, kdata, file_priv);
+			mutex_unlock(&drm_global_mutex);
+#elif __FreeBSD__
 			sx_xlock(&drm_global_mutex);
 			retcode = func(dev, data, file_priv);
 			sx_xunlock(&drm_global_mutex);
+#endif
 		}
+
+#ifdef __linux__
+		if (cmd & IOC_OUT) {
+			if (copy_to_user((void __user *)arg, kdata,
+					 usize) != 0)
+				retcode = -EFAULT;
+		}
+#endif
 	}
 
       err_i1:
+#ifdef __linux__
+	if (kdata != stack_kdata)
+		kfree(kdata);
+#endif
 	atomic_dec(&dev->ioctl_count);
+#ifdef __FreeBSD__
 	if (retcode == -ERESTARTSYS) {
 		/*
 		 * FIXME: Find where in i915 ERESTARTSYS should be
@@ -540,8 +632,12 @@ int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
 		DRM_DEBUG("ret = %d -> %d\n", retcode, -EINTR);
 		retcode = -EINTR;
 	}
+#endif
 	if (retcode)
 		DRM_DEBUG("ret = %d\n", retcode);
+#ifdef __linux__
+	return retcode;
+#elif __FreeBSD__
 	if (retcode != 0 &&
 	    (drm_debug & DRM_DEBUGBITS_FAILED_IOCTL) != 0) {
 		printf(
@@ -551,7 +647,9 @@ int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
 	}
 
 	return -retcode;
+#endif
 }
+
 EXPORT_SYMBOL(drm_ioctl);
 
 struct drm_local_map *drm_getsarea(struct drm_device *dev)

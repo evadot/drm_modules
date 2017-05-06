@@ -377,9 +377,6 @@ struct drm_ioctl_desc {
  * ioctl, for use by drm_ioctl().
  */
 
-#define DRM_IOCTL_DEF(ioctl, _func, _flags) \
-	[DRM_IOCTL_NR(ioctl)] = {.cmd = ioctl, .func = _func, .flags = _flags, .cmd_drv = 0}
-
 #define DRM_IOCTL_DEF_DRV(ioctl, _func, _flags)			\
 	[DRM_IOCTL_NR(DRM_##ioctl)] = {.cmd = DRM_##ioctl, .func = _func, .flags = _flags, .cmd_drv = DRM_IOCTL_##ioctl}
 
