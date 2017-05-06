@@ -60,12 +60,6 @@
 struct sx drm_global_mutex;
 #endif
 
-#ifdef __linux__
-static int drm_version(struct drm_device *dev, void *data,
-		       struct drm_file *file_priv);
-
-#endif
-
 static int	drm_version(struct drm_device *dev, void *data,
 		    struct drm_file *file_priv);
 
