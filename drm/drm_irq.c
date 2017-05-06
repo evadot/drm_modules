@@ -103,9 +103,7 @@ static void clear_vblank_timestamps(struct drm_device *dev, int crtc)
  */
 static void vblank_disable_and_save(struct drm_device *dev, int crtc)
 {
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 	u32 vblcount;
 	s64 diff_ns;
 	int vblrc;
@@ -116,11 +114,7 @@ static void vblank_disable_and_save(struct drm_device *dev, int crtc)
 	 * so no updates of timestamps or count can happen after we've
 	 * disabled. Needed to prevent races in case of delayed irq's.
 	 */
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev->vblank_time_lock, irqflags);
-#else
-	mtx_lock(&dev->vblank_time_lock);
-#endif
 
 	dev->driver->disable_vblank(dev, crtc);
 	dev->vblank_enabled[crtc] = 0;
@@ -172,11 +166,7 @@ static void vblank_disable_and_save(struct drm_device *dev, int crtc)
 	/* Invalidate all timestamps while vblank irq's are off. */
 	clear_vblank_timestamps(dev, crtc);
 
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev->vblank_time_lock, irqflags);
-#else
-	mtx_unlock(&dev->vblank_time_lock);
-#endif
 }
 
 static void vblank_disable_fn(unsigned long arg)
@@ -219,9 +209,7 @@ void drm_vblank_cleanup(struct drm_device *dev)
 	kfree(dev->_vblank_time);
 
 	spin_lock_destroy(&dev->vbl_lock);
-#ifdef FREEBSD_NOTYET
-	mtx_destroy(&dev->vblank_time_lock);
-#endif
+	spin_lock_destroy(&dev->vblank_time_lock);
 
 	dev->num_crtcs = 0;
 }
@@ -234,11 +222,7 @@ int drm_vblank_init(struct drm_device *dev, int num_crtcs)
 	setup_timer(&dev->vblank_disable_timer, vblank_disable_fn,
 		    (unsigned long)dev);
 	spin_lock_init(&dev->vbl_lock);
-#ifdef FREEBSD_NOTYET
 	spin_lock_init(&dev->vblank_time_lock);
-#else
-	mtx_init(&dev->vblank_time_lock, "drmvtl", NULL, MTX_DEF);
-#endif
 
 	dev->num_crtcs = num_crtcs;
 
@@ -907,9 +891,15 @@ static void send_vblank_event(struct drm_device *dev,
 
 	list_add_tail(&e->base.link,
 		      &e->base.file_priv->event_list);
+#ifdef __linux__
+	wake_up_interruptible(&e->base.file_priv->event_wait);
+	trace_drm_vblank_event_delivered(e->base.pid, e->pipe,
+					 e->event.sequence);
+#elif __FreeBSD__
 	drm_event_wakeup(&e->base);
 	CTR3(KTR_DRM, "vblank_event_delivered %d %d %d",
 	    e->base.pid, e->pipe, e->event.sequence);
+#endif
 }
 
 /**
@@ -1014,17 +1004,13 @@ static void drm_update_vblank_count(struct drm_device *dev, int crtc)
  */
 int drm_vblank_get(struct drm_device *dev, int crtc)
 {
-	unsigned long irqflags; /*, irqflags2;*/
+	unsigned long irqflags, irqflags2;
 	int ret = 0;
 
 	spin_lock_irqsave(&dev->vbl_lock, irqflags);
 	/* Going from 0->1 means we have to enable interrupts again */
 	if (atomic_add_return(1, &dev->vblank_refcount[crtc]) == 1) {
-#ifdef FREEBSD_NOTYET
 		spin_lock_irqsave(&dev->vblank_time_lock, irqflags2);
-#else
-		mtx_lock(&dev->vblank_time_lock);
-#endif
 		if (!dev->vblank_enabled[crtc]) {
 			/* Enable vblank irqs under vblank_time_lock protection.
 			 * All vblank count & timestamp updates are held off
@@ -1042,11 +1028,7 @@ int drm_vblank_get(struct drm_device *dev, int crtc)
 				drm_update_vblank_count(dev, crtc);
 			}
 		}
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev->vblank_time_lock, irqflags2);
-#else
-		mtx_unlock(&dev->vblank_time_lock);
-#endif
 	} else {
 		if (!dev->vblank_enabled[crtc]) {
 			atomic_dec(&dev->vblank_refcount[crtc]);
@@ -1095,7 +1077,11 @@ void drm_vblank_off(struct drm_device *dev, int crtc)
 
 	spin_lock_irqsave(&dev->vbl_lock, irqflags);
 	vblank_disable_and_save(dev, crtc);
+#ifdef __linux__
+	DRM_WAKEUP(&dev->vbl_queue[crtc]);
+#elif __FreeBSD__
 	DRM_WAKEUP(&dev->_vblank_count[crtc]);
+#endif
 
 	/* Send any queued vblank events, lest the natives grow disquiet */
 	seq = drm_vblank_count_and_time(dev, crtc, &now);
@@ -1238,7 +1224,11 @@ static int drm_queue_vblank_event(struct drm_device *dev, int pipe,
 	e->event.user_data = vblwait->request.signal;
 	e->base.event = &e->event.base;
 	e->base.file_priv = file_priv;
+#ifdef __linux__
+	e->base.destroy = (void (*) (struct drm_pending_event *)) kfree;
+#elif __FreeBSD__
 	e->base.destroy = drm_vblank_event_destroy;
+#endif
 
 	spin_lock_irqsave(&dev->event_lock, flags);
 
@@ -1259,8 +1249,13 @@ static int drm_queue_vblank_event(struct drm_device *dev, int pipe,
 	DRM_DEBUG("event on vblank count %d, current %d, crtc %d\n",
 		  vblwait->request.sequence, seq, pipe);
 
+#ifdef __linux__
+	trace_drm_vblank_event_queued(current->pid, pipe,
+				      vblwait->request.sequence);
+#elif __FreeBSD__
 	CTR4(KTR_DRM, "vblank_event_queued %d %d rt %x %d", curproc->p_pid, pipe,
 	    vblwait->request.type, vblwait->request.sequence);
+#endif
 
 	e->event.sequence = vblwait->request.sequence;
 	if ((seq - vblwait->request.sequence) <= (1 << 23)) {
@@ -1364,7 +1359,13 @@ int drm_wait_vblank(struct drm_device *dev, void *data,
 	DRM_DEBUG("waiting on vblank count %d, crtc %d\n",
 		  vblwait->request.sequence, crtc);
 	dev->last_vblank_wait[crtc] = vblwait->request.sequence;
-	mtx_lock(&dev->vblank_time_lock);
+#ifdef __linux__
+	DRM_WAIT_ON(ret, dev->vbl_queue[crtc], 3 * DRM_HZ,
+		    (((drm_vblank_count(dev, crtc) -
+		       vblwait->request.sequence) <= (1 << 23)) ||
+		     !dev->irq_enabled));
+#elif __FreeBSD__
+	spin_lock(&dev->vblank_time_lock);
 	while (((drm_vblank_count(dev, crtc) - vblwait->request.sequence) >
 	    (1 << 23)) && dev->irq_enabled) {
 		/*
@@ -1375,32 +1376,36 @@ int drm_wait_vblank(struct drm_device *dev, void *data,
 		 * application when crtc is disabled or irq
 		 * uninstalled anyway.
 		 */
-		ret = -msleep(&dev->_vblank_count[crtc], &dev->vblank_time_lock,
+		ret = -msleep(&dev->_vblank_count[crtc], &dev->vblank_time_lock.m,
 		    PCATCH, "drmvbl", 3 * hz);
 		if (ret == -ERESTART)
 			ret = -ERESTARTSYS;
 		if (ret != 0)
 			break;
 	}
-	mtx_unlock(&dev->vblank_time_lock);
+	spin_unlock(&dev->vblank_time_lock);
+#endif
+
 	if (ret != -EINTR) {
 		struct timeval now;
 
 		vblwait->reply.sequence = drm_vblank_count_and_time(dev, crtc, &now);
+#ifdef __FreeBSD__
 		CTR5(KTR_DRM, "wait_vblank %d %d rt %x success %d %d",
 		    curproc->p_pid, crtc, vblwait->request.type,
 		    vblwait->request.sequence, vblwait->reply.sequence);
-
+#endif
 		vblwait->reply.tval_sec = now.tv_sec;
 		vblwait->reply.tval_usec = now.tv_usec;
 
 		DRM_DEBUG("returning %d to client\n",
 			  vblwait->reply.sequence);
 	} else {
+#ifdef __FreeBSD__
 		CTR5(KTR_DRM, "wait_vblank %d %d rt %x error %d %d",
 		    curproc->p_pid, crtc, vblwait->request.type, ret,
 		    vblwait->request.sequence);
-
+#endif
 		DRM_DEBUG("vblank wait interrupted by signal\n");
 	}
 
@@ -1436,7 +1441,11 @@ static void drm_handle_vblank_events(struct drm_device *dev, int crtc)
 
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 
+#ifdef __linux__
+	trace_drm_vblank_event(crtc, seq);
+#elif __FreeBSD__
 	CTR2(KTR_DRM, "drm_handle_vblank_events %d %d", seq, crtc);
+#endif
 }
 
 /**
@@ -1452,9 +1461,7 @@ bool drm_handle_vblank(struct drm_device *dev, int crtc)
 	u32 vblcount;
 	s64 diff_ns;
 	struct timeval tvblank;
-#ifdef FREEBSD_NOTYET
 	unsigned long irqflags;
-#endif
 
 	if (!dev->num_crtcs)
 		return false;
@@ -1463,19 +1470,11 @@ bool drm_handle_vblank(struct drm_device *dev, int crtc)
 	 * vblank enable/disable, as this would cause inconsistent
 	 * or corrupted timestamps and vblank counts.
 	 */
-#ifdef FREEBSD_NOTYET
 	spin_lock_irqsave(&dev->vblank_time_lock, irqflags);
-#else
-	mtx_lock(&dev->vblank_time_lock);
-#endif
 
 	/* Vblank irq handling disabled. Nothing to do. */
 	if (!dev->vblank_enabled[crtc]) {
-#ifdef FREEBSD_NOTYET
 		spin_unlock_irqrestore(&dev->vblank_time_lock, irqflags);
-#else
-		mtx_unlock(&dev->vblank_time_lock);
-#endif
 		return false;
 	}
 
@@ -1515,14 +1514,14 @@ bool drm_handle_vblank(struct drm_device *dev, int crtc)
 			  crtc, (int) diff_ns);
 	}
 
+#ifdef __linux__
+	DRM_WAKEUP(&dev->vbl_queue[crtc]);
+#elif __FreeBSD__
 	DRM_WAKEUP(&dev->_vblank_count[crtc]);
+#endif
 	drm_handle_vblank_events(dev, crtc);
 
-#ifdef FREEBSD_NOTYET
 	spin_unlock_irqrestore(&dev->vblank_time_lock, irqflags);
-#else
-	mtx_unlock(&dev->vblank_time_lock);
-#endif
 	return true;
 }
 EXPORT_SYMBOL(drm_handle_vblank);

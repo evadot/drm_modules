@@ -1288,11 +1288,7 @@ struct drm_device {
 	wait_queue_head_t *vbl_queue;   /**< VBLANK wait queue */
 	atomic_t *_vblank_count;        /**< number of VBLANK interrupts (driver must alloc the right number of counters) */
 	struct timeval *_vblank_time;   /**< timestamp of current vblank_count (drivers must alloc right number of fields) */
-#ifdef FREEBSD_NOTYET
 	spinlock_t vblank_time_lock;    /**< Protects vblank count and time updates during vblank enable/disable */
-#else
-	struct mtx vblank_time_lock;    /**< Protects vblank count and time updates during vblank enable/disable */
-#endif
 	spinlock_t vbl_lock;
 	atomic_t *vblank_refcount;      /* number of users of vblank interruptsper crtc */
 	u32 *last_vblank;               /* protected by dev->vbl_lock, used */
