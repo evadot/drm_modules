@@ -341,7 +341,7 @@ int drm_get_pci_dev(device_t kdev, struct drm_device *dev,
 	dev->pci_subvendor = pci_get_subvendor(dev->dev);
 	dev->pci_subdevice = pci_get_subdevice(dev->dev);
 
-	sx_xlock(&drm_global_mutex);
+	mutex_lock(&drm_global_mutex);
 
 	if ((ret = drm_fill_in_dev(dev, driver))) {
 		DRM_ERROR("Failed to fill in dev: %d\n", ret);
@@ -380,7 +380,7 @@ int drm_get_pci_dev(device_t kdev, struct drm_device *dev,
 		 driver->name, driver->major, driver->minor, driver->patchlevel,
 		 driver->date, device_get_nameunit(dev->dev), dev->primary->index);
 
-	sx_xunlock(&drm_global_mutex);
+	mutex_unlock(&drm_global_mutex);
 	return 0;
 
 err_g5:
@@ -394,7 +394,7 @@ err_g3:
 err_g2:
 	drm_cancel_fill_in_dev(dev);
 err_g1:
-	sx_xunlock(&drm_global_mutex);
+	mutex_unlock(&drm_global_mutex);
 	return ret;
 }
 EXPORT_SYMBOL(drm_get_pci_dev);
