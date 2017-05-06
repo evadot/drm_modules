@@ -1479,7 +1479,7 @@ d_ioctl_t drm_ioctl;
 extern int drm_lastclose(struct drm_device *dev);
 
 				/* Device support (drm_fops.h) */
-extern struct mutex drm_global_mutex;
+extern struct sx drm_global_mutex;
 d_open_t drm_open;
 d_read_t drm_read;
 extern void drm_release(void *data);

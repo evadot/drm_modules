@@ -39,11 +39,11 @@
 #include <linux/poll.h>
 #include <linux/slab.h>
 #include <linux/module.h>
-#endif
 
 /* from BKL pushdown: note that nothing else serializes idr_find() */
 DEFINE_MUTEX(drm_global_mutex);
 EXPORT_SYMBOL(drm_global_mutex);
+#endif
 
 static int drm_open_helper(struct cdev *kdev, int flags, int fmt,
 			   DRM_STRUCTPROC *p, struct drm_device *dev);
@@ -150,9 +150,9 @@ int drm_open(struct cdev *kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 	 */
 	if (!dev->open_count++)
 		need_setup = 1;
-	mutex_lock(&drm_global_mutex);
-	mutex_lock(&dev->struct_mutex);
+	sx_xlock(&drm_global_mutex);
 #ifdef __linux__
+	mutex_lock(&dev->struct_mutex);
 	old_imapping = inode->i_mapping;
 	old_mapping = dev->dev_mapping;
 	if (old_mapping == NULL)
@@ -171,7 +171,7 @@ int drm_open(struct cdev *kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 #elif __FreeBSD__
 	retcode = drm_open_helper(kdev, flags, fmt, p, dev);
 	if (retcode) {
-		mutex_unlock(&drm_global_mutex);
+		sx_xunlock(&drm_global_mutex);
 		return (-retcode);
 	}
 #endif
@@ -181,7 +181,7 @@ int drm_open(struct cdev *kdev, int flags, int fmt, DRM_STRUCTPROC *p)
 		if (retcode)
 			goto err_undo;
 	}
-	mutex_unlock(&drm_global_mutex);
+	sx_xunlock(&drm_global_mutex);
 	return 0;
 
 err_undo:
@@ -199,7 +199,7 @@ err_undo:
 	device_unbusy(dev->dev);
 	mtx_unlock(&Giant);
 	dev->open_count--;
-	mutex_unlock(&drm_global_mutex);
+	sx_xunlock(&drm_global_mutex);
 	return -retcode;
 #endif
 }
@@ -504,7 +504,11 @@ void drm_release(void *data)
 	struct drm_file *file_priv = data;
 	struct drm_device *dev = file_priv->minor->dev;
 
+#ifdef FREEBSD_NOTYET
 	mutex_lock(&drm_global_mutex);
+#else
+	sx_xlock(&drm_global_mutex);
+#endif
 
 	DRM_DEBUG("open_count = %d\n", dev->open_count);
 
@@ -639,7 +643,11 @@ void drm_release(void *data)
 		} else
 			drm_lastclose(dev);
 	}
+#ifdef FREEBSD_NOTYET
 	mutex_unlock(&drm_global_mutex);
+#else
+	sx_xunlock(&drm_global_mutex);
+#endif
 }
 EXPORT_SYMBOL(drm_release);
 
