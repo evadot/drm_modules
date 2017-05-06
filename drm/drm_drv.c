@@ -57,7 +57,6 @@
 
 #ifdef __FreeBSD__
 #include <sys/sysent.h>
-struct sx drm_global_mutex;
 #endif
 
 static int drm_version(struct drm_device *dev, void *data,
@@ -273,9 +272,6 @@ static int __init drm_core_init(void)
 	int ret = -ENOMEM;
 #endif
 
-#ifdef __FreeBSD__
-	sx_init(&drm_global_mutex, "drm_global_mutex");
-#endif
 	drm_global_init();
 #ifdef __linux__
 	idr_init(&drm_minors_idr);
@@ -334,7 +330,7 @@ static void __exit drm_core_exit(void)
 #elif __FreeBSD__
 	drm_global_release();
 
-	sx_destroy(&drm_global_mutex);
+	mutex_destroy(&drm_global_mutex);
 #endif
 }
 
@@ -597,15 +593,13 @@ int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
 			retcode = func(dev, data, file_priv);
 #endif
 		else {
-#ifdef __linux__
 			mutex_lock(&drm_global_mutex);
+#ifdef __linux__
 			retcode = func(dev, kdata, file_priv);
-			mutex_unlock(&drm_global_mutex);
 #elif __FreeBSD__
-			sx_xlock(&drm_global_mutex);
 			retcode = func(dev, data, file_priv);
-			sx_xunlock(&drm_global_mutex);
 #endif
+			mutex_unlock(&drm_global_mutex);
 		}
 
 #ifdef __linux__
