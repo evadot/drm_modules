@@ -29,9 +29,7 @@
 #include <drm/drmP.h>
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
-#ifdef __linux__
 #include "i915_trace.h"
-#endif
 #include "intel_drv.h"
 #ifdef __linux__
 #include <linux/dma_remapping.h>
@@ -801,10 +799,8 @@ i915_gem_execbuffer_move_to_active(struct list_head *objects,
 	struct drm_i915_gem_object *obj;
 
 	list_for_each_entry(obj, objects, exec_list) {
-#if defined(KTR)
 		u32 old_read = obj->base.read_domains;
 		u32 old_write = obj->base.write_domain;
-#endif
 
 		obj->base.read_domains = obj->base.pending_read_domains;
 		obj->base.write_domain = obj->base.pending_write_domain;
@@ -818,12 +814,7 @@ i915_gem_execbuffer_move_to_active(struct list_head *objects,
 				intel_mark_fb_busy(obj);
 		}
 
-#ifdef __linux__
 		trace_i915_gem_object_change_domain(obj, old_read, old_write);
-#elif __FreeBSD__
-		CTR3(KTR_DRM, "object_change_domain move_to_active %p %x %x",
-		    obj, old_read, old_write);
-#endif
 	}
 }
 

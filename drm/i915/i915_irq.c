@@ -35,9 +35,7 @@
 #include <drm/drmP.h>
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
-#ifdef __linux__
 #include "i915_trace.h"
-#endif
 #include "intel_drv.h"
 
 #ifdef __FreeBSD__
@@ -361,11 +359,7 @@ static void notify_ring(struct drm_device *dev,
 	if (ring->obj == NULL)
 		return;
 
-#ifdef FREEBSD_NOTYET
 	trace_i915_gem_request_complete(ring, ring->get_seqno(ring, false));
-#else
-	CTR2(KTR_DRM, "request_complete %s %d", ring->name, ring->get_seqno(ring, false));
-#endif
 
 	wake_up_all(&ring->irq_queue);
 	if (i915_enable_hangcheck) {

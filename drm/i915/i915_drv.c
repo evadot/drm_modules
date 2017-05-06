@@ -31,9 +31,7 @@
 #include <drm/drm_pciids.h>
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
-#ifdef __linux__
 #include "i915_trace.h"
-#endif
 #include "intel_drv.h"
 
 #ifdef __linux__

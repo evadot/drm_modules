@@ -32,6 +32,7 @@
 #include "i915_drv.h"
 #include "intel_drv.h"
 #include "intel_ringbuffer.h"
+#include "i915_trace.h"
 
 #define DRM_I915_RING_DEBUG 1
 

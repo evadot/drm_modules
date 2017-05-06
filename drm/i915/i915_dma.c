@@ -34,8 +34,8 @@
 #include "intel_drv.h"
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
-#ifdef __linux__
 #include "i915_trace.h"
+#ifdef __linux__
 #include <linux/pci.h>
 #include <linux/vgaarb.h>
 #include <linux/acpi.h>

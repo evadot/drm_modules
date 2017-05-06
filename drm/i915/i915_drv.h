@@ -1759,13 +1759,6 @@ extern void intel_display_print_error_state(struct sbuf *m,
 					    struct intel_display_error_state *error);
 //#endif
 
-static inline void
-trace_i915_reg_rw(boolean_t rw, int reg, uint64_t val, int sz)
-{
-
-	CTR4(KTR_DRM_REG, "[%x/%d] %c %x", reg, sz, rw ? "w" : "r", val);
-}
-
 /* On SNB platform, before reading ring registers forcewake bit
  * must be set to prevent GT core from power down and stale values being
  * returned.

@@ -54,9 +54,7 @@
 #include <drm/drmP.h>
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
-#ifdef __linux__
 #include "i915_trace.h"
-#endif
 #include "intel_drv.h"
 #ifdef __linux__
 #include <linux/shmem_fs.h>
@@ -275,11 +273,7 @@ i915_gem_create(struct drm_file *file,
 
 	/* drop reference from allocate - handle holds it now */
 	drm_gem_object_unreference(&obj->base);
-#ifdef __linux__
 	trace_i915_gem_object_create(obj);
-#else
-	CTR2(KTR_DRM, "object_create %p %x", obj, size);
-#endif
 
 	*handle_p = handle;
 	return 0;
@@ -667,11 +661,7 @@ i915_gem_pread_ioctl(struct drm_device *dev, void *data,
 	}
 #endif /* FREEBSD_WIP */
 
-#ifdef __linux__
 	trace_i915_gem_object_pread(obj, args->offset, args->size);
-#else
-	CTR3(KTR_DRM, "pread %p %jx %jx", obj, args->offset, args->size);
-#endif
 
 	ret = i915_gem_shmem_pread(dev, obj, args, file);
 
@@ -1085,11 +1075,7 @@ i915_gem_pwrite_ioctl(struct drm_device *dev, void *data,
 	}
 #endif /* FREEBSD_WIP */
 
-#ifdef __linux__
 	trace_i915_gem_object_pwrite(obj, args->offset, args->size);
-#elif __FreeBSD__
-	CTR3(KTR_DRM, "pwrite %p %jx %jx", obj, args->offset, args->size);
-#endif
 
 	ret = -EFAULT;
 	/* We can only do the GTT pwrite on untiled buffers, as otherwise
@@ -1195,11 +1181,7 @@ static int __wait_seqno(struct intel_ring_buffer *ring, u32 seqno,
 	if (i915_seqno_passed(ring->get_seqno(ring, true), seqno))
 		return 0;
 
-#ifdef __linux__
 	trace_i915_gem_request_wait_begin(ring, seqno);
-#elif __FreeBSD__
-	CTR2(KTR_DRM, "request_wait_begin %s %d", ring->name, seqno);
-#endif
 
 	if (timeout != NULL) {
 		wait_time = *timeout;
@@ -1275,11 +1257,7 @@ static int __wait_seqno(struct intel_ring_buffer *ring, u32 seqno,
 	getrawmonotonic(&now);
 
 	ring->irq_put(ring);
-#ifdef __linux__
 	trace_i915_gem_request_wait_end(ring, seqno);
-#elif __FreeBSD__
-	CTR3(KTR_DRM, "request_wait_end %s %d %d", ring->name, seqno, end);
-#endif
 #undef EXIT_COND
 
 	if (timeout) {
@@ -2706,11 +2684,7 @@ i915_add_request(struct intel_ring_buffer *ring,
 		spin_unlock(&file_priv->mm.lock);
 	}
 
-#ifdef __linux__
 	trace_i915_gem_request_add(ring, request->seqno);
-#elif __FreeBSD__
-	CTR2(KTR_DRM, "request_add %s %d", ring->name, request->seqno);
-#endif
 	ring->outstanding_lazy_request = 0;
 
 	if (!dev_priv->mm.suspended) {
