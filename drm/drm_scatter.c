@@ -32,14 +32,42 @@
 
 #define DEBUG_SCATTER 0
 
+#ifdef __linux__
+
+static inline void *drm_vmalloc_dma(unsigned long size)
+{
+#if defined(__powerpc__) && defined(CONFIG_NOT_COHERENT_CACHE)
+	return __vmalloc(size, GFP_KERNEL, PAGE_KERNEL | _PAGE_NO_CACHE);
+#else
+	return vmalloc_32(size);
+#endif
+}
+#elif __FreeBSD__
 static inline vm_offset_t drm_vmalloc_dma(vm_size_t size)
 {
 	return kmem_alloc_attr(kernel_arena, size, M_NOWAIT | M_ZERO,
 	    0, BUS_SPACE_MAXADDR_32BIT, VM_MEMATTR_WRITE_COMBINING);
 }
+#endif
 
 void drm_sg_cleanup(struct drm_sg_mem * entry)
 {
+#ifdef __linux__
+	struct page *page;
+	int i;
+
+	for (i = 0; i < entry->pages; i++) {
+		page = entry->pagelist[i];
+		if (page)
+			ClearPageReserved(page);
+	}
+
+	vfree(entry->virtual);
+
+	kfree(entry->busaddr);
+	kfree(entry->pagelist);
+	kfree(entry);
+#elif __FreeBSD__
 	if (entry == NULL)
 		return;
 
@@ -48,7 +76,14 @@ void drm_sg_cleanup(struct drm_sg_mem * entry)
 
 	free(entry->busaddr, DRM_MEM_SGLISTS);
 	kfree(entry);
+#endif
 }
+
+#ifdef _LP64
+# define ScatterHandle(x) (unsigned int)((x >> 32) + (x & ((1L << 32) - 1)))
+#else
+# define ScatterHandle(x) (unsigned int)(x)
+#endif
 
 int drm_sg_alloc(struct drm_device *dev, struct drm_scatter_gather * request)
 {
