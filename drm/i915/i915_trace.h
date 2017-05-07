@@ -108,4 +108,12 @@ trace_i915_gem_evict_everything(struct drm_device *dev)
 	CTR1(KTR_DRM, "evict_everything %p", dev);
 }
 
+static inline void
+trace_i915_gem_ring_dispatch(struct intel_ring_buffer *ring, int seqno, u32 flags)
+{
+
+	CTR3(KTR_DRM, "ring_dispatch ring=%s seqno=%d flags=%u", ring->name,
+	    seqno, flags);
+}
+
 #endif /* _I915_TRACE_H_ */

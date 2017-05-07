@@ -1068,7 +1068,7 @@ i915_gem_do_execbuffer(struct drm_device *dev, void *data,
 								&objects, eb,
 								exec,
 								args->buffer_count);
-			BUG_ON(!mutex_is_locked(&ring->dev->struct_mutex));
+			BUG_ON(!mutex_is_locked(&dev->struct_mutex));
 		}
 		if (ret)
 			goto err;
@@ -1141,8 +1141,7 @@ i915_gem_do_execbuffer(struct drm_device *dev, void *data,
 			goto err;
 	}
 
-	CTR3(KTR_DRM, "ring_dispatch ring=%s seqno=%d flags=%u", ring->name,
-	    intel_ring_get_seqno(ring), flags);
+	trace_i915_gem_ring_dispatch(ring, intel_ring_get_seqno(ring), flags);
 
 	i915_gem_execbuffer_move_to_active(&objects, ring);
 	i915_gem_execbuffer_retire_commands(dev, file, ring);
