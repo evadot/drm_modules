@@ -457,8 +457,13 @@ i915_gem_get_tiling(struct drm_device *dev, void *data,
  * bit 17 of its physical address and therefore being interpreted differently
  * by the GPU.
  */
+#ifdef __linux__
+static void
+i915_gem_swizzle_page(struct page *page)
+#elif __FreeBSD__
 static void
 i915_gem_swizzle_page(vm_page_t page)
+#endif
 {
 	char temp[64];
 #ifdef __FreeBSD__
@@ -508,19 +513,33 @@ i915_gem_object_do_bit_17_swizzle_page(struct drm_i915_gem_object *obj,
 void
 i915_gem_object_do_bit_17_swizzle(struct drm_i915_gem_object *obj)
 {
+#ifdef __linux__
+	struct scatterlist *sg;
+#endif
 	int page_count = obj->base.size >> PAGE_SHIFT;
 	int i;
 
 	if (obj->bit_17 == NULL)
 		return;
 
+#ifdef __linux__
+	for_each_sg(obj->pages->sgl, sg, page_count, i) {
+		struct page *page = sg_page(sg);
+		char new_bit_17 = page_to_phys(page) >> 17;
+	}
+#elif __FreeBSD__
 	for (i = 0; i < page_count; i++) {
 		vm_page_t page = obj->pages[i];
 		char new_bit_17 = VM_PAGE_TO_PHYS(page) >> 17;
+#endif
 		if ((new_bit_17 & 0x1) !=
 		    (test_bit(i, obj->bit_17) != 0)) {
 			i915_gem_swizzle_page(page);
+			#ifdef __linux__
+			set_page_dirty(page);
+#elif __FreeBSD__
 			vm_page_dirty(page);
+#endif
 		}
 	}
 }
@@ -528,6 +547,9 @@ i915_gem_object_do_bit_17_swizzle(struct drm_i915_gem_object *obj)
 void
 i915_gem_object_save_bit_17_swizzle(struct drm_i915_gem_object *obj)
 {
+#ifdef __linux__
+	struct scatterlist *sg;
+#endif
 	int page_count = obj->base.size >> PAGE_SHIFT;
 	int i;
 
@@ -541,10 +563,16 @@ i915_gem_object_save_bit_17_swizzle(struct drm_i915_gem_object *obj)
 		}
 	}
 
+#ifdef __linux__
+	for_each_sg(obj->pages->sgl, sg, page_count, i) {
+		struct page *page = sg_page(sg);
+		if (page_to_phys(page) & (1 << 17))
+#elif __FreeBSD__
 	/* XXXKIB: review locking, atomics might be not needed there */
 	for (i = 0; i < page_count; i++) {
 		vm_page_t page = obj->pages[i];
 		if (VM_PAGE_TO_PHYS(page) & (1 << 17))
+#endif
 			__set_bit(i, obj->bit_17);
 		else
 			__clear_bit(i, obj->bit_17);
