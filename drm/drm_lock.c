@@ -61,6 +61,9 @@ static int drm_lock_take(struct drm_lock_data *lock_data, unsigned int context);
  */
 int drm_lock(struct drm_device *dev, void *data, struct drm_file *file_priv)
 {
+#ifdef __linux__
+	DECLARE_WAITQUEUE(entry, current);
+#endif
 	struct drm_lock *lock = data;
 	struct drm_master *master = file_priv->master;
 	int ret = 0;
@@ -77,12 +80,16 @@ int drm_lock(struct drm_device *dev, void *data, struct drm_file *file_priv)
 		  lock->context, DRM_CURRENTPID,
 		  master->lock.hw_lock->lock, lock->flags);
 
+#ifdef __linux__
+	add_wait_queue(&master->lock.lock_queue, &entry);
+#endif
 	spin_lock_bh(&master->lock.spinlock);
 	master->lock.user_waiters++;
 	spin_unlock_bh(&master->lock.spinlock);
 
 	for (;;) {
-#if defined(__linux__)
+#ifdef __linux__
+		__set_current_state(TASK_INTERRUPTIBLE);
 		if (!master->lock.hw_lock) {
 			/* Device has been unregistered */
 			send_sig(SIGTERM, current, 0);
@@ -98,6 +105,15 @@ int drm_lock(struct drm_device *dev, void *data, struct drm_file *file_priv)
 		}
 
 		/* Contention */
+#ifdef __linux__
+		mutex_unlock(&drm_global_mutex);
+		schedule();
+		mutex_lock(&drm_global_mutex);
+		if (signal_pending(current)) {
+			ret = -EINTR;
+			break;
+		}
+#elif __FreeBSD__
 		/* DRM_UNLOCK_ASSERT(dev); */
 		ret = -sx_sleep(&master->lock.lock_queue, &drm_global_mutex.sx,
 		    PCATCH, "drmlk2", 0);
@@ -105,10 +121,15 @@ int drm_lock(struct drm_device *dev, void *data, struct drm_file *file_priv)
 			ret = -ERESTARTSYS;
 		if (ret != 0)
 			break;
+#endif
 	}
 	spin_lock_bh(&master->lock.spinlock);
 	master->lock.user_waiters--;
 	spin_unlock_bh(&master->lock.spinlock);
+#ifdef __linux__
+	__set_current_state(TASK_RUNNING);
+	remove_wait_queue(&master->lock.lock_queue, &entry);
+#endif
 
 	DRM_DEBUG("%d %s\n", lock->context,
 		  ret ? "interrupted" : "has lock");
