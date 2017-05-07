@@ -29,6 +29,11 @@
  *      Jesse Barnes <jesse.barnes@intel.com>
  */
 
+#ifdef FREEBSD_NOTYET
+#include <linux/export.h>
+#include <linux/moduleparam.h>
+#endif
+
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_fourcc.h>
@@ -961,9 +966,9 @@ EXPORT_SYMBOL(drm_helper_resume_force_mode);
 void drm_kms_helper_hotplug_event(struct drm_device *dev)
 {
 	/* send a uevent + call fbdev */
-#ifdef FREEBSD_NOTYET
+#ifdef __linux__
 	drm_sysfs_hotplug_event(dev);
-#endif /* FREEBSD_NOTYET */
+#endif
 	if (dev->mode_config.funcs->output_poll_changed)
 		dev->mode_config.funcs->output_poll_changed(dev);
 }
