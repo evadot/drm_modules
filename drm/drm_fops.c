@@ -45,8 +45,13 @@
 DEFINE_MUTEX(drm_global_mutex);
 EXPORT_SYMBOL(drm_global_mutex);
 
+#ifdef __linux__
+static int drm_open_helper(struct inode *inode, struct file *filp,
+			   struct drm_device * dev);
+#elif __FreeBSD__
 static int drm_open_helper(struct cdev *kdev, int flags, int fmt,
 			   DRM_STRUCTPROC *p, struct drm_device *dev);
+#endif
 
 static int drm_setup(struct drm_device * dev)
 {
@@ -125,14 +130,27 @@ static int drm_setup(struct drm_device * dev)
  * increments the device open count. If the open count was previous at zero,
  * i.e., it's the first that the device is open, then calls setup().
  */
+#ifdef __linux__
+int drm_open(struct inode *inode, struct file *filp)
+#elif __FreeBSD__
 int drm_open(struct cdev *kdev, int flags, int fmt, DRM_STRUCTPROC *p)
+#endif
 {
 	struct drm_device *dev = NULL;
+#ifdef __linux__
+	int minor_id = iminor(inode);
+#endif
 	struct drm_minor *minor;
 	int retcode = 0;
 	int need_setup = 0;
+#ifdef __linux__
+	struct address_space *old_mapping;
+	struct address_space *old_imapping;
 
+	minor = idr_find(&drm_minors_idr, minor_id);
+#elif __FreeBSD__
 	minor = kdev->si_drv1;
+#endif
 	if (!minor)
 		return ENODEV;
 
@@ -282,9 +300,17 @@ static int drm_cpu_valid(void)
  * Creates and initializes a drm_file structure for the file private data in \p
  * filp and add it into the double linked list in \p dev.
  */
+#ifdef __linux__
+static int drm_open_helper(struct inode *inode, struct file *filp,
+			   struct drm_device * dev)
+#elif __FreeBSD__
 static int drm_open_helper(struct cdev *kdev, int flags, int fmt,
 			   DRM_STRUCTPROC *p, struct drm_device *dev)
+#endif
 {
+#ifdef __linux__
+	int minor_id = iminor(inode);
+#endif
 	struct drm_file *priv;
 	int ret;
 
@@ -452,8 +478,15 @@ int drm_fasync(int fd, struct file *filp, int on)
 EXPORT_SYMBOL(drm_fasync);
 #endif
 
+#ifdef __linux__
+static void drm_master_release(struct drm_device *dev, struct file *filp)
+#elif __FreeBSD__
 static void drm_master_release(struct drm_device *dev, struct drm_file *file_priv)
+#endif
 {
+#ifdef __linux__
+	struct drm_file *file_priv = filp->private_data;
+#endif
 
 	if (drm_i_have_hw_lock(dev, file_priv)) {
 		DRM_DEBUG("File %p released, freeing lock for context %d\n",
@@ -499,7 +532,11 @@ static void drm_events_release(struct drm_file *file_priv)
  * data from its list and free it. Decreases the open count and if it reaches
  * zero calls drm_lastclose().
  */
+#ifdef __linux__
+int drm_release(struct inode *inode, struct file *filp)
+#elif __FreeBSD__
 void drm_release(void *data)
+#endif
 {
 	struct drm_file *file_priv = data;
 	struct drm_device *dev = file_priv->minor->dev;
@@ -588,7 +625,11 @@ void drm_release(void *data)
 				dev->sigdata.lock = NULL;
 			master->lock.hw_lock = NULL;
 			master->lock.file_priv = NULL;
+#ifdef FREEBSD_NOTYET
+			wake_up_interruptible_all(&master->lock.lock_queue);
+#else
 			DRM_WAKEUP_INT(&master->lock.lock_queue);
+#endif
 		}
 
 		if (file_priv->minor->master == file_priv->master) {
@@ -598,6 +639,11 @@ void drm_release(void *data)
 			drm_master_put(&file_priv->minor->master);
 		}
 	}
+
+#ifdef __linux__
+	BUG_ON(dev->dev_mapping == NULL);
+	iput(container_of(dev->dev_mapping, struct inode, i_data));
+#endif
 
 	/* drop the reference held my the file priv */
 	drm_master_put(&file_priv->master);
@@ -643,9 +689,15 @@ void drm_release(void *data)
 }
 EXPORT_SYMBOL(drm_release);
 
+#ifdef __linux__
+static bool
+drm_dequeue_event(struct drm_file *file_priv,
+		  size_t total, size_t max, struct drm_pending_event **out)
+#elif __FreeBSD__
 static bool
 drm_dequeue_event(struct drm_file *file_priv, struct uio *uio,
     struct drm_pending_event **out)
+#endif
 {
 	struct drm_pending_event *e;
 	bool ret = false;
@@ -671,8 +723,13 @@ out:
 	return ret;
 }
 
+#ifdef __linux__
+ssize_t drm_read(struct file *filp, char __user *buffer,
+		 size_t count, loff_t *offset)
+#elif __FreeBSD__
 int
 drm_read(struct cdev *kdev, struct uio *uio, int ioflag)
+#endif
 {
 	struct drm_file *file_priv;
 	struct drm_device *dev;
@@ -716,8 +773,12 @@ out:
 }
 EXPORT_SYMBOL(drm_read);
 
+#ifdef __linux__
+unsigned int drm_poll(struct file *filp, struct poll_table_struct *wait)
+#elif __FreeBSD__
 int
 drm_poll(struct cdev *kdev, int events, struct thread *td)
+#endif
 {
 	struct drm_file *file_priv;
 	struct drm_device *dev;
