@@ -37,6 +37,8 @@
 
 #ifdef __linux__
 #include <linux/list.h>
+#elif __FreeBSD__
+#include <sys/queue.h>
 #endif
 
 #define drm_hash_entry(_ptr, _type, _member) container_of(_ptr, _type, _member)

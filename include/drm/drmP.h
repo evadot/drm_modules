@@ -138,8 +138,10 @@
 #include <sys/selinfo.h>
 #include <sys/bus.h>
 
+#include <drm/drm_gem_names.h>
+#include <drm/drm_hashtab.h>
+
 #define _LINUX_COMPLETION_H_
-#define _LINUX_LIST_H_
 #define _LINUX_SCHED_H_
 #include <linux/kernel.h>
 #include <linux/mutex.h>
@@ -159,8 +161,6 @@
 #include <drm/drm.h>
 #include <drm/drm_sarea.h>
 
-#include <drm/drm_linux_list.h>
-#include <drm/drm_gem_names.h>
 
 #include <linux/idr.h>
 
@@ -185,7 +185,6 @@ struct drm_file;
 struct drm_device;
 
 #include <drm/drm_os_freebsd.h>
-#include <drm/drm_hashtab.h>
 #include <drm/drm_mm.h>
 
 #include "opt_compat.h"

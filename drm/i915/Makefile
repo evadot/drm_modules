@@ -49,6 +49,7 @@ SRCS	+= \
 	acpi_if.h \
 	bus_if.h \
 	fb_if.h \
+	vnode_if.h \
 	device_if.h \
 	iicbb_if.h \
 	iicbus_if.h \

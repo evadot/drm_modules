@@ -29,12 +29,10 @@
  *      Dave Airlie <airlied@linux.ie>
  *      Jesse Barnes <jesse.barnes@intel.com>
  */
-#ifdef FREEBSD_NOTYET
+#include <drm/drmP.h>
 #include <linux/list.h>
-#endif
 #include <linux/slab.h>
 #include <linux/export.h>
-#include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_edid.h>
 #include <drm/drm_fourcc.h>
@@ -2636,7 +2634,7 @@ int drm_mode_attachmode_crtc(struct drm_device *dev, struct drm_crtc *crtc,
 	struct drm_connector *connector;
 	int ret = 0;
 	struct drm_display_mode *dup_mode, *next;
-	DRM_LIST_HEAD(list);
+	LIST_HEAD(list);
 
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
 		if (!connector->encoder)

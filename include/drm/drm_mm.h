@@ -36,7 +36,8 @@
 /*
  * Generic range manager structs
  */
-#include <drm/drm_linux_list.h>
+
+#include <linux/list.h>
 
 struct drm_mm_node {
 	struct list_head node_list;
