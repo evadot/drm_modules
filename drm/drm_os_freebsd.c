@@ -301,7 +301,8 @@ dmi_check_system(const struct dmi_system_id *sysid)
 
 #if __OS_HAS_MTRR
 int
-drm_mtrr_add(unsigned long offset, unsigned long size, unsigned int flags)
+mtrr_add(unsigned long offset, unsigned long size, unsigned int flags,
+	char increment)
 {
 	int act;
 	struct mem_range_desc mrdesc;
@@ -315,7 +316,7 @@ drm_mtrr_add(unsigned long offset, unsigned long size, unsigned int flags)
 }
 
 int
-drm_mtrr_del(int handle __unused, unsigned long offset, unsigned long size,
+mtrr_del(int handle __unused, unsigned long offset, unsigned long size,
     unsigned int flags)
 {
 	int act;
@@ -323,7 +324,7 @@ drm_mtrr_del(int handle __unused, unsigned long offset, unsigned long size,
 
 	mrdesc.mr_base = offset;
 	mrdesc.mr_len = size;
-	mrdesc.mr_flags = flags;
+	mrdesc.mr_flags = MDF_WRITECOMBINE;
 	act = MEMRANGE_SET_REMOVE;
 	strlcpy(mrdesc.mr_owner, "drm", sizeof(mrdesc.mr_owner));
 	return (-mem_range_attr_set(&mrdesc, &act));

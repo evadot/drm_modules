@@ -1460,11 +1460,7 @@ i915_mtrr_setup(struct drm_i915_private *dev_priv, unsigned long base,
 	 * generation Core chips because WC PAT gets overridden by a UC
 	 * MTRR if present.  Even if a UC MTRR isn't present.
 	 */
-#ifdef FREEBSD_NOTYET
 	dev_priv->mm.gtt_mtrr = mtrr_add(base, size, MTRR_TYPE_WRCOMB, 1);
-#else
-	dev_priv->mm.gtt_mtrr = drm_mtrr_add(base, size, DRM_MTRR_WC);
-#endif
 	if (dev_priv->mm.gtt_mtrr < 0) {
 		DRM_INFO("MTRR allocation failed.  Graphics "
 			 "performance may suffer.\n");
@@ -1763,16 +1759,9 @@ out_gem_unload:
 	destroy_workqueue(dev_priv->wq);
 out_mtrrfree:
 	if (dev_priv->mm.gtt_mtrr >= 0) {
-#ifdef FREEBSD_NOTYET
 		mtrr_del(dev_priv->mm.gtt_mtrr,
 			 dev_priv->mm.gtt_base_addr,
 			 aperture_size);
-#else
-		drm_mtrr_del(dev_priv->mm.gtt_mtrr,
-			 dev_priv->mm.gtt_base_addr,
-			 aperture_size,
-			 DRM_MTRR_WC);
-#endif
 		dev_priv->mm.gtt_mtrr = -1;
 	}
 #ifdef __linux__
@@ -1823,16 +1812,9 @@ int i915_driver_unload(struct drm_device *dev)
 	io_mapping_free(dev_priv->mm.gtt_mapping);
 #endif
 	if (dev_priv->mm.gtt_mtrr >= 0) {
-#ifdef FREEBSD_NOTYET
 		mtrr_del(dev_priv->mm.gtt_mtrr,
 			 dev_priv->mm.gtt_base_addr,
 			 dev_priv->mm.gtt->gtt_mappable_entries * PAGE_SIZE);
-#else
-		drm_mtrr_del(dev_priv->mm.gtt_mtrr,
-			 dev_priv->mm.gtt_base_addr,
-			 dev_priv->mm.gtt->gtt_mappable_entries * PAGE_SIZE,
-			 DRM_MTRR_WC);
-#endif
 		dev_priv->mm.gtt_mtrr = -1;
 	}
 

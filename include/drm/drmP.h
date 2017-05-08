@@ -1434,24 +1434,24 @@ static inline int drm_core_has_MTRR(struct drm_device *dev)
 	return drm_core_check_feature(dev, DRIVER_USE_MTRR);
 }
 
-#define DRM_MTRR_WC		MDF_WRITECOMBINE
+#define MTRR_TYPE_WRCOMB	MDF_WRITECOMBINE
 
-int drm_mtrr_add(unsigned long offset, unsigned long size, unsigned int flags);
-int drm_mtrr_del(int handle, unsigned long offset, unsigned long size, unsigned int flags);
+int mtrr_add(unsigned long offset, unsigned long size, unsigned int flags, char increment);
+int mtrr_del(int handle, unsigned long offset, unsigned long size);
 
 #else
 #define drm_core_has_MTRR(dev) (0)
 
-#define DRM_MTRR_WC		0
+#define MTRR_TYPE_WRCOMB	0
 
-static inline int drm_mtrr_add(unsigned long offset, unsigned long size,
-			       unsigned int flags)
+static inline int mtrr_add(unsigned long offset, unsigned long size,
+  unsigned int flags, char increment)
 {
 	return 0;
 }
 
-static inline int drm_mtrr_del(int handle, unsigned long offset,
-			       unsigned long size, unsigned int flags)
+static inline int mtrr_del(int handle, unsigned long offset,
+			   unsigned long size)
 {
 	return 0;
 }
