@@ -1156,13 +1156,8 @@ static int init_phys_hws_pga(struct intel_ring_buffer *ring)
 	u32 addr;
 
 	if (!dev_priv->status_page_dmah) {
-#ifdef __linux__
 		dev_priv->status_page_dmah =
 			drm_pci_alloc(ring->dev, PAGE_SIZE, PAGE_SIZE);
-#elif __FreeBSD__
-		dev_priv->status_page_dmah =
-			drm_pci_alloc(ring->dev, PAGE_SIZE, PAGE_SIZE, BUS_SPACE_MAXADDR);
-#endif
 		if (!dev_priv->status_page_dmah)
 			return -ENOMEM;
 	}

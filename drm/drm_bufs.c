@@ -420,7 +420,7 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 		align = map->size;
 		if ((align & (align - 1)) != 0)
 			align = PAGE_SIZE;
-		dmah = drm_pci_alloc(dev, map->size, align, BUS_SPACE_MAXADDR);
+		dmah = drm_pci_alloc(dev, map->size, align);
 #endif
 		if (!dmah) {
 			kfree(map);
@@ -997,11 +997,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 
 	while (entry->buf_count < count) {
 
-#ifdef __linux__
 		dmah = drm_pci_alloc(dev, PAGE_SIZE << page_order, 0x1000);
-#elif __FreeBSD__
-		dmah = drm_pci_alloc(dev, PAGE_SIZE << page_order, 0x1000, BUS_SPACE_MAXADDR);
-#endif
 
 		if (!dmah) {
 			/* Set count correctly so we free the proper amount. */
