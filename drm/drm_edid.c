@@ -27,13 +27,13 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
  * DEALINGS IN THE SOFTWARE.
  */
-#ifdef __linux__
+#include <drm/drmP.h>
 #include <linux/kernel.h>
 #include <linux/slab.h>
+#ifdef __linux__
 #include <linux/i2c.h>
-#include <linux/module.h>
 #endif
-#include <drm/drmP.h>
+#include <linux/module.h>
 #include <drm/drm_edid.h>
 #include "drm_edid_modes.h"
 

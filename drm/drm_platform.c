@@ -25,6 +25,7 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include <linux/export.h>
 #include <drm/drmP.h>
 
 static void drm_platform_free_irq(struct drm_device *dev)

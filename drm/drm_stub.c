@@ -31,12 +31,10 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifdef __linux__
+#include <drm/drmP.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
-#endif
 #include <linux/slab.h>
-#include <drm/drmP.h>
 #include <drm/drm_core.h>
 
 #ifdef DRM_DEBUG_DEFAULT_ON

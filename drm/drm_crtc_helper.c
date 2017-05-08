@@ -29,10 +29,8 @@
  *      Jesse Barnes <jesse.barnes@intel.com>
  */
 
-#ifdef FREEBSD_NOTYET
 #include <linux/export.h>
 #include <linux/moduleparam.h>
-#endif
 
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>

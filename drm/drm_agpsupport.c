@@ -32,9 +32,7 @@
  */
 
 #include <drm/drmP.h>
-#ifdef _FREEBSD_NOTYET
 #include <linux/module.h>
-#endif
 #include <linux/slab.h>
 
 #if __OS_HAS_AGP

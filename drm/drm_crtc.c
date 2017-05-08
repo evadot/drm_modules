@@ -32,8 +32,8 @@
 #ifdef FREEBSD_NOTYET
 #include <linux/list.h>
 #endif
-#include <linux/export.h>
 #include <linux/slab.h>
+#include <linux/export.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_edid.h>

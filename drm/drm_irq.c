@@ -36,9 +36,11 @@
 #include <drm/drmP.h>
 #ifdef __linux__
 #include "drm_trace.h"
+
 #include <linux/interrupt.h>	/* For task queue support */
 #endif
 #include <linux/slab.h>
+
 #ifdef __linux__
 #include <linux/vgaarb.h>
 #endif

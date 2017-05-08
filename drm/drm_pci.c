@@ -36,7 +36,14 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#ifdef FREEBSD_NOTYET
+#include <linux/pci.h>
+#endif
 #include <linux/slab.h>
+#ifdef __linux__
+#include <linux/dma-mapping.h>
+#endif
+#include <linux/export.h>
 #include <drm/drmP.h>
 
 static int drm_msi = 1;	/* Enable by default. */

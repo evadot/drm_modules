@@ -49,11 +49,10 @@
 #ifdef __linux__
 #include <linux/debugfs.h>
 #endif
-#include <linux/export.h>
 #include <linux/slab.h>
+#include <linux/export.h>
 #include <drm/drmP.h>
 #include <drm/drm_core.h>
-#include <drm/drm_global.h>
 
 #ifdef __FreeBSD__
 #include <sys/sysent.h>

@@ -382,12 +382,30 @@ extern const char *fb_mode_option;
 #define	EXPORT_SYMBOL_GPL(x)
 #endif
 
+#ifndef MODULE_AUTHOR
 #define	MODULE_AUTHOR(author)
+#endif
+
+#ifndef MODULE_DESCRIPTION
 #define	MODULE_DESCRIPTION(desc)
+#endif
+
+#ifndef MODULE_LICENSE
 #define	MODULE_LICENSE(license)
+#endif
+
+#ifndef MODULE_PARM_DESC
 #define	MODULE_PARM_DESC(name, desc)
+#endif
+
+#ifndef MODULE_DEVICE_TABLE
 #define	MODULE_DEVICE_TABLE(name, list)
+#endif
+
+#ifdef module_param_named
+#undef module_param_named
 #define	module_param_named(name, var, type, perm)
+#endif
 
 #define KBUILD_MODNAME
 

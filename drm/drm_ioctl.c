@@ -36,6 +36,11 @@
 #include <drm/drmP.h>
 #include <drm/drm_core.h>
 
+#ifdef __linux__
+#include <linux/pci.h>
+#endif
+#include <linux/export.h>
+
 /**
  * Get the bus id.
  *

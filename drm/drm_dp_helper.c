@@ -20,16 +20,18 @@
  * OF THIS SOFTWARE.
  */
 
-#ifdef __linux__
+#include <drm/drmP.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#ifdef __linux__
 #include <linux/delay.h>
 #include <linux/init.h>
 #include <linux/errno.h>
+#endif
 #include <linux/sched.h>
+#ifdef __linux__
 #include <linux/i2c.h>
 #endif
-#include <drm/drmP.h>
 #include <drm/drm_dp_helper.h>
 
 /**

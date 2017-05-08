@@ -29,14 +29,16 @@
  */
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
-#ifdef __linux__
-#include <linux/kernel.h>
-#include <linux/sysrq.h>
-#include <linux/slab.h>
-#include <linux/fb.h>
-#include <linux/module.h>
-#endif
 #include <drm/drmP.h>
+#include <linux/kernel.h>
+#ifdef __linux__
+#include <linux/sysrq.h>
+#endif
+#include <linux/slab.h>
+#ifdef __linux__
+#include <linux/fb.h>
+#endif
+#include <linux/module.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_fb_helper.h>
 #include <drm/drm_crtc_helper.h>

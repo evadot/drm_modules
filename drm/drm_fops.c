@@ -35,11 +35,9 @@
  */
 
 #include <drm/drmP.h>
-#ifdef __linux__
 #include <linux/poll.h>
 #include <linux/slab.h>
 #include <linux/module.h>
-#endif
 
 /* from BKL pushdown: note that nothing else serializes idr_find() */
 DEFINE_MUTEX(drm_global_mutex);

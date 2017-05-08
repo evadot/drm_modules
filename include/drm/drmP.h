@@ -164,6 +164,8 @@
 
 #include <linux/idr.h>
 
+#include <linux/module.h>
+
 #if defined(CONFIG_AGP) || (defined(CONFIG_AGP_MODULE) && defined(MODULE))
 #define __OS_HAS_AGP 1
 #else

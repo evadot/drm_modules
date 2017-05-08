@@ -35,8 +35,8 @@
 
 #include <linux/vmalloc.h>
 #include <linux/slab.h>
-#include <linux/export.h>
 #include <linux/log2.h>
+#include <linux/export.h>
 #ifdef __linux__
 #include <asm/shmparam.h>
 #elif __FreeBSD__
