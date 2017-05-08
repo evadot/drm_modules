@@ -1735,7 +1735,6 @@ out_gem_unload:
 #elif __FreeBSD__
 	EVENTHANDLER_DEREGISTER(vm_lowmem, dev_priv->mm.inactive_shrinker);
 
-	free_completion(&dev_priv->error_completion);
 	spin_lock_destroy(&dev_priv->irq_lock);
 	spin_lock_destroy(&dev_priv->error_lock);
 	spin_lock_destroy(&dev_priv->rps.lock);
@@ -1894,7 +1893,6 @@ int i915_driver_unload(struct drm_device *dev)
 	 */
 	i915_gem_gtt_fini(dev);
 
-	free_completion(&dev_priv->error_completion);
 	spin_lock_destroy(&dev_priv->irq_lock);
 	spin_lock_destroy(&dev_priv->error_lock);
 	spin_lock_destroy(&dev_priv->rps.lock);

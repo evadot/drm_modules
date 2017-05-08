@@ -141,8 +141,6 @@
 #include <drm/drm_gem_names.h>
 #include <drm/drm_hashtab.h>
 
-#define _LINUX_COMPLETION_H_
-#define _LINUX_SCHED_H_
 #include <linux/kernel.h>
 #include <linux/mutex.h>
 
