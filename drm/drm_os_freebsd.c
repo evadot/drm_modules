@@ -299,6 +299,22 @@ dmi_check_system(const struct dmi_system_id *sysid)
 	return (res);
 }
 
+void *ioremap(vm_paddr_t offset, vm_size_t size)
+{
+	return pmap_mapdev(offset, size);
+}
+
+void *ioremap_wc(vm_paddr_t offset, vm_size_t size)
+{
+	return pmap_mapdev_attr(offset, size,
+	    VM_MEMATTR_WRITE_COMBINING);
+}
+
+void iounmap(void *handle, vm_size_t size)
+{
+	pmap_unmapdev((vm_offset_t)handle, size);
+}
+
 #if __OS_HAS_MTRR
 int
 mtrr_add(unsigned long offset, unsigned long size, unsigned int flags,

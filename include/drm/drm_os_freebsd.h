@@ -616,4 +616,8 @@ struct dmi_system_id {
 #define	DMI_MATCH(a, b) {(a), (b)}
 bool dmi_check_system(const struct dmi_system_id *);
 
+void *ioremap(vm_paddr_t offset, vm_size_t size);
+void *ioremap_wc(vm_paddr_t offset, vm_size_t size);
+void iounmap(void *handle, vm_size_t size);
+
 #endif /* _DRM_OS_FREEBSD_H_ */

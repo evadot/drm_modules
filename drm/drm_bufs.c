@@ -294,11 +294,7 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 			}
 		}
 		if (map->type == _DRM_REGISTERS) {
-#ifdef __linux__
 			map->handle = ioremap(map->offset, map->size);
-#elif __FreeBSD__
-			drm_core_ioremap(map, dev);
-#endif
 			if (!map->handle) {
 				kfree(map);
 				return -ENOMEM;
@@ -446,7 +442,7 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 #ifdef __linux__
 			iounmap(map->handle);
 #elif __FreeBSD__
-			drm_core_ioremapfree(map, dev);
+			iounmap(map->handle, map->size);
 #endif
 		kfree(map);
 		return -EINVAL;
@@ -467,7 +463,7 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 #ifdef __linux__
 			iounmap(map->handle);
 #elif __FreeBSD__
-			drm_core_ioremapfree(map, dev);
+			iounmap(map->handle, map->size);
 #endif
 		kfree(map);
 		kfree(list);
@@ -571,7 +567,7 @@ int drm_rmmap_locked(struct drm_device *dev, struct drm_local_map *map)
 #ifdef __linux__
 		iounmap(map->handle);
 #elif __FreeBSD__
-		drm_core_ioremapfree(map, dev);
+		iounmap(map->handle, map->size);
 #endif
 		/* FALLTHROUGH */
 	case _DRM_FRAME_BUFFER:
