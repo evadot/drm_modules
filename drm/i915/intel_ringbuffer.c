@@ -1218,16 +1218,9 @@ static int intel_init_ring_buffer(struct drm_device *dev,
 	if (ret)
 		goto err_unpin;
 
-#ifdef __linux__
 	ring->virtual_start =
 		ioremap_wc(dev_priv->mm.gtt->gma_bus_addr + obj->gtt_offset,
 			   ring->size);
-#elif __FreeBSD__
-	ring->virtual_start =
-		pmap_mapdev_attr(
-		    dev_priv->mm.gtt->gma_bus_addr + obj->gtt_offset, ring->size,
-		    VM_MEMATTR_WRITE_COMBINING);
-#endif
 	if (ring->virtual_start == NULL) {
 		DRM_ERROR("Failed to map ringbuffer.\n");
 		ret = -EINVAL;
@@ -1252,7 +1245,7 @@ err_unmap:
 #ifdef __linux__
 	iounmap(ring->virtual_start);
 #elif __FreeBSD__
-	pmap_unmapdev((vm_offset_t)ring->virtual_start, ring->size);
+	iounmap(ring->virtual_start, ring->size);
 #endif
 err_unpin:
 	i915_gem_object_unpin(obj);
@@ -1792,12 +1785,7 @@ int intel_render_ring_init_dri(struct drm_device *dev, u64 start, u32 size)
 	if (IS_I830(ring->dev) || IS_845G(ring->dev))
 		ring->effective_size -= 128;
 
-#ifdef __linux__
 	ring->virtual_start = ioremap_wc(start, size);
-#elif __FreeBSD__
-	ring->virtual_start = pmap_mapdev_attr(start, size,
-	    VM_MEMATTR_WRITE_COMBINING);
-#endif
 	if (ring->virtual_start == NULL) {
 		DRM_ERROR("can not ioremap virtual address for"
 			  " ring buffer\n");

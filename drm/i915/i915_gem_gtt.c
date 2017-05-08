@@ -873,15 +873,8 @@ int i915_gem_gtt_init(struct drm_device *dev)
 		goto err_out;
 	}
 
-#ifdef __linux__
 	dev_priv->mm.gtt->gtt = ioremap_wc(gtt_bus_addr,
 					   dev_priv->mm.gtt->gtt_total_entries * sizeof(gtt_pte_t));
-#elif __FreeBSD__
-	dev_priv->mm.gtt->gtt = pmap_mapdev_attr(gtt_bus_addr,
-					   /* The size is used later by pmap_unmapdev. */
-					   dev_priv->mm.gtt->gtt_total_entries * sizeof(gtt_pte_t),
-					   VM_MEMATTR_WRITE_COMBINING);
-#endif
 	if (!dev_priv->mm.gtt->gtt) {
 		DRM_ERROR("Failed to map the gtt page table\n");
 		teardown_scratch_page(dev);
@@ -911,7 +904,7 @@ void i915_gem_gtt_fini(struct drm_device *dev)
 #ifdef __linux__
 	iounmap(dev_priv->mm.gtt->gtt);
 #elif __FreeBSD__
-	pmap_unmapdev((vm_offset_t)dev_priv->mm.gtt->gtt,
+	iounmap(dev_priv->mm.gtt->gtt,
 	    dev_priv->mm.gtt->gtt_total_entries * sizeof(gtt_pte_t));
 #endif
 	teardown_scratch_page(dev);

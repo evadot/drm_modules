@@ -126,8 +126,7 @@ static void i915_free_hws(struct drm_device *dev)
 #ifdef __linux__
 		iounmap(dev_priv->dri1.gfx_hws_cpu_addr);
 #elif __FreeBSD__
-		pmap_unmapdev((vm_offset_t)dev_priv->dri1.gfx_hws_cpu_addr,
-		    PAGE_SIZE);
+		iounmap(dev_priv->dri1.gfx_hws_cpu_addr, PAGE_SIZE);
 #endif
 	}
 
@@ -1095,14 +1094,8 @@ static int i915_set_status_page(struct drm_device *dev, void *data,
 	ring = LP_RING(dev_priv);
 	ring->status_page.gfx_addr = hws->addr & (0x1ffff<<12);
 
-#ifdef __linux__
 	dev_priv->dri1.gfx_hws_cpu_addr =
 		ioremap_wc(dev_priv->mm.gtt_base_addr + hws->addr, 4096);
-#elif __FreeBSD__
-	dev_priv->dri1.gfx_hws_cpu_addr =
-		pmap_mapdev_attr(dev_priv->mm.gtt_base_addr + hws->addr, PAGE_SIZE,
-		    VM_MEMATTR_WRITE_COMBINING);
-#endif
 	if (dev_priv->dri1.gfx_hws_cpu_addr == NULL) {
 		i915_dma_cleanup(dev);
 		ring->status_page.gfx_addr = 0;
