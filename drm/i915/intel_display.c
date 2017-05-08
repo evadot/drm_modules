@@ -24,23 +24,23 @@
  *	Eric Anholt <eric@anholt.net>
  */
 
-#ifdef __linux__
+#ifdef FREEBSD_MOTYET
 #include <linux/dmi.h>
 #include <linux/module.h>
 #include <linux/input.h>
 #include <linux/i2c.h>
 #include <linux/kernel.h>
-#include <linux/vgaarb.h>
 #endif
 #include <linux/slab.h>
-#include <drm/drmP.h>
+#ifdef __linux__
+#include <linux/vgaarb.h>
+#endif
 #include <drm/drm_edid.h>
+#include <drm/drmP.h>
 #include "intel_drv.h"
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
-#ifdef __linux__
 #include "i915_trace.h"
-#endif
 #include <drm/drm_dp_helper.h>
 #include <drm/drm_crtc_helper.h>
 #ifdef __linux_

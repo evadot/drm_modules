@@ -23,13 +23,13 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifdef __linux__
 #include <linux/slab.h>
+#ifdef __linux__
 #include <linux/i2c.h>
 #include <linux/fb.h>
 #endif
-#include <drm/drmP.h>
 #include <drm/drm_edid.h>
+#include <drm/drmP.h>
 #include "intel_drv.h"
 #include "i915_drv.h"
 #ifdef __FreeBSD__

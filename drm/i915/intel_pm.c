@@ -34,8 +34,9 @@
 #include "intel_drv.h"
 #ifdef __linux__
 #include "../../../platform/x86/intel_ips.h"
+#endif
 #include <linux/module.h>
-#elif __FreeBSD__
+#ifdef __FreeBSD__
 #include <sys/kdb.h>
 #include <machine/clock.h>
 #endif

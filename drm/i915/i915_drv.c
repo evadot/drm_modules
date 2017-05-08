@@ -27,6 +27,9 @@
  *
  */
 
+#ifdef FREEBSD_NOTYET
+#include <linux/device.h>
+#endif
 #include <drm/drmP.h>
 #include <drm/drm_pciids.h>
 #include <drm/i915_drm.h>
@@ -36,8 +39,8 @@
 
 #ifdef __linux__
 #include <linux/console.h>
-#include <linux/module.h>
 #endif
+#include <linux/module.h>
 #include <drm/drm_crtc_helper.h>
 
 static int i915_modeset __read_mostly = 1;

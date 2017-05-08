@@ -30,10 +30,9 @@
 #include <drm/drmP.h>
 #include "i915_drv.h"
 #include <drm/i915_drm.h>
-#ifdef __linux__
 #include "i915_trace.h"
-#endif
 #include "intel_drv.h"
+
 #ifdef __FreeBSD__
 #include <sys/sched.h>
 #include <sys/sf_buf.h>

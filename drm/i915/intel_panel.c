@@ -30,6 +30,7 @@
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
+#include <linux/moduleparam.h>
 #include <drm/drmP.h>
 #include "intel_drv.h"
 

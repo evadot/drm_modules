@@ -26,8 +26,8 @@
  */
 #ifdef __linux__
 #include <linux/i2c.h>
-#include <linux/slab.h>
 #endif
+#include <linux/slab.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include "intel_drv.h"

@@ -37,9 +37,9 @@
 
 #include <drm/drmP.h>
 #include <drm/drm.h>
-#include <drm/i915/i915_drm.h>
-#include <drm/i915/i915_drv.h>
-#include <drm/i915/intel_drv.h>
+#include <drm/i915_drm.h>
+#include <drm/i915_drv.h>
+#include <drm/intel_drv.h>
 
 typedef struct _drm_i915_batchbuffer32 {
 	int start;		/* agp offset */

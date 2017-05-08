@@ -41,10 +41,12 @@
 #include <linux/acpi.h>
 #include <linux/pnp.h>
 #include <linux/vga_switcheroo.h>
+#endif
+#include <linux/slab.h>
+#ifdef __linux__
 #include <acpi/video.h>
 #include <asm/pat.h>
 #endif
-#include <linux/slab.h>
 
 #define LP_RING(d) (&((struct drm_i915_private *)(d))->ring[RCS])
 

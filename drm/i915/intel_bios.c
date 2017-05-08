@@ -27,8 +27,8 @@
 #ifdef __linux__
 #include <linux/dmi.h>
 #endif
-#include <drm/drmP.h>
 #include <drm/drm_dp_helper.h>
+#include <drm/drmP.h>
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
 #include "intel_bios.h"
