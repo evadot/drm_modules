@@ -43,11 +43,11 @@
 
 #include <drm/drmP.h>
 #include <drm/drm_mm.h>
-#ifdef __linux__
 #include <linux/slab.h>
+#ifdef __linux__
 #include <linux/seq_file.h>
-#include <linux/export.h>
 #endif
+#include <linux/export.h>
 
 #define MM_UNUSED_TARGET 4
 

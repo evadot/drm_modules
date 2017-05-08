@@ -33,9 +33,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifdef __linux__
 #include <linux/export.h>
-#endif
 #include <drm/drmP.h>
 
 /**

@@ -374,8 +374,14 @@ extern const char *fb_mode_option;
 #undef	CONFIG_DEBUG_FS
 #undef	CONFIG_VGA_CONSOLE
 
+#ifndef EXPORT_SYMBOL
 #define	EXPORT_SYMBOL(x)
+#endif
+
+#ifndef EXPORT_SYMBOL_GPL
 #define	EXPORT_SYMBOL_GPL(x)
+#endif
+
 #define	MODULE_AUTHOR(author)
 #define	MODULE_DESCRIPTION(desc)
 #define	MODULE_LICENSE(license)

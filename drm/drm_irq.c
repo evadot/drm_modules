@@ -39,10 +39,10 @@
 #include <linux/interrupt.h>	/* For task queue support */
 #endif
 #include <linux/slab.h>
-#ifdef FREEBSD_NOTYET
+#ifdef __linux__
 #include <linux/vgaarb.h>
-#include <linux/export.h>
 #endif
+#include <linux/export.h>
 
 /* Access macro for slots in vblank timestamp ringbuffer. */
 #define vblanktimestamp(dev, crtc, count) ( \

@@ -36,9 +36,10 @@
 #include <drm/drm_hashtab.h>
 #ifdef __linux__
 #include <linux/hash.h>
+#endif
 #include <linux/slab.h>
 #include <linux/export.h>
-#elif __FreeBSD__
+#ifdef __FreeBSD__
 #include <sys/hash.h>
 #endif
 

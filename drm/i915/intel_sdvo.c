@@ -27,10 +27,10 @@
  */
 #ifdef __linux__
 #include <linux/i2c.h>
-#include <linux/slab.h>
 #include <linux/delay.h>
-#include <linux/export.h>
 #endif
+#include <linux/slab.h>
+#include <linux/export.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 #include <drm/drm_edid.h>

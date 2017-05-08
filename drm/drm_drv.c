@@ -48,8 +48,8 @@
 
 #ifdef __linux__
 #include <linux/debugfs.h>
-#include <linux/export.h>
 #endif
+#include <linux/export.h>
 #include <linux/slab.h>
 #include <drm/drmP.h>
 #include <drm/drm_core.h>

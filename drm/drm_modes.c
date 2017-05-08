@@ -33,8 +33,8 @@
 #ifdef __linux__
 #include <linux/list.h>
 #include <linux/list_sort.h>
-#include <linux/export.h>
 #endif
+#include <linux/export.h>
 #include <drm/drmP.h>
 #include <drm/drm_crtc.h>
 

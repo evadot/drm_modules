@@ -32,9 +32,7 @@
  * Pauli Nieminen <suokkos-at-gmail-dot-com>
  */
 
-#ifdef FREEBSD_NOTYET
 #include <linux/export.h>
-#endif
 #include <drm/drm_buffer.h>
 
 /**

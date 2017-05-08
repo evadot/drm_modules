@@ -31,9 +31,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-#ifdef __linux__
 #include <linux/export.h>
-#endif
 #include <drm/drmP.h>
 
 # define ATI_PCIGART_PAGE_SIZE		4096	/**< PCI GART page size */

@@ -35,8 +35,8 @@
 
 #ifdef __linux__
 #include <linux/highmem.h>
-#include <linux/export.h>
 #endif
+#include <linux/export.h>
 #include <drm/drmP.h>
 
 #define	vunmap(handle)
