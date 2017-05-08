@@ -462,7 +462,7 @@ int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
 		  file_priv->authenticated);
 #elif __FreeBSD__
 	DRM_DEBUG("pid=%d, cmd=0x%02lx, nr=0x%02x, dev 0x%lx, auth=%d\n",
-		  DRM_CURRENTPID, cmd, nr,
+		  task_pid_nr(current), cmd, nr,
 		  (long)file_priv->minor->device,
 		  file_priv->authenticated);
 
@@ -635,7 +635,7 @@ int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
 	    (drm_debug & DRM_DEBUGBITS_FAILED_IOCTL) != 0) {
 		printf(
 "pid %d, cmd 0x%02lx, nr 0x%02x, dev 0x%lx, auth %d, res %d\n",
-		    DRM_CURRENTPID, cmd, nr, (long)file_priv->minor->device,
+		    task_pid_nr(current), cmd, nr, (long)file_priv->minor->device,
 		    file_priv->authenticated, -retcode);
 	}
 

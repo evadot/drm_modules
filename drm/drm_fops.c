@@ -317,7 +317,7 @@ static int drm_open_helper(struct cdev *kdev, int flags, int fmt,
 	if (dev->switch_power_state != DRM_SWITCH_POWER_ON)
 		return -EINVAL;
 
-	DRM_DEBUG("pid = %d, device = %s\n", DRM_CURRENTPID, devtoname(kdev));
+	DRM_DEBUG("pid = %d, device = %s\n", task_pid_nr(current), devtoname(kdev));
 
 #ifdef FREEBSD_NOTYET
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
@@ -551,7 +551,7 @@ void drm_release(void *data)
 	 */
 
 	DRM_DEBUG("pid = %d, device = 0x%lx, open_count = %d\n",
-		  DRM_CURRENTPID,
+		  task_pid_nr(current),
 		  (long)file_priv->minor->device,
 		  dev->open_count);
 
