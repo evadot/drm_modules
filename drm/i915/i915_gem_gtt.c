@@ -153,13 +153,7 @@ int i915_gem_init_aliasing_ppgtt(struct drm_device *dev)
 		goto err_ppgtt;
 
 	for (i = 0; i < ppgtt->num_pd_entries; i++) {
-#ifdef __linux__
 		ppgtt->pt_pages[i] = alloc_page(GFP_KERNEL);
-#elif __FreeBSD__
-		ppgtt->pt_pages[i] = vm_page_alloc(NULL, 0,
-		    VM_ALLOC_NORMAL | VM_ALLOC_NOOBJ | VM_ALLOC_WIRED |
-		    VM_ALLOC_ZERO);
-#endif
 		if (!ppgtt->pt_pages[i])
 			goto err_pt_alloc;
 	}
@@ -212,15 +206,8 @@ err_pd_pin:
 err_pt_alloc:
 	kfree(ppgtt->pt_dma_addr);
 	for (i = 0; i < ppgtt->num_pd_entries; i++) {
-#ifdef __linux__
 		if (ppgtt->pt_pages[i])
 			__free_page(ppgtt->pt_pages[i]);
-#elif __FreeBSD__
-		if (ppgtt->pt_pages[i]) {
-			vm_page_unwire(ppgtt->pt_pages[i], PQ_INACTIVE);
-			vm_page_free(ppgtt->pt_pages[i]);
-		}
-#endif
 	}
 	kfree(ppgtt->pt_pages);
 err_ppgtt:
