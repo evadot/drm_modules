@@ -32,6 +32,17 @@ SRCS	= \
 	drm_sysctl.c \
 	drm_vm.c \
 	drm_os_freebsd.c \
+	ttm/ttm_agp_backend.c \
+	ttm/ttm_lock.c \
+	ttm/ttm_object.c \
+	ttm/ttm_tt.c \
+	ttm/ttm_bo_util.c \
+	ttm/ttm_bo.c \
+	ttm/ttm_bo_manager.c \
+	ttm/ttm_execbuf_util.c \
+	ttm/ttm_memory.c \
+	ttm/ttm_page_alloc.c \
+	ttm/ttm_bo_vm.c \
 	ati_pcigart.c
 
 SRCS	+= \
