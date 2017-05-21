@@ -1927,11 +1927,7 @@ int i915_driver_open(struct drm_device *dev, struct drm_file *file)
 	spin_lock_init(&file_priv->mm.lock);
 	INIT_LIST_HEAD(&file_priv->mm.request_list);
 
-#ifdef FREEBSD_NOTYET
 	idr_init(&file_priv->context_idr);
-#else
-	drm_gem_names_init(&file_priv->context_idr);
-#endif
 
 	return 0;
 }

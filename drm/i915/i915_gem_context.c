@@ -130,11 +130,7 @@ static void do_destroy(struct i915_hw_context *ctx)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
 	if (ctx->file_priv)
-#ifdef FREEBSD_NOTYET
 		idr_remove(&ctx->file_priv->context_idr, ctx->id);
-#else
-		drm_gem_names_remove(&ctx->file_priv->context_idr, ctx->id);
-#endif
 	else
 		BUG_ON(ctx != dev_priv->ring[RCS].default_context);
 
@@ -181,7 +177,6 @@ create_hw_context(struct drm_device *dev,
 	ctx->file_priv = file_priv;
 
 again:
-#ifdef FREEBSD_NOTYET
 	if (idr_pre_get(&file_priv->context_idr, GFP_KERNEL) == 0) {
 		ret = -ENOMEM;
 		DRM_DEBUG_DRIVER("idr allocation failed\n");
@@ -190,10 +185,6 @@ again:
 
 	ret = idr_get_new_above(&file_priv->context_idr, ctx,
 				DEFAULT_CONTEXT_ID + 1, &id);
-#else
-	id = 0;
-	ret = drm_gem_name_create(&file_priv->context_idr, ctx, &id);
-#endif
 	if (ret == 0)
 		ctx->id = id;
 
@@ -312,7 +303,7 @@ void i915_gem_context_fini(struct drm_device *dev)
 	do_destroy(dev_priv->ring[RCS].default_context);
 }
 
-static int context_idr_cleanup(uint32_t id, void *p, void *data)
+static int context_idr_cleanup(int id, void *p, void *data)
 {
 	struct i915_hw_context *ctx = p;
 
@@ -328,24 +319,15 @@ void i915_gem_context_close(struct drm_device *dev, struct drm_file *file)
 	struct drm_i915_file_private *file_priv = file->driver_priv;
 
 	mutex_lock(&dev->struct_mutex);
-#ifdef FREEBSD_NOTYET
 	idr_for_each(&file_priv->context_idr, context_idr_cleanup, NULL);
 	idr_destroy(&file_priv->context_idr);
-#else
-	drm_gem_names_foreach(&file_priv->context_idr, context_idr_cleanup, NULL);
-	drm_gem_names_fini(&file_priv->context_idr);
-#endif
 	mutex_unlock(&dev->struct_mutex);
 }
 
 static struct i915_hw_context *
 i915_gem_context_get(struct drm_i915_file_private *file_priv, u32 id)
 {
-#ifdef FREEBSD_NOTYET
 	return (struct i915_hw_context *)idr_find(&file_priv->context_idr, id);
-#else
-	return (struct i915_hw_context *)drm_gem_find_ptr(&file_priv->context_idr, id);
-#endif
 }
 
 static inline int

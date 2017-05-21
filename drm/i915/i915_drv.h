@@ -1197,11 +1197,7 @@ struct drm_i915_file_private {
 		spinlock_t lock;
 		struct list_head request_list;
 	} mm;
-#ifdef FREEBSD_NOTYET
 	struct idr context_idr;
-#else
-	struct drm_gem_names context_idr;
-#endif
 };
 
 #define INTEL_INFO(dev)	(((struct drm_i915_private *) (dev)->dev_private)->info)
