@@ -2894,8 +2894,7 @@ i915_gem_wait_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
 	int ret = 0;
 
 	if (args->timeout_ns >= 0) {
-		timeout_stack.tv_sec = args->timeout_ns / 1000000;
-		timeout_stack.tv_nsec = args->timeout_ns % 1000000;
+		timeout_stack = ns_to_timespec(args->timeout_ns);
 		timeout = &timeout_stack;
 	}
 
@@ -2935,7 +2934,8 @@ i915_gem_wait_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
 
 	ret = __wait_seqno(ring, seqno, true, timeout);
 	if (timeout) {
-		args->timeout_ns = timeout->tv_sec * 1000000 + timeout->tv_nsec;
+		WARN_ON(!timespec_valid(timeout));
+		args->timeout_ns = timespec_to_ns(timeout);
 	}
 	return ret;
 
