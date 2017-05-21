@@ -2747,8 +2747,7 @@ i915_gem_retire_requests_ring(struct intel_ring_buffer *ring)
 		if (!i915_seqno_passed(seqno, request->seqno))
 			break;
 
-		CTR2(KTR_DRM, "retire_request_seqno_passed %s %d",
-		    ring->name, seqno);
+		trace_i915_gem_request_retire(ring, request->seqno);
 		/* We know the GPU must have read the request to have
 		 * sent us the seqno + interrupt, so use the position
 		 * of tail of the request to update the last known position
@@ -3012,8 +3011,9 @@ static void i915_gem_object_finish_gtt(struct drm_i915_gem_object *obj)
 	obj->base.read_domains &= ~I915_GEM_DOMAIN_GTT;
 	obj->base.write_domain &= ~I915_GEM_DOMAIN_GTT;
 
-	CTR3(KTR_DRM, "object_change_domain finish gtt %p %x %x",
-	    obj, old_read_domains, old_write_domain);
+	trace_i915_gem_object_change_domain(obj,
+					    old_read_domains,
+					    old_write_domain);
 }
 
 /**
@@ -3589,8 +3589,7 @@ i915_gem_object_bind_to_gtt(struct drm_i915_gem_object *obj,
 	obj->map_and_fenceable = mappable && fenceable;
 
 	i915_gem_object_unpin_pages(obj);
-	CTR4(KTR_DRM, "object_bind %p %x %x %d", obj, obj->gtt_offset,
-	    obj->base.size, map_and_fenceable);
+	trace_i915_gem_object_bind(obj, map_and_fenceable);
 	i915_gem_verify_gtt(dev);
 	return 0;
 }
@@ -3616,7 +3615,7 @@ i915_gem_clflush_object(struct drm_i915_gem_object *obj)
 	if (obj->cache_level != I915_CACHE_NONE)
 		return;
 
-	CTR1(KTR_DRM, "object_clflush %p", obj);
+	trace_i915_gem_object_clflush(obj);
 
 	drm_clflush_pages(obj->pages, obj->base.size / PAGE_SIZE);
 }
@@ -3643,8 +3642,9 @@ i915_gem_object_flush_gtt_write_domain(struct drm_i915_gem_object *obj)
 	old_write_domain = obj->base.write_domain;
 	obj->base.write_domain = 0;
 
-	CTR3(KTR_DRM, "object_change_domain flush gtt_write %p %x %x", obj,
-	    obj->base.read_domains, old_write_domain);
+	trace_i915_gem_object_change_domain(obj,
+					    obj->base.read_domains,
+					    old_write_domain);
 }
 
 /** Flushes the CPU write domain for the object if it's dirty. */
@@ -3661,8 +3661,9 @@ i915_gem_object_flush_cpu_write_domain(struct drm_i915_gem_object *obj)
 	old_write_domain = obj->base.write_domain;
 	obj->base.write_domain = 0;
 
-	CTR3(KTR_DRM, "object_change_domain flush_cpu_write %p %x %x", obj,
-	    obj->base.read_domains, old_write_domain);
+	trace_i915_gem_object_change_domain(obj,
+					    obj->base.read_domains,
+					    old_write_domain);
 }
 
 /**
@@ -3705,8 +3706,9 @@ i915_gem_object_set_to_gtt_domain(struct drm_i915_gem_object *obj, bool write)
 		obj->dirty = 1;
 	}
 
-	CTR3(KTR_DRM, "object_change_domain set_to_gtt %p %x %x", obj,
-	    old_read_domains, old_write_domain);
+	trace_i915_gem_object_change_domain(obj,
+					    old_read_domains,
+					    old_write_domain);
 
 	/* And bump the LRU for this access */
 	if (i915_gem_object_is_inactive(obj))
@@ -3780,8 +3782,9 @@ int i915_gem_object_set_cache_level(struct drm_i915_gem_object *obj,
 		obj->base.read_domains = I915_GEM_DOMAIN_CPU;
 		obj->base.write_domain = I915_GEM_DOMAIN_CPU;
 
-		CTR3(KTR_DRM, "object_change_domain set_cache_level %p %x %x",
-		    obj, old_read_domains, old_write_domain);
+		trace_i915_gem_object_change_domain(obj,
+						    old_read_domains,
+						    old_write_domain);
 	}
 
 	obj->cache_level = cache_level;
@@ -3902,8 +3905,9 @@ i915_gem_object_pin_to_display_plane(struct drm_i915_gem_object *obj,
 	obj->base.write_domain = 0;
 	obj->base.read_domains |= I915_GEM_DOMAIN_GTT;
 
-	CTR3(KTR_DRM, "object_change_domain pin_to_display_plan %p %x %x",
-	    obj, old_read_domains, old_write_domain);
+	trace_i915_gem_object_change_domain(obj,
+					    old_read_domains,
+					    old_write_domain);
 
 	return 0;
 }
@@ -3969,8 +3973,9 @@ i915_gem_object_set_to_cpu_domain(struct drm_i915_gem_object *obj, bool write)
 		obj->base.write_domain = I915_GEM_DOMAIN_CPU;
 	}
 
-	CTR3(KTR_DRM, "object_change_domain set_to_cpu %p %x %x", obj,
-	    old_read_domains, old_write_domain);
+	trace_i915_gem_object_change_domain(obj,
+					    old_read_domains,
+					    old_write_domain);
 
 	return 0;
 }
@@ -4345,7 +4350,7 @@ void i915_gem_free_object(struct drm_gem_object *gem_obj)
 	struct drm_device *dev = obj->base.dev;
 	drm_i915_private_t *dev_priv = dev->dev_private;
 
-	CTR1(KTR_DRM, "object_destroy_tail %p", obj);
+	trace_i915_gem_object_destroy(obj);
 
 	if (obj->phys_obj)
 		i915_gem_detach_phys_object(dev, obj);

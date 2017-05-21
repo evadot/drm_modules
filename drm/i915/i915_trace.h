@@ -64,10 +64,36 @@ trace_i915_gem_request_add(struct intel_ring_buffer *ring, int seqno)
 }
 
 static inline void
+trace_i915_gem_request_retire(struct intel_ring_buffer *ring, int seqno)
+{
+	CTR2(KTR_DRM, "retire_request_seqno_passed %s %d", ring->name, seqno);
+}
+
+static inline void
+trace_i915_gem_object_bind(struct drm_i915_gem_object *obj, int map_and_fenceable)
+{
+	CTR4(KTR_DRM, "object_bind %p %x %x %d", obj, obj->gtt_offset, obj->base.size, map_and_fenceable);
+}
+
+static inline void
 trace_i915_gem_object_create(struct drm_i915_gem_object *obj)
 {
 
-	CTR2(KTR_DRM, "object_create %p %x", obj, size);
+	CTR2(KTR_DRM, "object_create %p %x", obj, obj->size);
+}
+
+static inline void
+trace_i915_gem_object_destroy(struct drm_i915_gem_object *obj)
+{
+
+	CTR2(KTR_DRM, "object_destroy %p %x", obj, obj->size);
+}
+
+static inline void
+trace_i915_gem_object_clflush(struct drm_i915_gem_object *obj)
+{
+
+	CTR1(KTR_DRM, "object_clflush %p %x", obj);
 }
 
 static inline void
@@ -88,7 +114,7 @@ static inline void
 trace_i915_gem_object_change_domain(struct drm_i915_gem_object *obj, u32 old_read, u32 old_write)
 {
 
-		CTR3(KTR_DRM, "object_change_domain move_to_active %p %x %x",
+		CTR3(KTR_DRM, "object_change_domain %p %x %x",
 		    obj, old_read, old_write);
 }
 
