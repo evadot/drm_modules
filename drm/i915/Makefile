@@ -57,6 +57,8 @@ SRCS	+= \
 
 CFLAGS+=	-I${.CURDIR}/../../include -I${SYSDIR}/compat/linuxkpi/common/include/
 
+CFLAGS.i915_gem_execbuffer.c=	-Wno-pointer-arith
+
 .include <bsd.kmod.mk>
 
 CWARNFLAGS.i915_debug.c=	-Wno-unused-function

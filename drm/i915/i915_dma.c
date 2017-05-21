@@ -1604,7 +1604,6 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 	aperture_size = dev_priv->mm.gtt->gtt_mappable_entries << PAGE_SHIFT;
 	dev_priv->mm.gtt_base_addr = dev_priv->mm.gtt->gma_bus_addr;
 
-#ifdef __linux__
 	dev_priv->mm.gtt_mapping =
 		io_mapping_create_wc(dev_priv->mm.gtt_base_addr,
 				     aperture_size);
@@ -1612,7 +1611,6 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 		ret = -EIO;
 		goto out_rmmap;
 	}
-#endif
 
 	i915_mtrr_setup(dev_priv, dev_priv->mm.gtt_base_addr,
 			aperture_size);
@@ -1752,9 +1750,9 @@ out_mtrrfree:
 			 aperture_size);
 		dev_priv->mm.gtt_mtrr = -1;
 	}
-#ifdef __linux__
 	io_mapping_free(dev_priv->mm.gtt_mapping);
 out_rmmap:
+#ifdef __linux__
 	pci_iounmap(dev->pdev, dev_priv->regs);
 #endif
 	if (dev_priv->mmio_map != NULL)
@@ -1796,9 +1794,7 @@ int i915_driver_unload(struct drm_device *dev)
 	/* Cancel the retire work handler, which should be idle now. */
 	cancel_delayed_work_sync(&dev_priv->mm.retire_work);
 
-#ifdef __linux__
 	io_mapping_free(dev_priv->mm.gtt_mapping);
-#endif
 	if (dev_priv->mm.gtt_mtrr >= 0) {
 		mtrr_del(dev_priv->mm.gtt_mtrr,
 			 dev_priv->mm.gtt_base_addr,

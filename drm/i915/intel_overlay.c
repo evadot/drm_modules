@@ -195,14 +195,8 @@ intel_overlay_map_regs(struct intel_overlay *overlay)
 	if (OVERLAY_NEEDS_PHYSICAL(overlay->dev))
 		regs = (struct overlay_registers __iomem *)overlay->reg_bo->phys_obj->handle->vaddr;
 	else
-#ifdef __linux__
 		regs = io_mapping_map_wc(dev_priv->mm.gtt_mapping,
 					 overlay->reg_bo->gtt_offset);
-#elif __FreeBSD__
-		regs = pmap_mapdev_attr(dev_priv->mm.gtt_base_addr +
-		    overlay->reg_bo->gtt_offset, PAGE_SIZE,
-		    PAT_WRITE_COMBINING);
-#endif
 
 	return regs;
 }

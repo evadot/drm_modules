@@ -226,7 +226,7 @@ i915_gem_execbuffer_relocate_entry(struct drm_i915_gem_object *obj,
 	} else {
 		struct drm_i915_private *dev_priv = dev->dev_private;
 		uint32_t __iomem *reloc_entry;
-		char __iomem *reloc_page;
+		void __iomem *reloc_page;
 
 		ret = i915_gem_object_set_to_gtt_domain(obj, true);
 		if (ret)
@@ -238,21 +238,12 @@ i915_gem_execbuffer_relocate_entry(struct drm_i915_gem_object *obj,
 
 		/* Map the page containing the relocation we're going to perform.  */
 		reloc->offset += obj->gtt_offset;
-#ifdef __linux__
 		reloc_page = io_mapping_map_atomic_wc(dev_priv->mm.gtt_mapping,
 						      reloc->offset & PAGE_MASK);
 		reloc_entry = (uint32_t __iomem *)
 			(reloc_page + (reloc->offset & ~PAGE_MASK));
 		iowrite32(reloc->delta, reloc_entry);
 		io_mapping_unmap_atomic(reloc_page);
-#elif __FreeBSD__
-		reloc_page = pmap_mapdev_attr(dev_priv->mm.gtt_base_addr + (reloc->offset &
-		    PAGE_MASK), PAGE_SIZE, PAT_WRITE_COMBINING);
-		reloc_entry = (uint32_t __iomem *)
-			(reloc_page + (reloc->offset & ~PAGE_MASK));
-		*(volatile uint32_t *)reloc_entry = reloc->delta;
-		pmap_unmapdev((vm_offset_t)reloc_page, PAGE_SIZE);
-#endif
 	}
 
 	/* and update the user's relocation entry */

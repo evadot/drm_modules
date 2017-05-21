@@ -677,8 +677,8 @@ unlock:
  */
 
 static inline int
-fast_user_write(vm_paddr_t mapping_addr,
-		off_t page_base, int page_offset,
+fast_user_write(struct io_mapping *mapping,
+		loff_t page_base, int page_offset,
 		char __user *user_data,
 		int length)
 {
@@ -686,21 +686,12 @@ fast_user_write(vm_paddr_t mapping_addr,
 	void *vaddr;
 	unsigned long unwritten;
 
-#ifdef __linux__
 	vaddr_atomic = io_mapping_map_atomic_wc(mapping, page_base);
-#elif __FreeBSD__
-	vaddr_atomic = pmap_mapdev_attr(mapping_addr + page_base,
-	    length, PAT_WRITE_COMBINING);
-#endif
 	/* We can use the cpu mem copy function because this is X86. */
 	vaddr = (char __force*)vaddr_atomic + page_offset;
 	unwritten = __copy_from_user_inatomic_nocache(vaddr,
 						      user_data, length);
-#ifdef __linux__
 	io_mapping_unmap_atomic(vaddr_atomic);
-#elif __FreeBSD__
-	pmap_unmapdev((vm_offset_t)vaddr_atomic, length);
-#endif
 	return unwritten;
 }
 
@@ -754,13 +745,8 @@ i915_gem_gtt_pwrite_fast(struct drm_device *dev,
 		 * source page isn't available.  Return the error and we'll
 		 * retry in the slow path.
 		 */
-#ifdef __linux__
 		if (fast_user_write(dev_priv->mm.gtt_mapping, page_base,
 				    page_offset, user_data, page_length)) {
-#elif __FreeBSD__
-		if (fast_user_write(dev_priv->mm.gtt_base_addr, page_base,
-				    page_offset, user_data, page_length)) {
-#endif
 			ret = -EFAULT;
 			goto out_unpin;
 		}
