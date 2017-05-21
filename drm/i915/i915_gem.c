@@ -3048,6 +3048,8 @@ i915_gem_object_unbind(struct drm_i915_gem_object *obj)
 	if (ret)
 		return ret;
 
+	trace_i915_gem_object_unbind(obj);
+
 	if (obj->has_global_gtt_mapping)
 		i915_gem_gtt_unbind_object(obj);
 	if (obj->has_aliasing_ppgtt_mapping) {

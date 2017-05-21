@@ -76,6 +76,12 @@ trace_i915_gem_object_bind(struct drm_i915_gem_object *obj, int map_and_fenceabl
 }
 
 static inline void
+trace_i915_gem_object_unbind(struct drm_i915_gem_object *obj)
+{
+	CTR1(KTR_DRM, "object_unbind %p", obj);
+}
+
+static inline void
 trace_i915_gem_object_create(struct drm_i915_gem_object *obj)
 {
 
