@@ -966,18 +966,10 @@ i915_error_object_create(struct drm_i915_private *dev_priv,
 			 * captures what the GPU read.
 			 */
 
-#ifdef __linux__
 			s = io_mapping_map_atomic_wc(dev_priv->mm.gtt_mapping,
 						     reloc_offset);
 			memcpy_fromio(d, s, PAGE_SIZE);
 			io_mapping_unmap_atomic(s);
-#elif __FreeBSD__
-			s = pmap_mapdev_attr(dev_priv->mm.gtt_base_addr +
-						     reloc_offset,
-						     PAGE_SIZE, PAT_WRITE_COMBINING);
-			memcpy_fromio(d, s, PAGE_SIZE);
-			pmap_unmapdev((vm_offset_t)s, PAGE_SIZE);
-#endif
 		} else {
 #ifdef __linux__
 			struct page *page;
