@@ -244,6 +244,18 @@ i915_gem_get_aperture_ioctl(struct drm_device *dev, void *data,
 	return 0;
 }
 
+void *i915_gem_object_alloc(struct drm_device *dev)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	return kmem_cache_alloc(dev_priv->slab, GFP_KERNEL | __GFP_ZERO);
+}
+
+void i915_gem_object_free(struct drm_i915_gem_object *obj)
+{
+	struct drm_i915_private *dev_priv = obj->base.dev->dev_private;
+	kmem_cache_free(dev_priv->slab, obj);
+}
+
 static int
 i915_gem_create(struct drm_file *file,
 		struct drm_device *dev,
@@ -1078,8 +1090,16 @@ i915_gem_check_olr(struct intel_ring_buffer *ring, u32 seqno)
  * __wait_seqno - wait until execution of seqno has finished
  * @ring: the ring expected to report seqno
  * @seqno: duh!
+ * @reset_counter: reset sequence associated with the given seqno
  * @interruptible: do an interruptible wait (normally yes)
  * @timeout: in - how long to wait (NULL forever); out - how much time remaining
+ *
+ * Note: It is of utmost importance that the passed in seqno and reset_counter
+ * values have been read by the caller in an smp safe manner. Where read-side
+ * locks are involved, it is sufficient to read the reset_counter before
+ * unlocking the lock that protects the seqno. For lockless tricks, the
+ * reset_counter _must_ be read before, and an appropriate smp_rmb must be
+ * inserted.
  *
  * Returns 0 if the seqno was found within the alloted time. Else returns the
  * errno with remaining time filled in timeout argument.
@@ -2526,6 +2546,7 @@ i915_gem_handle_seqno_wrap(struct drm_device *dev)
 	return 0;
 }
 
+
 int
 i915_gem_get_seqno(struct drm_device *dev, u32 *seqno)
 {
@@ -3201,6 +3222,11 @@ static void i830_write_fence_reg(struct drm_device *dev, int reg,
 
 	I915_WRITE(FENCE_REG_830_0 + reg * 4, val);
 	POSTING_READ(FENCE_REG_830_0 + reg * 4);
+}
+
+inline static bool i915_gem_object_needs_mb(struct drm_i915_gem_object *obj)
+{
+	return obj && obj->base.read_domains & I915_GEM_DOMAIN_GTT;
 }
 
 static void i915_gem_write_fence(struct drm_device *dev, int reg,
