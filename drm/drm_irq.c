@@ -1196,13 +1196,6 @@ int drm_modeset_ctl(struct drm_device *dev, void *data,
 	return 0;
 }
 
-static void
-drm_vblank_event_destroy(struct drm_pending_event *e)
-{
-
-	kfree(e);
-}
-
 static int drm_queue_vblank_event(struct drm_device *dev, int pipe,
 				  union drm_wait_vblank *vblwait,
 				  struct drm_file *file_priv)
@@ -1220,17 +1213,13 @@ static int drm_queue_vblank_event(struct drm_device *dev, int pipe,
 	}
 
 	e->pipe = pipe;
-	e->base.pid = curproc->p_pid;
+	e->base.pid = current->pid;
 	e->event.base.type = DRM_EVENT_VBLANK;
 	e->event.base.length = sizeof e->event;
 	e->event.user_data = vblwait->request.signal;
 	e->base.event = &e->event.base;
 	e->base.file_priv = file_priv;
-#ifdef __linux__
 	e->base.destroy = (void (*) (struct drm_pending_event *)) kfree;
-#elif __FreeBSD__
-	e->base.destroy = drm_vblank_event_destroy;
-#endif
 
 	spin_lock_irqsave(&dev->event_lock, flags);
 
