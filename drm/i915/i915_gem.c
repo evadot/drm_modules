@@ -380,37 +380,19 @@ shmem_pread_fast(vm_page_t page, int shmem_page_offset, int page_length,
 		 bool page_do_bit17_swizzling, bool needs_clflush)
 {
 	char *vaddr;
-#ifdef __FreeBSD__
-	struct sf_buf *sf;
-#endif
 	int ret;
 
 	if (unlikely(page_do_bit17_swizzling))
 		return -EINVAL;
 
-#ifdef __linux__
 	vaddr = kmap_atomic(page);
-#elif __FreeBSD__
-	sched_pin();
-	sf = sf_buf_alloc(page, SFB_NOWAIT | SFB_CPUPRIVATE);
-	if (sf == NULL) {
-		sched_unpin();
-		return (-EFAULT);
-	}
-	vaddr = (char *)sf_buf_kva(sf);
-#endif
 	if (needs_clflush)
 		drm_clflush_virt_range(vaddr + shmem_page_offset,
 				       page_length);
 	ret = __copy_to_user_inatomic(user_data,
 				      vaddr + shmem_page_offset,
 				      page_length);
-#ifdef __linux__
 	kunmap_atomic(vaddr);
-#elif __FreeBSD__
-	sf_buf_free(sf);
-	sched_unpin();
-#endif
 
 	return ret ? -EFAULT : 0;
 }
@@ -445,17 +427,9 @@ shmem_pread_slow(vm_page_t page, int shmem_page_offset, int page_length,
 		 bool page_do_bit17_swizzling, bool needs_clflush)
 {
 	char *vaddr;
-#ifdef __FreeBSD__
-	struct sf_buf *sf;
-#endif
 	int ret;
 
-#ifdef __linux__
 	vaddr = kmap(page);
-#elif __FreeBSD__
-	sf = sf_buf_alloc(page, 0);
-	vaddr = (char *)sf_buf_kva(sf);
-#endif
 	if (needs_clflush)
 		shmem_clflush_swizzled_range(vaddr + shmem_page_offset,
 					     page_length,
@@ -469,11 +443,7 @@ shmem_pread_slow(vm_page_t page, int shmem_page_offset, int page_length,
 		ret = __copy_to_user(user_data,
 				     vaddr + shmem_page_offset,
 				     page_length);
-#ifdef __linux__
 	kunmap(page);
-#elif __FreeBSD__
-	sf_buf_free(sf);
-#endif
 
 	return ret ? - EFAULT : 0;
 }
@@ -774,25 +744,12 @@ shmem_pwrite_fast(vm_page_t page, int shmem_page_offset, int page_length,
 		  bool needs_clflush_after)
 {
 	char *vaddr;
-#ifdef __FreeBSD__
-	struct sf_buf *sf;
-#endif
 	int ret;
 
 	if (unlikely(page_do_bit17_swizzling))
 		return -EINVAL;
 
-#ifdef __linux__
 	vaddr = kmap_atomic(page);
-#elif __FreeBSD__
-	sched_pin();
-	sf = sf_buf_alloc(page, SFB_NOWAIT | SFB_CPUPRIVATE);
-	if (sf == NULL) {
-		sched_unpin();
-		return (-EFAULT);
-	}
-	vaddr = (char *)sf_buf_kva(sf);
-#endif
 	if (needs_clflush_before)
 		drm_clflush_virt_range(vaddr + shmem_page_offset,
 				       page_length);
@@ -802,12 +759,7 @@ shmem_pwrite_fast(vm_page_t page, int shmem_page_offset, int page_length,
 	if (needs_clflush_after)
 		drm_clflush_virt_range(vaddr + shmem_page_offset,
 				       page_length);
-#ifdef __linux__
 	kunmap_atomic(vaddr);
-#elif __FreeBSD__
-	sf_buf_free(sf);
-	sched_unpin();
-#endif
 
 	return ret ? -EFAULT : 0;
 }
@@ -822,17 +774,9 @@ shmem_pwrite_slow(vm_page_t page, int shmem_page_offset, int page_length,
 		  bool needs_clflush_after)
 {
 	char *vaddr;
-#ifdef __FreeBSD__
-	struct sf_buf *sf;
-#endif
 	int ret;
 
-#ifdef __linux__
 	vaddr = kmap(page);
-#elif __FreeBSD__
-	sf = sf_buf_alloc(page, 0);
-	vaddr = (char *)sf_buf_kva(sf);
-#endif
 	if (unlikely(needs_clflush_before || page_do_bit17_swizzling))
 		shmem_clflush_swizzled_range(vaddr + shmem_page_offset,
 					     page_length,
@@ -849,11 +793,7 @@ shmem_pwrite_slow(vm_page_t page, int shmem_page_offset, int page_length,
 		shmem_clflush_swizzled_range(vaddr + shmem_page_offset,
 					     page_length,
 					     page_do_bit17_swizzling);
-#ifdef __linux__
 	kunmap(page);
-#elif __FreeBSD__
-	sf_buf_free(sf);
-#endif
 
 	return ret ? -EFAULT : 0;
 }

@@ -149,6 +149,7 @@
 #include <linux/io-mapping.h>
 #include <linux/kref.h>
 #include <linux/ktime.h>
+#include <linux/highmem.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>

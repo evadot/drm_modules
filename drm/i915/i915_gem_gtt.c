@@ -92,9 +92,6 @@ static void i915_ppgtt_clear_range(struct i915_hw_ppgtt *ppgtt,
 	unsigned act_pd = first_entry / I915_PPGTT_PT_ENTRIES;
 	unsigned first_pte = first_entry % I915_PPGTT_PT_ENTRIES;
 	unsigned last_pte, i;
-#ifdef __FreeBSD__
-	struct sf_buf *sf;
-#endif
 
 	scratch_pte = pte_encode(ppgtt->dev, ppgtt->scratch_page_dma_addr,
 				 I915_CACHE_LLC);
@@ -104,23 +101,12 @@ static void i915_ppgtt_clear_range(struct i915_hw_ppgtt *ppgtt,
 		if (last_pte > I915_PPGTT_PT_ENTRIES)
 			last_pte = I915_PPGTT_PT_ENTRIES;
 
-#ifdef __linux__
 		pt_vaddr = kmap_atomic(ppgtt->pt_pages[act_pd]);
-#elif __FreeBSD__
-		sched_pin();
-		sf = sf_buf_alloc(ppgtt->pt_pages[act_pd], SFB_CPUPRIVATE);
-		pt_vaddr = (uint32_t *)(uintptr_t)sf_buf_kva(sf);
-#endif
 
 		for (i = first_pte; i < last_pte; i++)
 			pt_vaddr[i] = scratch_pte;
 
-#ifdef __linux__
 		kunmap_atomic(pt_vaddr);
-#elif __FreeBSD__
-		sf_buf_free(sf);
-		sched_unpin();
-#endif
 
 		num_entries -= last_pte - first_pte;
 		first_pte = 0;
@@ -234,15 +220,8 @@ void i915_gem_cleanup_aliasing_ppgtt(struct drm_device *dev)
 #endif
 
 	kfree(ppgtt->pt_dma_addr);
-#ifdef __linux__
 	for (i = 0; i < ppgtt->num_pd_entries; i++)
 		__free_page(ppgtt->pt_pages[i]);
-#elif __FreeBSD__
-	for (i = 0; i < ppgtt->num_pd_entries; i++) {
-		vm_page_unwire(ppgtt->pt_pages[i], PQ_INACTIVE);
-		vm_page_free(ppgtt->pt_pages[i]);
-	}
-#endif
 	kfree(ppgtt->pt_pages);
 	kfree(ppgtt);
 }
@@ -379,20 +358,12 @@ void i915_gem_init_ppgtt(struct drm_device *dev)
 
 	pd_addr = dev_priv->mm.gtt->gtt + ppgtt->pd_offset/sizeof(uint32_t);
 	for (i = 0; i < ppgtt->num_pd_entries; i++) {
-#ifdef __linux__
 		dma_addr_t pt_addr;
-#elif __FreeBSD__
-		vm_paddr_t pt_addr;
-#endif
 
 		if (dev_priv->mm.gtt->needs_dmar)
 			pt_addr = ppgtt->pt_dma_addr[i];
 		else
-#ifdef __linux__
 			pt_addr = page_to_phys(ppgtt->pt_pages[i]);
-#elif __FreeBSD__
-			pt_addr = VM_PAGE_TO_PHYS(ppgtt->pt_pages[i]);
-#endif
 
 		pd_entry = GEN6_PDE_ADDR_ENCODE(pt_addr);
 		pd_entry |= GEN6_PDE_VALID;
@@ -535,11 +506,10 @@ static void gen6_ggtt_bind_object(struct drm_i915_gem_object *obj,
 #ifdef __linux__
 	int unused, i = 0;
 	unsigned int len, m = 0;
-	dma_addr_t addr;
 #elif __FreeBSD__
 	int i = 0;
-	vm_paddr_t addr;
 #endif
+	dma_addr_t addr;
 
 #ifdef __linux__
 	for_each_sg(st->sgl, sg, st->nents, unused) {
@@ -717,11 +687,7 @@ retry:
 	if (pci_dma_mapping_error(dev->pdev, dma_addr))
 		return -EINVAL;
 #else
-#ifdef __linux__
 	dma_addr = page_to_phys(page);
-#elif __FreeBSD__
-	dma_addr = VM_PAGE_TO_PHYS(page);
-#endif
 #endif
 	dev_priv->mm.gtt->scratch_page = page;
 	dev_priv->mm.gtt->scratch_page_dma = dma_addr;
@@ -767,11 +733,7 @@ static inline unsigned int gen7_get_stolen_size(u16 snb_gmch_ctl)
 int i915_gem_gtt_init(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
-#ifdef __linux__
 	phys_addr_t gtt_bus_addr;
-#elif __FreeBSD__
-	vm_paddr_t gtt_bus_addr;
-#endif
 	u16 snb_gmch_ctl;
 	int ret;
 
