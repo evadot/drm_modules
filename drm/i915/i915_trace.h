@@ -160,4 +160,16 @@ trace_i915_flip_complete(int plane, struct drm_i915_gem_object *obj)
 	CTR2(KTR_DRM, "i915_flip_complete %d %p", plane, obj);
 }
 
+static inline void
+trace_i915_ring_wait_begin(struct intel_ring_buffer *ring)
+{
+	CTR1(KTR_DRM, "i915_ring_wait_begin %s", ring->name);
+}
+
+static inline void
+trace_i915_ring_wait_end(struct intel_ring_buffer *ring)
+{
+	CTR1(KTR_DRM, "i915_ring_wait_end %s", ring->name);
+}
+
 #endif /* _I915_TRACE_H_ */

@@ -1361,11 +1361,7 @@ static int ring_wait_for_space(struct intel_ring_buffer *ring, int n)
 	if (ret != -ENOSPC)
 		return ret;
 
-#ifdef __linux__
 	trace_i915_ring_wait_begin(ring);
-#elif __FreeBSD__
-	CTR1(KTR_DRM, "ring_wait_begin %s", ring->name);
-#endif
 	/* With GEM the hangcheck timer should kick us out of the loop,
 	 * leaving it early runs the risk of corrupting GEM state (due
 	 * to running on almost untested codepaths). But on resume
@@ -1377,11 +1373,7 @@ static int ring_wait_for_space(struct intel_ring_buffer *ring, int n)
 		ring->head = I915_READ_HEAD(ring);
 		ring->space = ring_space(ring);
 		if (ring->space >= n) {
-#ifdef __linux__
 			trace_i915_ring_wait_end(ring);
-#elif __FreeBSD__
-			CTR1(KTR_DRM, "ring_wait_end %s", ring->name);
-#endif
 			return 0;
 		}
 
@@ -1403,11 +1395,7 @@ static int ring_wait_for_space(struct intel_ring_buffer *ring, int n)
 			return ret;
 		}
 	} while (!time_after(jiffies, end));
-#ifdef __linux__
 	trace_i915_ring_wait_end(ring);
-#elif __FreeBSD__
-	CTR1(KTR_DRM, "ring_wait_end %s busy", ring->name);
-#endif
 	return -EBUSY;
 }
 
