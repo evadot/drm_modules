@@ -649,18 +649,16 @@ void i915_gem_init_global_gtt(struct drm_device *dev,
 static int setup_scratch_page(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
-#ifdef __linux__
 	struct page *page;
 	dma_addr_t dma_addr;
 
+#ifdef __linux__
 	page = alloc_page(GFP_KERNEL | GFP_DMA32 | __GFP_ZERO);
 	if (page == NULL)
 		return -ENOMEM;
 	get_page(page);
 	set_pages_uc(page, 1);
 #elif __FreeBSD__
-	vm_page_t page;
-	dma_addr_t dma_addr;
 	int tries = 0;
 	int req = VM_ALLOC_ZERO | VM_ALLOC_NOOBJ;
 

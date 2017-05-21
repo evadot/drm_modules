@@ -375,7 +375,7 @@ __copy_from_user_swizzled(char *gpu_vaddr, int gpu_offset,
  * Flushes invalid cachelines before reading the target if
  * needs_clflush is set. */
 static int
-shmem_pread_fast(vm_page_t page, int shmem_page_offset, int page_length,
+shmem_pread_fast(struct page *page, int shmem_page_offset, int page_length,
 		 char __user *user_data,
 		 bool page_do_bit17_swizzling, bool needs_clflush)
 {
@@ -422,7 +422,7 @@ shmem_clflush_swizzled_range(char *addr, unsigned long length,
 /* Only difference to the fast-path function is that this can handle bit17
  * and uses non-atomic copy and kmap functions. */
 static int
-shmem_pread_slow(vm_page_t page, int shmem_page_offset, int page_length,
+shmem_pread_slow(struct page *page, int shmem_page_offset, int page_length,
 		 char __user *user_data,
 		 bool page_do_bit17_swizzling, bool needs_clflush)
 {
@@ -737,7 +737,7 @@ out:
  * needs_clflush_before is set and flushes out any written cachelines after
  * writing if needs_clflush is set. */
 static int
-shmem_pwrite_fast(vm_page_t page, int shmem_page_offset, int page_length,
+shmem_pwrite_fast(struct page *page, int shmem_page_offset, int page_length,
 		  char __user *user_data,
 		  bool page_do_bit17_swizzling,
 		  bool needs_clflush_before,
@@ -767,7 +767,7 @@ shmem_pwrite_fast(vm_page_t page, int shmem_page_offset, int page_length,
 /* Only difference to the fast-path function is that this can handle bit17
  * and uses non-atomic copy and kmap functions. */
 static int
-shmem_pwrite_slow(vm_page_t page, int shmem_page_offset, int page_length,
+shmem_pwrite_slow(struct page *page, int shmem_page_offset, int page_length,
 		  char __user *user_data,
 		  bool page_do_bit17_swizzling,
 		  bool needs_clflush_before,
