@@ -40,6 +40,60 @@
 static void drm_property_destroy_blob(struct drm_device *dev,
     struct drm_property_blob *blob);
 
+/**
+ * drm_modeset_lock_all - take all modeset locks
+ * @dev: drm device
+ *
+ * This function takes all modeset locks, suitable where a more fine-grained
+ * scheme isn't (yet) implemented.
+ */
+void drm_modeset_lock_all(struct drm_device *dev)
+{
+	struct drm_crtc *crtc;
+
+	mutex_lock(&dev->mode_config.mutex);
+
+	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head)
+		mutex_lock_nest_lock(&crtc->mutex, &dev->mode_config.mutex);
+}
+EXPORT_SYMBOL(drm_modeset_lock_all);
+
+/**
+ * drm_modeset_unlock_all - drop all modeset locks
+ * @dev: device
+ */
+void drm_modeset_unlock_all(struct drm_device *dev)
+{
+	struct drm_crtc *crtc;
+
+	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head)
+		mutex_unlock(&crtc->mutex);
+
+	mutex_unlock(&dev->mode_config.mutex);
+}
+EXPORT_SYMBOL(drm_modeset_unlock_all);
+
+/**
+ * drm_warn_on_modeset_not_all_locked - check that all modeset locks are locked
+ * @dev: device
+ */
+void drm_warn_on_modeset_not_all_locked(struct drm_device *dev)
+{
+	struct drm_crtc *crtc;
+
+	/* Locking is currently fubar in the panic handler. */
+#ifdef __linux__
+	if (oops_in_progress)
+		return;
+#endif
+
+	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head)
+		WARN_ON(!mutex_is_locked(&crtc->mutex));
+
+	WARN_ON(!mutex_is_locked(&dev->mode_config.mutex));
+}
+EXPORT_SYMBOL(drm_warn_on_modeset_not_all_locked);
+
 /* Avoid boilerplate.  I'm tired of typing. */
 #define DRM_ENUM_NAME_FN(fnname, list)				\
 	char *fnname(int val)					\
@@ -206,12 +260,10 @@ char *drm_get_connector_status_name(enum drm_connector_status status)
 }
 
 /**
- * drm_mode_object_get - allocate a new identifier
+ * drm_mode_object_get - allocate a new modeset identifier
  * @dev: DRM device
- * @ptr: object pointer, used to generate unique ID
- * @type: object type
- *
- * LOCKING:
+ * @obj: object pointer, used to generate unique ID
+ * @obj_type: object type
  *
  * Create a unique identifier based on @ptr in @dev's identifier space.  Used
  * for tracking modes, CRTCs and connectors.
@@ -263,10 +315,23 @@ static void drm_mode_object_put(struct drm_device *dev,
 	mutex_unlock(&dev->mode_config.idr_mutex);
 }
 
+/**
+ * drm_mode_object_find - look up a drm object with static lifetime
+ * @dev: drm device
+ * @id: id of the mode object
+ * @type: type of the mode object
+ *
+ * Note that framebuffers cannot be looked up with this functions - since those
+ * are reference counted, they need special treatment.
+ */
 struct drm_mode_object *drm_mode_object_find(struct drm_device *dev,
 		uint32_t id, uint32_t type)
 {
 	struct drm_mode_object *obj = NULL;
+
+	/* Framebuffers are reference counted and need their own lookup
+	 * function.*/
+	WARN_ON(type == DRM_MODE_OBJECT_FB);
 
 	mutex_lock(&dev->mode_config.idr_mutex);
 	obj = idr_find(&dev->mode_config.crtc_idr, id);
@@ -281,12 +346,17 @@ EXPORT_SYMBOL(drm_mode_object_find);
 /**
  * drm_framebuffer_init - initialize a framebuffer
  * @dev: DRM device
- *
- * LOCKING:
- * Caller must hold mode config lock.
+ * @fb: framebuffer to be initialized
+ * @funcs: ... with these functions
  *
  * Allocates an ID for the framebuffer's parent mode object, sets its mode
  * functions & device file and adds it to the master fd list.
+ *
+ * IMPORTANT:
+ * This functions publishes the fb and makes it available for concurrent access
+ * by other users. Which means by this point the fb _must_ be fully set up -
+ * since all the fb attributes are invariant over its lifetime, no further
+ * locking but only correct reference counting is required.
  *
  * RETURNS:
  * Zero on success, error code on failure.
@@ -318,11 +388,52 @@ static void drm_framebuffer_free(struct kref *kref)
 	fb->funcs->destroy(fb);
 }
 
+static struct drm_framebuffer *__drm_framebuffer_lookup(struct drm_device *dev,
+							uint32_t id)
+{
+	struct drm_mode_object *obj = NULL;
+	struct drm_framebuffer *fb;
+
+	mutex_lock(&dev->mode_config.idr_mutex);
+	obj = idr_find(&dev->mode_config.crtc_idr, id);
+	if (!obj || (obj->type != DRM_MODE_OBJECT_FB) || (obj->id != id))
+		fb = NULL;
+	else
+		fb = obj_to_fb(obj);
+	mutex_unlock(&dev->mode_config.idr_mutex);
+
+	return fb;
+}
+
+/**
+ * drm_framebuffer_lookup - look up a drm framebuffer and grab a reference
+ * @dev: drm device
+ * @id: id of the fb object
+ *
+ * If successful, this grabs an additional reference to the framebuffer -
+ * callers need to make sure to eventually unreference the returned framebuffer
+ * again.
+ */
+struct drm_framebuffer *drm_framebuffer_lookup(struct drm_device *dev,
+					       uint32_t id)
+{
+	struct drm_framebuffer *fb;
+
+	mutex_lock(&dev->mode_config.fb_lock);
+	fb = __drm_framebuffer_lookup(dev, id);
+	if (fb)
+		kref_get(&fb->refcount);
+	mutex_unlock(&dev->mode_config.fb_lock);
+
+	return fb;
+}
+EXPORT_SYMBOL(drm_framebuffer_lookup);
+
 /**
  * drm_framebuffer_unreference - unref a framebuffer
+ * @fb: framebuffer to unref
  *
- * LOCKING:
- * Caller must hold mode config lock.
+ * This functions decrements the fb's refcount and frees it if it drops to zero.
  */
 void drm_framebuffer_unreference(struct drm_framebuffer *fb)
 {
@@ -343,15 +454,65 @@ void drm_framebuffer_reference(struct drm_framebuffer *fb)
 }
 EXPORT_SYMBOL(drm_framebuffer_reference);
 
+static void drm_framebuffer_free_bug(struct kref *kref)
+{
+	BUG();
+}
+
+static void __drm_framebuffer_unreference(struct drm_framebuffer *fb)
+{
+	DRM_DEBUG("FB ID: %d\n", fb->base.id);
+	kref_put(&fb->refcount, drm_framebuffer_free_bug);
+}
+
+/* dev->mode_config.fb_lock must be held! */
+static void __drm_framebuffer_unregister(struct drm_device *dev,
+					 struct drm_framebuffer *fb)
+{
+	mutex_lock(&dev->mode_config.idr_mutex);
+	idr_remove(&dev->mode_config.crtc_idr, fb->base.id);
+	mutex_unlock(&dev->mode_config.idr_mutex);
+
+	fb->base.id = 0;
+
+	__drm_framebuffer_unreference(fb);
+}
+
+/**
+ * drm_framebuffer_unregister_private - unregister a private fb from the lookup idr
+ * @fb: fb to unregister
+ *
+ * Drivers need to call this when cleaning up driver-private framebuffers, e.g.
+ * those used for fbdev. Note that the caller must hold a reference of it's own,
+ * i.e. the object may not be destroyed through this call (since it'll lead to a
+ * locking inversion).
+ */
+void drm_framebuffer_unregister_private(struct drm_framebuffer *fb)
+{
+	struct drm_device *dev = fb->dev;
+
+	mutex_lock(&dev->mode_config.fb_lock);
+	/* Mark fb as reaped and drop idr ref. */
+	__drm_framebuffer_unregister(dev, fb);
+	mutex_unlock(&dev->mode_config.fb_lock);
+}
+EXPORT_SYMBOL(drm_framebuffer_unregister_private);
+
 /**
  * drm_framebuffer_cleanup - remove a framebuffer object
  * @fb: framebuffer to remove
  *
- * LOCKING:
- * Caller must hold mode config lock.
+ * Cleanup references to a user-created framebuffer. This function is intended
+ * to be used from the drivers ->destroy callback.
  *
- * Scans all the CRTCs in @dev's mode_config.  If they're using @fb, removes
- * it, setting it to NULL.
+ * Note that this function does not remove the fb from active usuage - if it is
+ * still used anywhere, hilarity can ensue since userspace could call getfb on
+ * the id and get back -EINVAL. Obviously no concern at driver unload time.
+ *
+ * Also, the framebuffer will not be removed from the lookup idr - for
+ * user-created framebuffers this will happen in in the rmfb ioctl. For
+ * driver-private objects (e.g. for fbdev) drivers need to explicitly call
+ * drm_framebuffer_unregister_private.
  */
 void drm_framebuffer_cleanup(struct drm_framebuffer *fb)
 {
@@ -373,11 +534,13 @@ EXPORT_SYMBOL(drm_framebuffer_cleanup);
  * drm_framebuffer_remove - remove and unreference a framebuffer object
  * @fb: framebuffer to remove
  *
- * LOCKING:
- * Caller must hold mode config lock.
- *
  * Scans all the CRTCs and planes in @dev's mode_config.  If they're
- * using @fb, removes it, setting it to NULL.
+ * using @fb, removes it, setting it to NULL. Then drops the reference to the
+ * passed-in framebuffer. Might take the modeset locks.
+ *
+ * Note that this function optimizes the cleanup away if the caller holds the
+ * last reference to the framebuffer. It is also guaranteed to not take the
+ * modeset locks in this case.
  */
 void drm_framebuffer_remove(struct drm_framebuffer *fb)
 {
@@ -424,9 +587,6 @@ EXPORT_SYMBOL(drm_framebuffer_remove);
  * @crtc: CRTC object to init
  * @funcs: callbacks for the new CRTC
  *
- * LOCKING:
- * Takes mode_config lock.
- *
  * Inits a new object created as base part of an driver crtc object.
  *
  * RETURNS:
@@ -463,9 +623,6 @@ EXPORT_SYMBOL(drm_crtc_init);
  * drm_crtc_cleanup - Cleans up the core crtc usage.
  * @crtc: CRTC to cleanup
  *
- * LOCKING:
- * Caller must hold mode config lock.
- *
  * Cleanup @crtc. Removes from drm modesetting space
  * does NOT free object, caller does that.
  */
@@ -487,9 +644,6 @@ EXPORT_SYMBOL(drm_crtc_cleanup);
  * @connector: connector the new mode
  * @mode: mode data
  *
- * LOCKING:
- * Caller must hold mode config lock.
- *
  * Add @mode to @connector's mode list for later use.
  */
 void drm_mode_probed_add(struct drm_connector *connector,
@@ -503,9 +657,6 @@ EXPORT_SYMBOL(drm_mode_probed_add);
  * drm_mode_remove - remove and free a mode
  * @connector: connector list to modify
  * @mode: mode to remove
- *
- * LOCKING:
- * Caller must hold mode config lock.
  *
  * Remove @mode from @connector's mode list, then free it.
  */
@@ -522,10 +673,7 @@ EXPORT_SYMBOL(drm_mode_remove);
  * @dev: DRM device
  * @connector: the connector to init
  * @funcs: callbacks for this connector
- * @name: user visible name of the connector
- *
- * LOCKING:
- * Takes mode config lock.
+ * @connector_type: user visible type of the connector
  *
  * Initialises a preallocated connector. Connectors should be
  * subclassed as part of driver connector objects.
@@ -579,9 +727,6 @@ EXPORT_SYMBOL(drm_connector_init);
 /**
  * drm_connector_cleanup - cleans up an initialised connector
  * @connector: connector to cleanup
- *
- * LOCKING:
- * Takes mode config lock.
  *
  * Cleans up the connector but doesn't free the object.
  */
@@ -726,9 +871,6 @@ EXPORT_SYMBOL(drm_plane_cleanup);
  * drm_mode_create - create a new display mode
  * @dev: DRM device
  *
- * LOCKING:
- * Caller must hold DRM mode_config lock.
- *
  * Create a new drm_display_mode, give it an ID, and return it.
  *
  * RETURNS:
@@ -755,9 +897,6 @@ EXPORT_SYMBOL(drm_mode_create);
  * drm_mode_destroy - remove a mode
  * @dev: DRM device
  * @mode: mode to remove
- *
- * LOCKING:
- * Caller must hold mode config lock.
  *
  * Free @mode's unique identifier, then free it.
  */
@@ -983,11 +1122,13 @@ EXPORT_SYMBOL(drm_mode_create_dirty_info_property);
  * drm_mode_config_init - initialize DRM mode_configuration structure
  * @dev: DRM device
  *
- * LOCKING:
- * None, should happen single threaded at init time.
- *
  * Initialize @dev's mode_config structure, used for tracking the graphics
  * configuration of @dev.
+ *
+ * Since this initializes the modeset locks, no locking is possible. Which is no
+ * problem, since this should happen single threaded at init time. It is the
+ * driver's problem to ensure this guarantee.
+ *
  */
 void drm_mode_config_init(struct drm_device *dev)
 {
@@ -1068,11 +1209,12 @@ EXPORT_SYMBOL(drm_mode_group_init_legacy_group);
  * drm_mode_config_cleanup - free up DRM mode_config info
  * @dev: DRM device
  *
- * LOCKING:
- * Caller must hold mode config lock.
- *
  * Free up all the connectors and CRTCs associated with this DRM device, then
  * free up the framebuffers and associated buffer objects.
+ *
+ * Note that since this /should/ happen single-threaded at driver/device
+ * teardown time, no locking is required. It's the driver's job to ensure that
+ * this guarantee actually holds true.
  *
  * FIXME: cleanup any dangling user buffer objects too
  */
@@ -1129,9 +1271,6 @@ EXPORT_SYMBOL(drm_mode_config_cleanup);
  * @out: drm_mode_modeinfo struct to return to the user
  * @in: drm_display_mode to use
  *
- * LOCKING:
- * None.
- *
  * Convert a drm_display_mode into a drm_mode_modeinfo structure to return to
  * the user.
  */
@@ -1168,9 +1307,6 @@ static void drm_crtc_convert_to_umode(struct drm_mode_modeinfo *out,
  * @out: drm_display_mode to return to the user
  * @in: drm_mode_modeinfo to use
  *
- * LOCKING:
- * None.
- *
  * Convert a drm_mode_modeinfo into a drm_display_mode structure to return to
  * the caller.
  *
@@ -1205,13 +1341,9 @@ static int drm_crtc_convert_umode(struct drm_display_mode *out,
 
 /**
  * drm_mode_getresources - get graphics configuration
- * @inode: inode from the ioctl
- * @filp: file * from the ioctl
- * @cmd: cmd from ioctl
- * @arg: arg from ioctl
- *
- * LOCKING:
- * Takes mode config lock.
+ * @dev: drm device for the ioctl
+ * @data: data pointer for the ioctl
+ * @file_priv: drm file for the ioctl call
  *
  * Construct a set of configuration description structures and return
  * them to the user, including CRTC, connector and framebuffer configuration.
@@ -1393,13 +1525,9 @@ out:
 
 /**
  * drm_mode_getcrtc - get CRTC configuration
- * @inode: inode from the ioctl
- * @filp: file * from the ioctl
- * @cmd: cmd from ioctl
- * @arg: arg from ioctl
- *
- * LOCKING:
- * Takes mode config lock.
+ * @dev: drm device for the ioctl
+ * @data: data pointer for the ioctl
+ * @file_priv: drm file for the ioctl call
  *
  * Construct a CRTC configuration structure to return to the user.
  *
@@ -1453,13 +1581,9 @@ out:
 
 /**
  * drm_mode_getconnector - get connector configuration
- * @inode: inode from the ioctl
- * @filp: file * from the ioctl
- * @cmd: cmd from ioctl
- * @arg: arg from ioctl
- *
- * LOCKING:
- * Takes mode config lock.
+ * @dev: drm device for the ioctl
+ * @data: data pointer for the ioctl
+ * @file_priv: drm file for the ioctl call
  *
  * Construct a connector configuration structure to return to the user.
  *
@@ -1592,6 +1716,7 @@ int drm_mode_getconnector(struct drm_device *dev, void *data,
 
 out:
 	mutex_unlock(&dev->mode_config.mutex);
+
 	return ret;
 }
 
@@ -1634,9 +1759,6 @@ out:
  * @dev: DRM device
  * @data: ioctl data
  * @file_priv: DRM file info
- *
- * LOCKING:
- * Takes mode config lock.
  *
  * Return an plane count and set of IDs.
  */
@@ -1683,9 +1805,6 @@ out:
  * @dev: DRM device
  * @data: ioctl data
  * @file_priv: DRM file info
- *
- * LOCKING:
- * Takes mode config lock.
  *
  * Return plane info, including formats supported, gamma size, any
  * current fb, etc.
@@ -1750,10 +1869,7 @@ out:
  * drm_mode_setplane - set up or tear down an plane
  * @dev: DRM device
  * @data: ioctl data*
- * @file_prive: DRM file info
- *
- * LOCKING:
- * Takes mode config lock.
+ * @file_priv: DRM file info
  *
  * Set plane info, including placement, fb, scaling, and other factors.
  * Or pass a NULL fb to disable.
@@ -1878,14 +1994,38 @@ out:
 }
 
 /**
- * drm_mode_setcrtc - set CRTC configuration
- * @inode: inode from the ioctl
- * @filp: file * from the ioctl
- * @cmd: cmd from ioctl
- * @arg: arg from ioctl
+ * drm_mode_set_config_internal - helper to call ->set_config
+ * @set: modeset config to set
  *
- * LOCKING:
- * Takes mode config lock.
+ * This is a little helper to wrap internal calls to the ->set_config driver
+ * interface. The only thing it adds is correct refcounting dance.
+ */
+int drm_mode_set_config_internal(struct drm_mode_set *set)
+{
+	struct drm_crtc *crtc = set->crtc;
+	struct drm_framebuffer *fb, *old_fb;
+	int ret;
+
+	old_fb = crtc->fb;
+	fb = set->fb;
+
+	ret = crtc->funcs->set_config(set);
+	if (ret == 0) {
+		if (old_fb)
+			drm_framebuffer_unreference(old_fb);
+		if (fb)
+			drm_framebuffer_reference(fb);
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL(drm_mode_set_config_internal);
+
+/**
+ * drm_mode_setcrtc - set CRTC configuration
+ * @dev: drm device for the ioctl
+ * @data: data pointer for the ioctl
+ * @file_priv: drm file for the ioctl call
  *
  * Build a new CRTC configuration based on user request.
  *
@@ -2137,13 +2277,9 @@ EXPORT_SYMBOL(drm_mode_legacy_fb_format);
 
 /**
  * drm_mode_addfb - add an FB to the graphics configuration
- * @inode: inode from the ioctl
- * @filp: file * from the ioctl
- * @cmd: cmd from ioctl
- * @arg: arg from ioctl
- *
- * LOCKING:
- * Takes mode config lock.
+ * @dev: drm device for the ioctl
+ * @data: data pointer for the ioctl
+ * @file_priv: drm file for the ioctl call
  *
  * Add a new FB to the specified CRTC, given a user request.
  *
@@ -2321,13 +2457,9 @@ static int framebuffer_check(const struct drm_mode_fb_cmd2 *r)
 
 /**
  * drm_mode_addfb2 - add an FB to the graphics configuration
- * @inode: inode from the ioctl
- * @filp: file * from the ioctl
- * @cmd: cmd from ioctl
- * @arg: arg from ioctl
- *
- * LOCKING:
- * Takes mode config lock.
+ * @dev: drm device for the ioctl
+ * @data: data pointer for the ioctl
+ * @file_priv: drm file for the ioctl call
  *
  * Add a new FB to the specified CRTC, given a user request with format.
  *
@@ -2387,13 +2519,9 @@ out:
 
 /**
  * drm_mode_rmfb - remove an FB from the configuration
- * @inode: inode from the ioctl
- * @filp: file * from the ioctl
- * @cmd: cmd from ioctl
- * @arg: arg from ioctl
- *
- * LOCKING:
- * Takes mode config lock.
+ * @dev: drm device for the ioctl
+ * @data: data pointer for the ioctl
+ * @file_priv: drm file for the ioctl call
  *
  * Remove the FB specified by the user.
  *
@@ -2442,13 +2570,9 @@ out:
 
 /**
  * drm_mode_getfb - get FB info
- * @inode: inode from the ioctl
- * @filp: file * from the ioctl
- * @cmd: cmd from ioctl
- * @arg: arg from ioctl
- *
- * LOCKING:
- * Takes mode config lock.
+ * @dev: drm device for the ioctl
+ * @data: data pointer for the ioctl
+ * @file_priv: drm file for the ioctl call
  *
  * Lookup the FB given its ID and return info about it.
  *
@@ -2565,10 +2689,7 @@ out_err1:
 
 /**
  * drm_fb_release - remove and free the FBs on this file
- * @filp: file * from the ioctl
- *
- * LOCKING:
- * Takes mode config lock.
+ * @priv: drm file for the ioctl
  *
  * Destroy all the FBs associated with @filp.
  *
@@ -2678,10 +2799,9 @@ EXPORT_SYMBOL(drm_mode_detachmode_crtc);
 
 /**
  * drm_fb_attachmode - Attach a user mode to an connector
- * @inode: inode from the ioctl
- * @filp: file * from the ioctl
- * @cmd: cmd from ioctl
- * @arg: arg from ioctl
+ * @dev: drm device for the ioctl
+ * @data: data pointer for the ioctl
+ * @file_priv: drm file for the ioctl call
  *
  * This attaches a user specified mode to an connector.
  * Called by the user via ioctl.
@@ -2733,10 +2853,9 @@ out:
 
 /**
  * drm_fb_detachmode - Detach a user specified mode from an connector
- * @inode: inode from the ioctl
- * @filp: file * from the ioctl
- * @cmd: cmd from ioctl
- * @arg: arg from ioctl
+ * @dev: drm device for the ioctl
+ * @data: data pointer for the ioctl
+ * @file_priv: drm file for the ioctl call
  *
  * Called by the user via ioctl.
  *
