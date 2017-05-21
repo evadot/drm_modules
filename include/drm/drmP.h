@@ -138,7 +138,6 @@
 #include <sys/selinfo.h>
 #include <sys/bus.h>
 
-#include <drm/drm_gem_names.h>
 #include <drm/drm_hashtab.h>
 
 #include <linux/kernel.h>
@@ -510,9 +509,6 @@ struct drm_file {
 	spinlock_t table_lock;
 
 	struct file *filp;
-#ifdef __FreeBSD__
-	struct drm_gem_names object_names;
-#endif
 	void *driver_priv;
 
 	int is_master; /* this file private is a master for a minor */
@@ -1356,9 +1352,6 @@ struct drm_device {
 	/*@{ */
 	spinlock_t object_name_lock;
 	struct idr object_name_idr;
-#ifdef __FreeBSD__
-	struct drm_gem_names object_names;
-#endif
 	/*@} */
 	int switch_power_state;
 

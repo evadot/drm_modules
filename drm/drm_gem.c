@@ -96,12 +96,8 @@ drm_gem_init(struct drm_device *dev)
 {
 	struct drm_gem_mm *mm;
 
-#ifdef FREEBSD_NOTYET
 	spin_lock_init(&dev->object_name_lock);
 	idr_init(&dev->object_name_idr);
-#else
-	drm_gem_names_init(&dev->object_names);
-#endif
 
 	mm = kzalloc(sizeof(struct drm_gem_mm), GFP_KERNEL);
 	if (!mm) {
@@ -111,11 +107,7 @@ drm_gem_init(struct drm_device *dev)
 
 	dev->mm_private = mm;
 
-#ifdef __linux__
 	if (drm_ht_create(&mm->offset_hash, 12)) {
-#elif __FreeBSD__
-	if (drm_ht_create(&mm->offset_hash, 19)) {
-#endif
 		kfree(mm);
 		return -ENOMEM;
 	}
@@ -145,7 +137,6 @@ drm_gem_destroy(struct drm_device *dev)
 	drm_ht_remove(&mm->offset_hash);
 #ifdef __FreeBSD__
 	delete_unrhdr(mm->idxunr);
-	drm_gem_names_fini(&dev->object_names);
 #endif
 	kfree(mm);
 	dev->mm_private = NULL;
@@ -260,7 +251,6 @@ drm_gem_handle_delete(struct drm_file *filp, u32 handle)
 	struct drm_device *dev;
 	struct drm_gem_object *obj;
 
-#ifdef FREEBSD_NOTYET
 	/* This is gross. The idr system doesn't let us try a delete and
 	 * return an error code.  It just spews if you fail at deleting.
 	 * So, we have to grab a lock around finding the object and then
@@ -274,22 +264,17 @@ drm_gem_handle_delete(struct drm_file *filp, u32 handle)
 
 	/* Check if we currently have a reference on the object */
 	obj = idr_find(&filp->object_idr, handle);
-#else
-	obj = drm_gem_names_remove(&filp->object_names, handle);
-#endif
 	if (obj == NULL) {
-#ifdef FREEBSD_NOTYET
 		spin_unlock(&filp->table_lock);
-#endif
 		return -EINVAL;
 	}
 	dev = obj->dev;
 
-#if defined(FREEBSD_NOTYET)
 	/* Release reference and decrement refcount. */
 	idr_remove(&filp->object_idr, handle);
 	spin_unlock(&filp->table_lock);
 
+#ifdef FREEBSD_NOTYET
 	drm_gem_remove_prime_handles(obj, filp);
 #endif
 
@@ -314,7 +299,6 @@ drm_gem_handle_create(struct drm_file *file_priv,
 	struct drm_device *dev = obj->dev;
 	int ret;
 
-#ifdef FREEBSD_NOTYET
 	/*
 	 * Get the user-visible handle using idr.
 	 */
@@ -331,12 +315,6 @@ again:
 		goto again;
 	else if (ret)
 		return ret;
-#else
-	*handlep = 0;
-	ret = drm_gem_name_create(&file_priv->object_names, obj, handlep);
-	if (ret != 0)
-		return ret;
-#endif
 
 	drm_gem_object_handle_reference(obj);
 
@@ -476,7 +454,6 @@ drm_gem_object_lookup(struct drm_device *dev, struct drm_file *filp,
 {
 	struct drm_gem_object *obj;
 
-#ifdef __linux__
 	spin_lock(&filp->table_lock);
 
 	/* Check if we currently have a reference on the object */
@@ -489,10 +466,6 @@ drm_gem_object_lookup(struct drm_device *dev, struct drm_file *filp,
 	drm_gem_object_reference(obj);
 
 	spin_unlock(&filp->table_lock);
-#elif __FreeBSD__
-	obj = drm_gem_name_ref(&filp->object_names, handle,
-	    (void (*)(void *))drm_gem_object_reference);
-#endif
 
 	return obj;
 }
@@ -537,7 +510,6 @@ drm_gem_flink_ioctl(struct drm_device *dev, void *data,
 	if (obj == NULL)
 		return -ENOENT;
 
-#ifdef __linux__
 again:
 	if (idr_pre_get(&dev->object_name_idr, GFP_KERNEL) == 0) {
 		ret = -ENOMEM;
@@ -566,17 +538,6 @@ again:
 
 err:
 	drm_gem_object_unreference_unlocked(obj);
-#elif __FreeBSD__
-	ret = drm_gem_name_create(&dev->object_names, obj, &obj->name);
-	if (ret != 0) {
-		if (ret == -EALREADY)
-			ret = 0;
-		drm_gem_object_unreference_unlocked(obj);
-	}
-	if (ret == 0)
-		args->name = obj->name;
-#endif
-
 	return ret;
 }
 
@@ -598,18 +559,13 @@ drm_gem_open_ioctl(struct drm_device *dev, void *data,
 	if (!(dev->driver->driver_features & DRIVER_GEM))
 		return -ENODEV;
 
-#ifdef __linux__
 	spin_lock(&dev->object_name_lock);
 	obj = idr_find(&dev->object_name_idr, (int) args->name);
 	if (obj)
 		drm_gem_object_reference(obj);
 	spin_unlock(&dev->object_name_lock);
-#elif __FreeBSD__
-	obj = drm_gem_name_ref(&dev->object_names, args->name,
-	    (void (*)(void *))drm_gem_object_reference);
 	if (!obj)
 		return -ENOENT;
-#endif
 
 	ret = drm_gem_handle_create(file_priv, obj, &handle);
 	drm_gem_object_unreference_unlocked(obj);
@@ -629,12 +585,8 @@ drm_gem_open_ioctl(struct drm_device *dev, void *data,
 void
 drm_gem_open(struct drm_device *dev, struct drm_file *file_private)
 {
-#ifdef FREEBSD_NOTYET
 	idr_init(&file_private->object_idr);
 	spin_lock_init(&file_private->table_lock);
-#else
-	drm_gem_names_init(&file_private->object_names);
-#endif
 }
 
 /**
@@ -642,7 +594,7 @@ drm_gem_open(struct drm_device *dev, struct drm_file *file_private)
  * handle references on objects.
  */
 static int
-drm_gem_object_release_handle(uint32_t name, void *ptr, void *data)
+drm_gem_object_release_handle(int id, void *ptr, void *data)
 {
 	struct drm_file *file_priv = data;
 	struct drm_gem_object *obj = ptr;
@@ -668,18 +620,11 @@ drm_gem_object_release_handle(uint32_t name, void *ptr, void *data)
 void
 drm_gem_release(struct drm_device *dev, struct drm_file *file_private)
 {
-#ifdef FREEBSD_NOTYET
 	idr_for_each(&file_private->object_idr,
 		     &drm_gem_object_release_handle, file_private);
 
 	idr_remove_all(&file_private->object_idr);
 	idr_destroy(&file_private->object_idr);
-#else
-	drm_gem_names_foreach(&file_private->object_names,
-	    drm_gem_object_release_handle, file_private);
-
-	drm_gem_names_fini(&file_private->object_names);
-#endif
 }
 
 void
@@ -716,12 +661,10 @@ drm_gem_object_free(struct kref *kref)
 }
 EXPORT_SYMBOL(drm_gem_object_free);
 
-#ifdef __linux__
 static void drm_gem_object_ref_bug(struct kref *list_kref)
 {
 	BUG();
 }
-#endif
 
 /**
  * Called after the last handle to the object has been closed
@@ -733,14 +676,10 @@ static void drm_gem_object_ref_bug(struct kref *list_kref)
 void drm_gem_object_handle_free(struct drm_gem_object *obj)
 {
 	struct drm_device *dev = obj->dev;
-	struct drm_gem_object *obj1;
 
-#ifdef __linux__
 	/* Remove any name for this object */
 	spin_lock(&dev->object_name_lock);
-#endif
 	if (obj->name) {
-#ifdef __linux__
 		idr_remove(&dev->object_name_idr, obj->name);
 		obj->name = 0;
 		spin_unlock(&dev->object_name_lock);
@@ -753,12 +692,6 @@ void drm_gem_object_handle_free(struct drm_gem_object *obj)
 		kref_put(&obj->refcount, drm_gem_object_ref_bug);
 	} else
 		spin_unlock(&dev->object_name_lock);
-#elif __FreeBSD__
-		obj1 = drm_gem_names_remove(&dev->object_names, obj->name);
-		obj->name = 0;
-		drm_gem_object_unreference(obj1);
-	}
-#endif
 
 }
 EXPORT_SYMBOL(drm_gem_object_handle_free);
