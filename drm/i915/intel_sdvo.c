@@ -1464,11 +1464,7 @@ static bool
 intel_sdvo_multifunc_encoder(struct intel_sdvo *intel_sdvo)
 {
 	/* Is there more than one type of output? */
-#ifdef FREEBSD_NOTYET
 	return hweight16(intel_sdvo->caps.output_flags) > 1;
-#else
-	return bitcount16(intel_sdvo->caps.output_flags) > 1;
-#endif
 }
 
 static struct edid *
@@ -2098,11 +2094,7 @@ intel_sdvo_guess_ddc_bus(struct intel_sdvo *sdvo)
 
 	/* Count bits to find what number we are in the priority list. */
 	mask &= sdvo->caps.output_flags;
-#ifdef FREEBSD_NOTYET
 	num_bits = hweight16(mask);
-#else
-	num_bits = bitcount16(mask);
-#endif
 	/* If more than 3 outputs, default to DDC bus 3 for now. */
 	if (num_bits > 3)
 		num_bits = 3;
