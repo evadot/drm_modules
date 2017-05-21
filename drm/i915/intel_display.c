@@ -7147,12 +7147,7 @@ static void do_intel_finish_page_flip(struct drm_device *dev,
 
 	queue_work(dev_priv->wq, &work->work);
 
-#ifdef FREEBSD_NOTYET
 	trace_i915_flip_complete(intel_crtc->plane, work->pending_flip_obj);
-#else
-	CTR2(KTR_DRM, "i915_flip_complete %d %p", intel_crtc->plane,
-	    work->pending_flip_obj);
-#endif
 }
 
 void intel_finish_page_flip(struct drm_device *dev, int pipe)
@@ -7521,11 +7516,7 @@ static int intel_crtc_page_flip(struct drm_crtc *crtc,
 	intel_mark_fb_busy(obj);
 	mutex_unlock(&dev->struct_mutex);
 
-#ifdef __linux__
 	trace_i915_flip_request(intel_crtc->plane, obj);
-#else
-	CTR2(KTR_DRM, "i915_flip_request %d %p", intel_crtc->plane, obj);
-#endif
 
 	return 0;
 

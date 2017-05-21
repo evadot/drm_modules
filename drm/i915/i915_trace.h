@@ -148,4 +148,16 @@ trace_i915_gem_ring_dispatch(struct intel_ring_buffer *ring, int seqno, u32 flag
 	    seqno, flags);
 }
 
+static inline void
+trace_i915_flip_request(int plane, struct drm_i915_gem_object *obj)
+{
+	CTR2(KTR_DRM, "i915_flip_request %d %p", plane, obj);
+}
+
+static inline void
+trace_i915_flip_complete(int plane, struct drm_i915_gem_object *obj)
+{
+	CTR2(KTR_DRM, "i915_flip_complete %d %p", plane, obj);
+}
+
 #endif /* _I915_TRACE_H_ */
