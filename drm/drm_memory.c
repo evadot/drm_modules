@@ -159,11 +159,7 @@ void drm_core_ioremap(struct drm_local_map *map, struct drm_device *dev)
 	    dev->agp && dev->agp->cant_use_aperture && map->type == _DRM_AGP)
 		map->handle = agp_remap(map->offset, map->size, dev);
 	else
-#ifdef __linux__
 		map->handle = ioremap(map->offset, map->size);
-#elif __FreeBSD__
-		map->handle = pmap_mapdev(map->offset, map->size);
-#endif
 }
 EXPORT_SYMBOL(drm_core_ioremap);
 
@@ -173,12 +169,7 @@ void drm_core_ioremap_wc(struct drm_local_map *map, struct drm_device *dev)
 	    dev->agp && dev->agp->cant_use_aperture && map->type == _DRM_AGP)
 		map->handle = agp_remap(map->offset, map->size, dev);
 	else
-#ifdef __linux__
 		map->handle = ioremap_wc(map->offset, map->size);
-#elif __FreeBSD__
-		map->handle = pmap_mapdev_attr(map->offset, map->size,
-		    VM_MEMATTR_WRITE_COMBINING);
-#endif
 }
 EXPORT_SYMBOL(drm_core_ioremap_wc);
 
@@ -191,10 +182,6 @@ void drm_core_ioremapfree(struct drm_local_map *map, struct drm_device *dev)
 	    dev->agp && dev->agp->cant_use_aperture && map->type == _DRM_AGP)
 		vunmap(map->handle);
 	else
-#ifdef __linux__
-		iounmap(map->handle);
-#elif __FreeBSD__
-		pmap_unmapdev((vm_offset_t)map->handle, map->size);
-#endif
+		iounmap(map->handle, map->size);
 }
 EXPORT_SYMBOL(drm_core_ioremapfree);
