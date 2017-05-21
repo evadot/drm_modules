@@ -347,7 +347,6 @@ static int drm_open_helper(struct cdev *kdev, int flags, int fmt,
 
 	INIT_LIST_HEAD(&priv->lhead);
 	INIT_LIST_HEAD(&priv->fbs);
-	mutex_init(&priv->fbs_lock);
 	INIT_LIST_HEAD(&priv->event_list);
 #ifdef __linux__
 	init_waitqueue_head(&priv->event_wait);
