@@ -321,7 +321,7 @@ i915_gem_execbuffer_relocate(struct drm_device *dev,
 			     struct list_head *objects)
 {
 	struct drm_i915_gem_object *obj;
-	int ret = 0, pflags;
+	int ret = 0;
 
 	/* This is the fast path and we cannot handle a pagefault whilst
 	 * holding the struct mutex lest the user pass in the relocations
@@ -330,21 +330,13 @@ i915_gem_execbuffer_relocate(struct drm_device *dev,
 	 * acquire the struct mutex again. Obviously this is bad and so
 	 * lockdep complains vehemently.
 	 */
-#ifdef __linux__
 	pagefault_disable();
-#elif __FreeBSD__
-	pflags = vm_fault_disable_pagefaults();
-#endif
 	list_for_each_entry(obj, objects, exec_list) {
 		ret = i915_gem_execbuffer_relocate_object(obj, eb);
 		if (ret)
 			break;
 	}
-#ifdef __linux__
 	pagefault_enable();
-#elif __FreeBSD__
-	vm_fault_enable_pagefaults(pflags);
-#endif
 
 	return ret;
 }
