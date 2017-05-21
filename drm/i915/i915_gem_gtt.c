@@ -397,12 +397,7 @@ void i915_gem_init_ppgtt(struct drm_device *dev)
 		pd_entry = GEN6_PDE_ADDR_ENCODE(pt_addr);
 		pd_entry |= GEN6_PDE_VALID;
 
-#ifdef __linux__
 		writel(pd_entry, pd_addr + i);
-#elif __FreeBSD__
-		/* NOTE Linux<->FreeBSD: Arguments of writel() are reversed. */
-		writel(pd_addr + i, pd_entry);
-#endif
 	}
 	readl(pd_addr);
 
@@ -888,12 +883,7 @@ err_out:
 void i915_gem_gtt_fini(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
-#ifdef __linux__
 	iounmap(dev_priv->mm.gtt->gtt);
-#elif __FreeBSD__
-	iounmap(dev_priv->mm.gtt->gtt,
-	    dev_priv->mm.gtt->gtt_total_entries * sizeof(gtt_pte_t));
-#endif
 	teardown_scratch_page(dev);
 #ifdef FREEBSD_WIP
 	if (INTEL_INFO(dev)->gen < 6)

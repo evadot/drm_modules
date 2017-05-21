@@ -1242,11 +1242,7 @@ static int intel_init_ring_buffer(struct drm_device *dev,
 	return 0;
 
 err_unmap:
-#ifdef __linux__
 	iounmap(ring->virtual_start);
-#elif __FreeBSD__
-	iounmap(ring->virtual_start, ring->size);
-#endif
 err_unpin:
 	i915_gem_object_unpin(obj);
 err_unref:
@@ -1274,11 +1270,7 @@ void intel_cleanup_ring_buffer(struct intel_ring_buffer *ring)
 
 	I915_WRITE_CTL(ring, 0);
 
-#ifdef __linux__
 	iounmap(ring->virtual_start);
-#elif __FreeBSD__
-	pmap_unmapdev((vm_offset_t)ring->virtual_start, ring->size);
-#endif
 
 	i915_gem_object_unpin(ring->obj);
 	drm_gem_object_unreference(&ring->obj->base);

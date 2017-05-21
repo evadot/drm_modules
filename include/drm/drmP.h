@@ -146,6 +146,7 @@
 #include <linux/err.h>
 #include <linux/bitops.h>
 #include <linux/types.h>
+#include <linux/io-mapping.h>
 #include <linux/kref.h>
 #include <linux/ktime.h>
 #include <linux/mm.h>

@@ -816,8 +816,8 @@ typedef struct drm_i915_private {
 		unsigned long gtt_end;
 		unsigned long stolen_base; /* limited to low memory (32-bit) */
 
-#ifdef __linux__
 		struct io_mapping *gtt_mapping;
+#ifdef __linux__
 		phys_addr_t gtt_base_addr;
 #elif __FreeBSD__
 		vm_paddr_t gtt_base_addr;

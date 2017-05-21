@@ -439,11 +439,7 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 	list = kzalloc(sizeof(*list), GFP_KERNEL);
 	if (!list) {
 		if (map->type == _DRM_REGISTERS)
-#ifdef __linux__
 			iounmap(map->handle);
-#elif __FreeBSD__
-			iounmap(map->handle, map->size);
-#endif
 		kfree(map);
 		return -EINVAL;
 	}
@@ -460,11 +456,7 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 			     (map->type == _DRM_SHM));
 	if (ret) {
 		if (map->type == _DRM_REGISTERS)
-#ifdef __linux__
 			iounmap(map->handle);
-#elif __FreeBSD__
-			iounmap(map->handle, map->size);
-#endif
 		kfree(map);
 		kfree(list);
 		mutex_unlock(&dev->struct_mutex);
@@ -564,11 +556,7 @@ int drm_rmmap_locked(struct drm_device *dev, struct drm_local_map *map)
 
 	switch (map->type) {
 	case _DRM_REGISTERS:
-#ifdef __linux__
 		iounmap(map->handle);
-#elif __FreeBSD__
-		iounmap(map->handle, map->size);
-#endif
 		/* FALLTHROUGH */
 	case _DRM_FRAME_BUFFER:
 		if (drm_core_has_MTRR(dev) && map->mtrr >= 0) {

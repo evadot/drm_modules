@@ -123,11 +123,7 @@ static void i915_free_hws(struct drm_device *dev)
 
 	if (ring->status_page.gfx_addr) {
 		ring->status_page.gfx_addr = 0;
-#ifdef __linux__
 		iounmap(dev_priv->dri1.gfx_hws_cpu_addr);
-#elif __FreeBSD__
-		iounmap(dev_priv->dri1.gfx_hws_cpu_addr, PAGE_SIZE);
-#endif
 	}
 
 	/* Need to rewrite hardware status page */
