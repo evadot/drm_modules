@@ -341,8 +341,14 @@ extern const char *fb_mode_option;
 #define	I2C_M_WR	IIC_M_WR
 #define	I2C_M_NOSTART	IIC_M_NOSTART
 
+struct vt_kms_softc {
+	struct drm_fb_helper	*fb_helper;
+	struct task		 fb_mode_task;
+};
+
 struct fb_info *	framebuffer_alloc(void);
 void			framebuffer_release(struct fb_info *info);
+int fb_get_options(const char *connector_name, char **option);
 
 #define	console_lock()
 #define	console_unlock()
