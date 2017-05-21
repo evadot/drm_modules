@@ -35,33 +35,18 @@
 #ifndef DRM_HASHTAB_H
 #define DRM_HASHTAB_H
 
-#ifdef __linux__
 #include <linux/list.h>
-#elif __FreeBSD__
-#include <sys/queue.h>
-#endif
 
 #define drm_hash_entry(_ptr, _type, _member) container_of(_ptr, _type, _member)
 
 struct drm_hash_item {
-#ifdef __linux__
 	struct hlist_node head;
-#elif __FreeBSD__
-	LIST_ENTRY(drm_hash_item) head;
-#endif
 	unsigned long key;
 };
 
 struct drm_open_hash {
-#ifdef __linux__
 	struct hlist_head *table;
 	u8 order;
-#elif __FreeBSD__
-	LIST_HEAD(drm_hash_item_list, drm_hash_item) *table;
-	unsigned int size;
-	unsigned int order;
-	unsigned long mask;
-#endif
 };
 
 extern int drm_ht_create(struct drm_open_hash *ht, unsigned int order);
