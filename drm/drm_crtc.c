@@ -226,7 +226,6 @@ static int drm_mode_object_get(struct drm_device *dev,
 	int new_id = 0;
 	int ret;
 
-#ifdef __linux__
 again:
 	if (idr_pre_get(&dev->mode_config.crtc_idr, GFP_KERNEL) == 0) {
 		DRM_ERROR("Ran out memory getting a mode number\n");
@@ -240,11 +239,6 @@ again:
 		goto again;
 	else if (ret)
 		return ret;
-#elif __FreeBSD__
-	ret = drm_gem_name_create(&dev->mode_config.crtc_names, obj, &new_id);
-	if (ret)
-		return ret;
-#endif
 
 	obj->id = new_id;
 	obj->type = obj_type;
@@ -264,13 +258,9 @@ again:
 static void drm_mode_object_put(struct drm_device *dev,
 				struct drm_mode_object *object)
 {
-#ifdef __linux__
 	mutex_lock(&dev->mode_config.idr_mutex);
 	idr_remove(&dev->mode_config.crtc_idr, object->id);
 	mutex_unlock(&dev->mode_config.idr_mutex);
-#elif __FreeBSD__
-	drm_gem_names_remove(&dev->mode_config.crtc_names, object->id);
-#endif
 }
 
 struct drm_mode_object *drm_mode_object_find(struct drm_device *dev,
@@ -278,17 +268,11 @@ struct drm_mode_object *drm_mode_object_find(struct drm_device *dev,
 {
 	struct drm_mode_object *obj = NULL;
 
-#ifdef __linux__
 	mutex_lock(&dev->mode_config.idr_mutex);
 	obj = idr_find(&dev->mode_config.crtc_idr, id);
-#elif __FreeBSD__
-	obj = drm_gem_name_ref(&dev->mode_config.crtc_names, id, NULL);
-#endif
 	if (!obj || (obj->type != type) || (obj->id != id))
 		obj = NULL;
-#ifdef __linux__
 	mutex_unlock(&dev->mode_config.idr_mutex);
-#endif
 
 	return obj;
 }
@@ -1016,11 +1000,7 @@ void drm_mode_config_init(struct drm_device *dev)
 	INIT_LIST_HEAD(&dev->mode_config.property_list);
 	INIT_LIST_HEAD(&dev->mode_config.property_blob_list);
 	INIT_LIST_HEAD(&dev->mode_config.plane_list);
-#ifdef __linux__
 	idr_init(&dev->mode_config.crtc_idr);
-#else
-	drm_gem_names_init(&dev->mode_config.crtc_names);
-#endif
 
 	mutex_lock(&dev->mode_config.mutex);
 	drm_mode_create_standard_connector_properties(dev);
@@ -1139,12 +1119,8 @@ void drm_mode_config_cleanup(struct drm_device *dev)
 		crtc->funcs->destroy(crtc);
 	}
 
-#ifdef __linux__
 	idr_remove_all(&dev->mode_config.crtc_idr);
 	idr_destroy(&dev->mode_config.crtc_idr);
-#elif __FreeBSD__
-	drm_gem_names_fini(&dev->mode_config.crtc_names);
-#endif
 }
 EXPORT_SYMBOL(drm_mode_config_cleanup);
 
