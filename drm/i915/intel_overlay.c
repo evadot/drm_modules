@@ -205,11 +205,7 @@ static void intel_overlay_unmap_regs(struct intel_overlay *overlay,
 				     struct overlay_registers __iomem *regs)
 {
 	if (!OVERLAY_NEEDS_PHYSICAL(overlay->dev))
-#ifdef __linux__
 		io_mapping_unmap(regs);
-#elif __FreeBSD__
-		pmap_unmapdev((vm_offset_t)regs, PAGE_SIZE);
-#endif
 }
 
 static int intel_overlay_do_wait_request(struct intel_overlay *overlay,
@@ -1055,6 +1051,7 @@ int intel_overlay_put_image(struct drm_device *dev, void *data,
 		ret = intel_overlay_switch_off(overlay);
 
 		mutex_unlock(&dev->struct_mutex);
+		mutex_unlock(&dev->mode_config.mutex);
 
 		return ret;
 	}
@@ -1160,9 +1157,9 @@ int intel_overlay_put_image(struct drm_device *dev, void *data,
 		goto out_unlock;
 
 	mutex_unlock(&dev->struct_mutex);
+	mutex_unlock(&dev->mode_config.mutex);
 
 	kfree(params);
-	mutex_unlock(&dev->mode_config.mutex);
 
 	return 0;
 
@@ -1423,7 +1420,6 @@ struct intel_overlay_error_state {
 	u32 isr;
 };
 
-#ifdef __linux__
 static struct overlay_registers __iomem *
 intel_overlay_map_regs_atomic(struct intel_overlay *overlay)
 {
@@ -1448,12 +1444,6 @@ static void intel_overlay_unmap_regs_atomic(struct intel_overlay *overlay,
 	if (!OVERLAY_NEEDS_PHYSICAL(overlay->dev))
 		io_mapping_unmap_atomic(regs);
 }
-#elif __FreeBSD__
-/*
- * NOTE Linux<->FreeBSD: We use the normal intel_overlay_map_regs() and
- * intel_overlay_unmap_regs() defined at the top of this file.
- */
-#endif
 
 
 struct intel_overlay_error_state *
@@ -1478,20 +1468,12 @@ intel_overlay_capture_error_state(struct drm_device *dev)
 	else
 		error->base = overlay->reg_bo->gtt_offset;
 
-#ifdef __linux__
 	regs = intel_overlay_map_regs_atomic(overlay);
-#elif __FreeBSD__
-	regs = intel_overlay_map_regs(overlay);
-#endif
 	if (!regs)
 		goto err;
 
 	memcpy_fromio(&error->regs, regs, sizeof(struct overlay_registers));
-#ifdef __linux__
 	intel_overlay_unmap_regs_atomic(overlay, regs);
-#elif __FreeBSD__
-	intel_overlay_unmap_regs(overlay, regs);
-#endif
 
 	return error;
 
