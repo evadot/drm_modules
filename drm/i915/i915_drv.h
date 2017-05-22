@@ -385,13 +385,20 @@ enum i915_cache_level {
  * the spec.
  */
 struct i915_gtt {
+	/** Bridge to intel-gtt-ko */
+	struct intel_gtt *gtt;
+
 	unsigned long start;		/* Start offset of used GTT */
 	size_t total;			/* Total size GTT can map */
 	size_t stolen_size;		/* Total size of stolen memory */
+	unsigned long gtt_end;
 
 	unsigned long mappable_end;	/* End offset that we can CPU map */
 	struct io_mapping *mappable;	/* Mapping to our CPU mappable region */
 	phys_addr_t mappable_base;	/* PA of our GMADR */
+
+	/* accounting, useful for userland debugging */
+	size_t mappable_gtt_total;
 
 	/** "Graphics Stolen Memory" holds the global PTEs */
 	void __iomem *gsm;
@@ -804,6 +811,16 @@ struct i915_gem_mm {
 	/* accounting, useful for userland debugging */
 	size_t object_memory;
 	u32 object_count;
+
+	/* Not used anymore */
+	/**
+	 * Flag if the hardware appears to be wedged.
+	 *
+	 * This is set when attempts to idle the device timeout.
+	 * It prevents command submission from occurring and makes
+	 * every pending request fail
+	 */
+	atomic_t wedged;
 };
 
 struct i915_gpu_error {
@@ -1020,137 +1037,9 @@ typedef struct drm_i915_private {
 	enum modeset_restore modeset_restore;
 	struct mutex modeset_restore_lock;
 
-	struct {
-		/* 
-		 * Members of struct i915_gem_mm 
-		 */
+	struct i915_gtt gtt;
 
-		/** Memory allocator for GTT stolen memory */
-		struct drm_mm stolen;
-		/** Memory allocator for GTT */
-		struct drm_mm gtt_space;
-		/** List of all objects in gtt_space. Used to restore gtt
-		 * mappings on resume */
-		struct list_head bound_list;
-		/**
-		 * List of objects which are not bound to the GTT (thus
-		 * are idle and not used by the GPU) but still have
-		 * (presumably uncached) pages still attached.
-		 */
-		struct list_head unbound_list;
-
-		unsigned long stolen_base; /* limited to low memory (32-bit) */
-
-		int gtt_mtrr;
-
-		/** PPGTT used for aliasing the PPGTT with the GTT */
-		struct i915_hw_ppgtt *aliasing_ppgtt;
-
-#ifdef __linux__
-		struct shrinker inactive_shrinker;
-#elif __FreeBSD__
-		eventhandler_tag inactive_shrinker;
-#endif
-		bool shrinker_no_lock_stealing;
-
-		/**
-		 * List of objects currently involved in rendering.
-		 *
-		 * Includes buffers having the contents of their GPU caches
-		 * flushed, not necessarily primitives.  last_rendering_seqno
-		 * represents when the rendering involved will be completed.
-		 *
-		 * A reference is held on the buffer while on this list.
-		 */
-		struct list_head active_list;
-
-		/**
-		 * LRU list of objects which are not in the ringbuffer and
-		 * are ready to unbind, but are still in the GTT.
-		 *
-		 * last_rendering_seqno is 0 while an object is in this list.
-		 *
-		 * A reference is not held on the buffer while on this list,
-		 * as merely being GTT-bound shouldn't prevent its being
-		 * freed, and we'll pull it off the list in the free path.
-		 */
-		struct list_head inactive_list;
-
-		/** LRU list of objects with fence regs on them. */
-		struct list_head fence_list;
-
-		/**
-		 * We leave the user IRQ off as much as possible,
-		 * but this means that requests will finish and never
-		 * be retired once the system goes idle. Set a timer to
-		 * fire periodically while the ring is running. When it
-		 * fires, go retire requests.
-		 */
-		struct delayed_work retire_work;
-
-		/**
-		 * Are we in a non-interruptible section of code like
-		 * modesetting?
-		 */
-		bool interruptible;
-
-		/**
-		 * Flag if the X Server, and thus DRM, is not currently in
-		 * control of the device.
-		 *
-		 * This is set between LeaveVT and EnterVT.  It needs to be
-		 * replaced with a semaphore.  It also needs to be
-		 * transitioned away from for kernel modesetting.
-		 */
-		int suspended;
-
-		/** Bit 6 swizzling required for X tiling */
-		uint32_t bit_6_swizzle_x;
-		/** Bit 6 swizzling required for Y tiling */
-		uint32_t bit_6_swizzle_y;
-
-		/* storage for physical objects */
-		struct drm_i915_gem_phys_object *phys_objs[I915_MAX_PHYS_OBJECT];
-
-		/* accounting, useful for userland debugging */
-		size_t object_memory;
-		u32 object_count;
-
-		/* Not used anymore */
-		/**
-		 * Flag if the hardware appears to be wedged.
-		 *
-		 * This is set when attempts to idle the device timeout.
-		 * It prevents command submission from occurring and makes
-		 * every pending request fail
-		 */
-		atomic_t wedged;
-	} mm;
-
-	struct {
-		/* 
-		 * Member of struct i915_gtt
-		 */
-
-		/** Bridge to intel-gtt-ko */
-		struct intel_gtt *gtt;
-
-		/** Usable portion of the GTT for GEM */
-		unsigned long start;
-		unsigned long mappable_end;
-		unsigned long gtt_end;
-
-		struct io_mapping *mappable;
-#ifdef __linux__
-		phys_addr_t mappable_base;
-#elif __FreeBSD__
-		vm_paddr_t mappable_base;
-#endif
-
-		/* accounting, useful for userland debugging */
-		size_t total;
-		size_t mappable_gtt_total;
-	} gtt;
+	struct i915_gem_mm mm;
 
 	/* Kernel Modesetting */
 
