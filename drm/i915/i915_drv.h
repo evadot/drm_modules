@@ -156,9 +156,7 @@ struct intel_ddi_plls {
 
 struct drm_i915_gem_phys_object {
 	int id;
-#ifdef __linux__
 	struct page **page_list;
-#endif
 	drm_dma_handle_t *handle;
 	struct drm_i915_gem_object *cur_obj;
 };
@@ -424,20 +422,10 @@ struct i915_gtt {
 struct i915_hw_ppgtt {
 	struct drm_device *dev;
 	unsigned num_pd_entries;
-#ifdef __linux__
 	struct page **pt_pages;
-#elif __FreeBSD__
-	vm_page_t *pt_pages;
-#endif
 	uint32_t pd_offset;
-#ifdef __linux__
 	dma_addr_t *pt_dma_addr;
 	dma_addr_t scratch_page_dma_addr;
-#elif __FreeBSD__
-	vm_paddr_t *pt_dma_addr;
-	vm_paddr_t scratch_page_dma_addr;
-#endif
-	/* pte functions, mirroring the interface of the global gtt. */
 
 	/* pte functions, mirroring the interface of the global gtt. */
 	void (*clear_range)(struct i915_hw_ppgtt *ppgtt,
