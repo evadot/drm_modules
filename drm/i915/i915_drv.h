@@ -1017,8 +1017,8 @@ typedef struct drm_i915_private {
 
 	unsigned long quirks;
 
-	/* Register state */
-	bool modeset_on_lid;
+	enum modeset_restore modeset_restore;
+	struct mutex modeset_restore_lock;
 
 	struct {
 		/* 

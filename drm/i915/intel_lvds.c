@@ -519,6 +519,9 @@ static int intel_lid_notify(struct notifier_block *nb, unsigned long val,
 	if (dev->switch_power_state != DRM_SWITCH_POWER_ON)
 		return NOTIFY_OK;
 
+	mutex_lock(&dev_priv->modeset_restore_lock);
+	if (dev_priv->modeset_restore == MODESET_SUSPENDED)
+		goto exit;
 	/*
 	 * check and update the status of LVDS connector after receiving
 	 * the LID nofication event.
@@ -542,6 +545,10 @@ static int intel_lid_notify(struct notifier_block *nb, unsigned long val,
 	intel_modeset_setup_hw_state(dev, true);
 	mutex_unlock(&dev->mode_config.mutex);
 
+	dev_priv->modeset_restore = MODESET_DONE;
+
+exit:
+	mutex_unlock(&dev_priv->modeset_restore_lock);
 	return NOTIFY_OK;
 }
 #endif /* FREEBSD_WIP */
