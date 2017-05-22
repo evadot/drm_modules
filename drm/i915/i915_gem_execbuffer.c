@@ -721,16 +721,11 @@ i915_gem_check_execbuffer(struct drm_i915_gem_execbuffer2 *exec)
 
 static int
 validate_exec_list(struct drm_i915_gem_exec_object2 *exec,
-		   int count, vm_page_t ***map, int **maplen)
+		   int count)
 {
 	int i;
 	int relocs_total = 0;
 	int relocs_max = INT_MAX / sizeof(struct drm_i915_gem_relocation_entry);
-	vm_page_t *ma;
-
-	/* XXXKIB various limits checking is missing there */
-	*map = kzalloc(count * sizeof(*ma), GFP_KERNEL);
-	*maplen = kzalloc(count * sizeof(*maplen), GFP_KERNEL);
 
 	for (i = 0; i < count; i++) {
 		char __user *ptr = (char __user *)(uintptr_t)exec[i].relocs_ptr;
@@ -746,30 +741,15 @@ validate_exec_list(struct drm_i915_gem_exec_object2 *exec,
 
 		length = exec[i].relocation_count *
 			sizeof(struct drm_i915_gem_relocation_entry);
-		if (length == 0) {
-			(*map)[i] = NULL;
-			continue;
-		}
-
-		/*
-		 * Since both start and end of the relocation region
-		 * may be not aligned on the page boundary, be
-		 * conservative and request a page slot for each
-		 * partial page.  Thus +2.
-		 */
-		int page_count;
-
-		page_count = howmany(length, PAGE_SIZE) + 2;
-		ma = (*map)[i] = kzalloc(page_count * sizeof(vm_page_t),
-		    GFP_KERNEL);
-		(*maplen)[i] = vm_fault_quick_hold_pages(
-		    &curproc->p_vmspace->vm_map, (vm_offset_t)ptr, length,
-		    VM_PROT_READ | VM_PROT_WRITE, ma, page_count);
-		if ((*maplen)[i] == -1) {
-			kfree(ma);
-			(*map)[i] = NULL;
+		if (!access_ok(VERIFY_READ, ptr, length))
 			return -EFAULT;
-		}
+
+		/* we may also need to update the presumed offsets */
+		if (!access_ok(VERIFY_WRITE, ptr, length))
+			return -EFAULT;
+
+		if (fault_in_multipages_readable(ptr, length))
+			return -EFAULT;
 	}
 
 	return 0;
@@ -855,25 +835,20 @@ i915_gem_do_execbuffer(struct drm_device *dev, void *data,
 	u32 mask;
 	u32 flags;
 	int ret, mode, i;
-	vm_page_t **relocs_ma;
-	int *relocs_len;
 
 	if (!i915_gem_check_execbuffer(args)) {
 		DRM_DEBUG("execbuf with invalid offset/length\n");
 		return -EINVAL;
 	}
 
-	ret = validate_exec_list(exec, args->buffer_count,
-	    &relocs_ma, &relocs_len);
+	ret = validate_exec_list(exec, args->buffer_count);
 	if (ret)
-		goto pre_mutex_err;
+		return ret;
 
 	flags = 0;
 	if (args->flags & I915_EXEC_SECURE) {
-		if (!file->is_master || !capable(CAP_SYS_ADMIN)) {
-			ret = -EPERM;
-			goto pre_mutex_err;
-		}
+		if (!file->is_master || !capable(CAP_SYS_ADMIN))
+		    return -EPERM;
 
 		flags |= I915_DISPATCH_SECURE;
 	}
@@ -890,8 +865,7 @@ i915_gem_do_execbuffer(struct drm_device *dev, void *data,
 		if (ctx_id != 0) {
 			DRM_DEBUG("Ring %s doesn't support contexts\n",
 				  ring->name);
-			ret = -EPERM;
-			goto pre_mutex_err;
+			return -EPERM;
 		}
 		break;
 	case I915_EXEC_BLT:
@@ -899,21 +873,18 @@ i915_gem_do_execbuffer(struct drm_device *dev, void *data,
 		if (ctx_id != 0) {
 			DRM_DEBUG("Ring %s doesn't support contexts\n",
 				  ring->name);
-			ret = -EPERM;
-			goto pre_mutex_err;
+			return -EPERM;
 		}
 		break;
 	default:
 		DRM_DEBUG("execbuf with unknown ring: %d\n",
 			  (int)(args->flags & I915_EXEC_RING_MASK));
-		ret = -EINVAL;
-		goto pre_mutex_err;
+		return -EINVAL;
 	}
 	if (!intel_ring_initialized(ring)) {
 		DRM_DEBUG("execbuf with invalid ring: %d\n",
 			  (int)(args->flags & I915_EXEC_RING_MASK));
-		ret = -EINVAL;
-		goto pre_mutex_err;
+		return -EINVAL;
 	}
 
 	mode = args->flags & I915_EXEC_CONSTANTS_MASK;
@@ -924,16 +895,12 @@ i915_gem_do_execbuffer(struct drm_device *dev, void *data,
 	case I915_EXEC_CONSTANTS_REL_SURFACE:
 		if (ring == &dev_priv->ring[RCS] &&
 		    mode != dev_priv->relative_constants_mode) {
-			if (INTEL_INFO(dev)->gen < 4) {
-				ret = -EINVAL;
-				goto pre_mutex_err;
-			}
+			if (INTEL_INFO(dev)->gen < 4)
+				return -EINVAL;
 
 			if (INTEL_INFO(dev)->gen > 5 &&
-			    mode == I915_EXEC_CONSTANTS_REL_SURFACE) {
-				ret = -EINVAL;
-				goto pre_mutex_err;
-			}
+			    mode == I915_EXEC_CONSTANTS_REL_SURFACE)
+				return -EINVAL;
 
 			/* The HW changed the meaning on this bit on gen6 */
 			if (INTEL_INFO(dev)->gen >= 6)
@@ -942,34 +909,29 @@ i915_gem_do_execbuffer(struct drm_device *dev, void *data,
 		break;
 	default:
 		DRM_DEBUG("execbuf with unknown constants: %d\n", mode);
-		ret = -EINVAL;
-		goto pre_mutex_err;
+		return -EINVAL;
 	}
 
 	if (args->buffer_count < 1) {
 		DRM_DEBUG("execbuf with %d buffers\n", args->buffer_count);
-		ret = -EINVAL;
-		goto pre_mutex_err;
+		return -EINVAL;
 	}
 
 	if (args->num_cliprects != 0) {
 		if (ring != &dev_priv->ring[RCS]) {
 			DRM_DEBUG("clip rectangles are only valid with the render ring\n");
-			ret = -EINVAL;
-			goto pre_mutex_err;
+			return -EINVAL;
 		}
 
 		if (INTEL_INFO(dev)->gen >= 5) {
 			DRM_DEBUG("clip rectangles are only valid on pre-gen5\n");
-			ret = -EINVAL;
-			goto pre_mutex_err;
+			return -EINVAL;
 		}
 
 		if (args->num_cliprects > UINT_MAX / sizeof(*cliprects)) {
 			DRM_DEBUG("execbuf with %u cliprects\n",
 				  args->num_cliprects);
-			ret = -EINVAL;
-			goto pre_mutex_err;
+			return -EINVAL;
 		}
 
 		cliprects = kmalloc(args->num_cliprects * sizeof(*cliprects),
@@ -1144,14 +1106,6 @@ err:
 	mutex_unlock(&dev->struct_mutex);
 
 pre_mutex_err:
-	for (i = 0; i < args->buffer_count; i++) {
-		if (relocs_ma[i] != NULL) {
-			vm_page_unhold_pages(relocs_ma[i], relocs_len[i]);
-			kfree(relocs_ma[i]);
-		}
-	}
-	kfree(relocs_len);
-	kfree(relocs_ma);
 	kfree(cliprects);
 	return ret;
 }
