@@ -1671,7 +1671,7 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 	spin_lock_init(&dev_priv->irq_lock);
 	spin_lock_init(&dev_priv->error_lock);
 	spin_lock_init(&dev_priv->rps.lock);
-	spin_lock_init(&dev_priv->dpio_lock);
+	mutex_init(&dev_priv->dpio_lock);
 
 	mutex_init(&dev_priv->rps.hw_lock);
 
@@ -1732,7 +1732,7 @@ out_gem_unload:
 	spin_lock_destroy(&dev_priv->irq_lock);
 	spin_lock_destroy(&dev_priv->error_lock);
 	spin_lock_destroy(&dev_priv->rps.lock);
-	spin_lock_destroy(&dev_priv->dpio_lock);
+	mutex_destroy(&dev_priv->dpio_lock);
 
 	mutex_destroy(&dev_priv->rps.hw_lock);
 
@@ -1888,7 +1888,7 @@ int i915_driver_unload(struct drm_device *dev)
 	spin_lock_destroy(&dev_priv->irq_lock);
 	spin_lock_destroy(&dev_priv->error_lock);
 	spin_lock_destroy(&dev_priv->rps.lock);
-	spin_lock_destroy(&dev_priv->dpio_lock);
+	mutex_destroy(&dev_priv->dpio_lock);
 
 	mutex_destroy(&dev_priv->rps.hw_lock);
 #endif
