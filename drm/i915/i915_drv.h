@@ -1136,19 +1136,19 @@ typedef struct drm_i915_private {
 		struct intel_gtt *gtt;
 
 		/** Usable portion of the GTT for GEM */
-		unsigned long gtt_start;
-		unsigned long gtt_mappable_end;
+		unsigned long start;
+		unsigned long mappable_end;
 		unsigned long gtt_end;
 
-		struct io_mapping *gtt_mapping;
+		struct io_mapping *mappable;
 #ifdef __linux__
-		phys_addr_t gtt_base_addr;
+		phys_addr_t mappable_base;
 #elif __FreeBSD__
-		vm_paddr_t gtt_base_addr;
+		vm_paddr_t mappable_base;
 #endif
 
 		/* accounting, useful for userland debugging */
-		size_t gtt_total;
+		size_t total;
 		size_t mappable_gtt_total;
 	} gtt;
 

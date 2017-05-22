@@ -459,8 +459,8 @@ void i915_gem_restore_gtt_mappings(struct drm_device *dev)
 	struct drm_i915_gem_object *obj;
 
 	/* First fill our portion of the GTT with scratch pages */
-	i915_ggtt_clear_range(dev, dev_priv->gtt.gtt_start / PAGE_SIZE,
-			      (dev_priv->gtt.gtt_end - dev_priv->gtt.gtt_start) / PAGE_SIZE);
+	i915_ggtt_clear_range(dev, dev_priv->gtt.start / PAGE_SIZE,
+			      (dev_priv->gtt.gtt_end - dev_priv->gtt.start) / PAGE_SIZE);
 
 	list_for_each_entry(obj, &dev_priv->mm.bound_list, gtt_list) {
 		i915_gem_clflush_object(obj);
@@ -627,10 +627,10 @@ void i915_gem_init_global_gtt(struct drm_device *dev,
 	if (!HAS_LLC(dev))
 		dev_priv->mm.gtt_space.color_adjust = i915_gtt_color_adjust;
 
-	dev_priv->gtt.gtt_start = start;
-	dev_priv->gtt.gtt_mappable_end = mappable_end;
+	dev_priv->gtt.start = start;
+	dev_priv->gtt.mappable_end = mappable_end;
 	dev_priv->gtt.gtt_end = end;
-	dev_priv->gtt.gtt_total = end - start;
+	dev_priv->gtt.total = end - start;
 	dev_priv->gtt.mappable_gtt_total = min(end, mappable_end) - start;
 
 	/* ... but ensure that we clear the entire range. */
@@ -638,11 +638,11 @@ void i915_gem_init_global_gtt(struct drm_device *dev,
 
 	device_printf(dev->dev,
 	    "taking over the fictitious range 0x%jx-0x%jx\n",
-	    (uintmax_t)(dev_priv->gtt.gtt_base_addr + start),
-	    (uintmax_t)(dev_priv->gtt.gtt_base_addr + start +
+	    (uintmax_t)(dev_priv->gtt.mappable_base + start),
+	    (uintmax_t)(dev_priv->gtt.mappable_base + start +
 		dev_priv->gtt.mappable_gtt_total));
-	vm_phys_fictitious_reg_range(dev_priv->gtt.gtt_base_addr + start,
-	    dev_priv->gtt.gtt_base_addr + start + dev_priv->gtt.mappable_gtt_total,
+	vm_phys_fictitious_reg_range(dev_priv->gtt.mappable_base + start,
+	    dev_priv->gtt.mappable_base + start + dev_priv->gtt.mappable_gtt_total,
 	    VM_MEMATTR_WRITE_COMBINING);
 }
 
