@@ -33,11 +33,12 @@
 #ifdef __FreeBSD__
 #include <dev/agp/agp_i810.h>
 #endif
+#include <drm/i915_drm.h>
 #include "i915_reg.h"
 #include "intel_bios.h"
 #include "intel_ringbuffer.h"
-#ifdef __linux__
 #include <linux/io-mapping.h>
+#ifdef __linux__
 #include <linux/i2c.h>
 #include <linux/i2c-algo-bit.h>
 #include <drm/intel-gtt.h>
@@ -407,12 +408,10 @@ struct i915_gtt {
 	void (*gtt_clear_range)(struct drm_device *dev,
 				unsigned int first_entry,
 				unsigned int num_entries);
-#ifdef FREEBSD_NOTYET
 	void (*gtt_insert_entries)(struct drm_device *dev,
 				   struct sg_table *st,
 				   unsigned int pg_start,
 				   enum i915_cache_level cache_level);
-#endif
 };
 #define gtt_total_entries(gtt) ((gtt).total >> PAGE_SHIFT)
 
@@ -430,12 +429,10 @@ struct i915_hw_ppgtt {
 	void (*clear_range)(struct i915_hw_ppgtt *ppgtt,
 			    unsigned int first_entry,
 			    unsigned int num_entries);
-#ifdef FREEBSD_NOTYET
 	void (*insert_entries)(struct i915_hw_ppgtt *ppgtt,
 			       struct sg_table *st,
 			       unsigned int pg_start,
 			       enum i915_cache_level cache_level);
-#endif
 	void (*cleanup)(struct i915_hw_ppgtt *ppgtt);
 };
 
