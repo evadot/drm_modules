@@ -32,7 +32,6 @@
 
 #ifdef __FreeBSD__
 #include <dev/agp/agp_i810.h>
-#include <drm/drm_mm.h>
 #endif
 #include "i915_reg.h"
 #include "intel_bios.h"
