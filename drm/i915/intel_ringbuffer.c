@@ -1219,7 +1219,7 @@ static int intel_init_ring_buffer(struct drm_device *dev,
 		goto err_unpin;
 
 	ring->virtual_start =
-		ioremap_wc(dev_priv->mm.gtt->gma_bus_addr + obj->gtt_offset,
+		ioremap_wc(dev_priv->gtt.gtt->gma_bus_addr + obj->gtt_offset,
 			   ring->size);
 	if (ring->virtual_start == NULL) {
 		DRM_ERROR("Failed to map ringbuffer.\n");

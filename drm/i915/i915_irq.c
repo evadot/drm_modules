@@ -957,7 +957,7 @@ i915_error_object_create(struct drm_i915_private *dev_priv,
 #ifdef __linux__
 		local_irq_save(flags);
 #endif
-		if (reloc_offset < dev_priv->mm.gtt_mappable_end &&
+		if (reloc_offset < dev_priv->gtt.gtt_mappable_end &&
 		    src->has_global_gtt_mapping) {
 			void __iomem *s;
 
@@ -966,7 +966,7 @@ i915_error_object_create(struct drm_i915_private *dev_priv,
 			 * captures what the GPU read.
 			 */
 
-			s = io_mapping_map_atomic_wc(dev_priv->mm.gtt_mapping,
+			s = io_mapping_map_atomic_wc(dev_priv->gtt.gtt_mapping,
 						     reloc_offset);
 			memcpy_fromio(d, s, PAGE_SIZE);
 			io_mapping_unmap_atomic(s);

@@ -122,7 +122,7 @@ static int intelfb_create(struct intel_fbdev *ifbdev,
 #elif __FreeBSD__
 	info->fb_size = size;
 	info->fb_bpp = sizes->surface_bpp;
-	info->fb_pbase = dev_priv->mm.gtt_base_addr + obj->gtt_offset;
+	info->fb_pbase = dev_priv->gtt.gtt_base_addr + obj->gtt_offset;
 	info->fb_vbase = (vm_offset_t)pmap_mapdev_attr(info->fb_pbase, size,
 	    PAT_WRITE_COMBINING);
 #endif
@@ -155,13 +155,13 @@ static int intelfb_create(struct intel_fbdev *ifbdev,
 	}
 	info->apertures->ranges[0].base = dev->mode_config.fb_base;
 	info->apertures->ranges[0].size =
-		dev_priv->mm.gtt->gtt_mappable_entries << PAGE_SHIFT;
+		dev_priv->gtt.gtt->gtt_mappable_entries << PAGE_SHIFT;
 
 	info->fix.smem_start = dev->mode_config.fb_base + obj->gtt_offset;
 	info->fix.smem_len = size;
 
 	info->screen_base =
-		ioremap_wc(dev_priv->mm.gtt_base_addr + obj->gtt_offset,
+		ioremap_wc(dev_priv->gtt.gtt_base_addr + obj->gtt_offset,
 			   size);
 	if (!info->screen_base) {
 		ret = -ENOSPC;

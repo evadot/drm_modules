@@ -286,7 +286,7 @@ static int i915_gem_object_info(struct drm_device *dev, struct sbuf *m, void *da
 		   count, size);
 
 	seq_printf(m, "%zu [%zu] gtt total\n",
-		   dev_priv->mm.gtt_total, dev_priv->mm.mappable_gtt_total);
+		   dev_priv->gtt.gtt_total, dev_priv->gtt.mappable_gtt_total);
 
 	mutex_unlock(&dev->struct_mutex);
 

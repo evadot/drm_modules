@@ -1037,8 +1037,10 @@ typedef struct drm_i915_private {
 	bool modeset_on_lid;
 
 	struct {
-		/** Bridge to intel-gtt-ko */
-		struct intel_gtt *gtt;
+		/* 
+		 * Members of struct i915_gem_mm 
+		 */
+
 		/** Memory allocator for GTT stolen memory */
 		struct drm_mm stolen;
 		/** Memory allocator for GTT */
@@ -1053,18 +1055,8 @@ typedef struct drm_i915_private {
 		 */
 		struct list_head unbound_list;
 
-		/** Usable portion of the GTT for GEM */
-		unsigned long gtt_start;
-		unsigned long gtt_mappable_end;
-		unsigned long gtt_end;
 		unsigned long stolen_base; /* limited to low memory (32-bit) */
 
-		struct io_mapping *gtt_mapping;
-#ifdef __linux__
-		phys_addr_t gtt_base_addr;
-#elif __FreeBSD__
-		vm_paddr_t gtt_base_addr;
-#endif
 		int gtt_mtrr;
 
 		/** PPGTT used for aliasing the PPGTT with the GTT */
@@ -1128,15 +1120,6 @@ typedef struct drm_i915_private {
 		 */
 		int suspended;
 
-		/**
-		 * Flag if the hardware appears to be wedged.
-		 *
-		 * This is set when attempts to idle the device timeout.
-		 * It prevents command submission from occurring and makes
-		 * every pending request fail
-		 */
-		atomic_t wedged;
-
 		/** Bit 6 swizzling required for X tiling */
 		uint32_t bit_6_swizzle_x;
 		/** Bit 6 swizzling required for Y tiling */
@@ -1146,11 +1129,44 @@ typedef struct drm_i915_private {
 		struct drm_i915_gem_phys_object *phys_objs[I915_MAX_PHYS_OBJECT];
 
 		/* accounting, useful for userland debugging */
-		size_t gtt_total;
-		size_t mappable_gtt_total;
 		size_t object_memory;
 		u32 object_count;
+
+		/* Not used anymore */
+		/**
+		 * Flag if the hardware appears to be wedged.
+		 *
+		 * This is set when attempts to idle the device timeout.
+		 * It prevents command submission from occurring and makes
+		 * every pending request fail
+		 */
+		atomic_t wedged;
 	} mm;
+
+	struct {
+		/* 
+		 * Member of struct i915_gtt
+		 */
+
+		/** Bridge to intel-gtt-ko */
+		struct intel_gtt *gtt;
+
+		/** Usable portion of the GTT for GEM */
+		unsigned long gtt_start;
+		unsigned long gtt_mappable_end;
+		unsigned long gtt_end;
+
+		struct io_mapping *gtt_mapping;
+#ifdef __linux__
+		phys_addr_t gtt_base_addr;
+#elif __FreeBSD__
+		vm_paddr_t gtt_base_addr;
+#endif
+
+		/* accounting, useful for userland debugging */
+		size_t gtt_total;
+		size_t mappable_gtt_total;
+	} gtt;
 
 	/* Kernel Modesetting */
 

@@ -125,7 +125,7 @@ int i915_gem_init_aliasing_ppgtt(struct drm_device *dev)
 	/* ppgtt PDEs reside in the global gtt pagetable, which has 512*1024
 	 * entries. For aliasing ppgtt support we just steal them at the end for
 	 * now. */
-	first_pd_entry_in_global_pt = dev_priv->mm.gtt->gtt_total_entries - I915_PPGTT_PD_ENTRIES;
+	first_pd_entry_in_global_pt = dev_priv->gtt.gtt->gtt_total_entries - I915_PPGTT_PD_ENTRIES;
 
 	ppgtt = kzalloc(sizeof(*ppgtt), GFP_KERNEL);
 	if (!ppgtt)
@@ -144,7 +144,7 @@ int i915_gem_init_aliasing_ppgtt(struct drm_device *dev)
 			goto err_pt_alloc;
 	}
 
-	if (dev_priv->mm.gtt->needs_dmar) {
+	if (dev_priv->gtt.gtt->needs_dmar) {
 		ppgtt->pt_dma_addr = kzalloc(sizeof(dma_addr_t)
 						*ppgtt->num_pd_entries,
 					     GFP_KERNEL);
@@ -170,7 +170,7 @@ int i915_gem_init_aliasing_ppgtt(struct drm_device *dev)
 #endif
 	}
 
-	ppgtt->scratch_page_dma_addr = dev_priv->mm.gtt->scratch_page_dma;
+	ppgtt->scratch_page_dma_addr = dev_priv->gtt.gtt->scratch_page_dma;
 
 	i915_ppgtt_clear_range(ppgtt, 0,
 			       ppgtt->num_pd_entries*I915_PPGTT_PT_ENTRIES);
@@ -356,11 +356,11 @@ void i915_gem_init_ppgtt(struct drm_device *dev)
 		return;
 
 
-	pd_addr = dev_priv->mm.gtt->gtt + ppgtt->pd_offset/sizeof(uint32_t);
+	pd_addr = dev_priv->gtt.gtt->gtt + ppgtt->pd_offset/sizeof(uint32_t);
 	for (i = 0; i < ppgtt->num_pd_entries; i++) {
 		dma_addr_t pt_addr;
 
-		if (dev_priv->mm.gtt->needs_dmar)
+		if (dev_priv->gtt.gtt->needs_dmar)
 			pt_addr = ppgtt->pt_dma_addr[i];
 		else
 			pt_addr = page_to_phys(ppgtt->pt_pages[i]);
@@ -408,7 +408,7 @@ static bool do_idling(struct drm_i915_private *dev_priv)
 {
 	bool ret = dev_priv->mm.interruptible;
 
-	if (unlikely(dev_priv->mm.gtt->do_idle_maps)) {
+	if (unlikely(dev_priv->gtt.gtt->do_idle_maps)) {
 		dev_priv->mm.interruptible = false;
 		if (i915_gpu_idle(dev_priv->dev)) {
 			DRM_ERROR("Couldn't idle GPU\n");
@@ -422,7 +422,7 @@ static bool do_idling(struct drm_i915_private *dev_priv)
 
 static void undo_idling(struct drm_i915_private *dev_priv, bool interruptible)
 {
-	if (unlikely(dev_priv->mm.gtt->do_idle_maps))
+	if (unlikely(dev_priv->gtt.gtt->do_idle_maps))
 		dev_priv->mm.interruptible = interruptible;
 }
 
@@ -433,8 +433,8 @@ static void i915_ggtt_clear_range(struct drm_device *dev,
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	gtt_pte_t scratch_pte;
-	gtt_pte_t __iomem *gtt_base = dev_priv->mm.gtt->gtt + first_entry;
-	const int max_entries = dev_priv->mm.gtt->gtt_total_entries - first_entry;
+	gtt_pte_t __iomem *gtt_base = dev_priv->gtt.gtt->gtt + first_entry;
+	const int max_entries = dev_priv->gtt.gtt->gtt_total_entries - first_entry;
 	int i;
 
 	if (INTEL_INFO(dev)->gen < 6) {
@@ -447,7 +447,7 @@ static void i915_ggtt_clear_range(struct drm_device *dev,
 		 first_entry, num_entries, max_entries))
 		num_entries = max_entries;
 
-	scratch_pte = pte_encode(dev, dev_priv->mm.gtt->scratch_page_dma, I915_CACHE_LLC);
+	scratch_pte = pte_encode(dev, dev_priv->gtt.gtt->scratch_page_dma, I915_CACHE_LLC);
 	for (i = 0; i < num_entries; i++)
 		iowrite32(scratch_pte, &gtt_base[i]);
 	readl(gtt_base);
@@ -459,8 +459,8 @@ void i915_gem_restore_gtt_mappings(struct drm_device *dev)
 	struct drm_i915_gem_object *obj;
 
 	/* First fill our portion of the GTT with scratch pages */
-	i915_ggtt_clear_range(dev, dev_priv->mm.gtt_start / PAGE_SIZE,
-			      (dev_priv->mm.gtt_end - dev_priv->mm.gtt_start) / PAGE_SIZE);
+	i915_ggtt_clear_range(dev, dev_priv->gtt.gtt_start / PAGE_SIZE,
+			      (dev_priv->gtt.gtt_end - dev_priv->gtt.gtt_start) / PAGE_SIZE);
 
 	list_for_each_entry(obj, &dev_priv->mm.bound_list, gtt_list) {
 		i915_gem_clflush_object(obj);
@@ -489,7 +489,7 @@ int i915_gem_gtt_prepare_object(struct drm_i915_gem_object *obj)
  * Binds an object into the global gtt with the specified cache level. The object
  * will be accessible to the GPU via commands whose operands reference offsets
  * within the global GTT as well as accessible by the GPU through the GMADR
- * mapped BAR (dev_priv->mm.gtt->gtt).
+ * mapped BAR (dev_priv->gtt.gtt->gtt).
  */
 static void gen6_ggtt_bind_object(struct drm_i915_gem_object *obj,
 				  enum i915_cache_level level)
@@ -501,8 +501,8 @@ static void gen6_ggtt_bind_object(struct drm_i915_gem_object *obj,
 	struct scatterlist *sg = st->sgl;
 #endif
 	const int first_entry = obj->gtt_space->start >> PAGE_SHIFT;
-	const int max_entries = dev_priv->mm.gtt->gtt_total_entries - first_entry;
-	gtt_pte_t __iomem *gtt_entries = dev_priv->mm.gtt->gtt + first_entry;
+	const int max_entries = dev_priv->gtt.gtt->gtt_total_entries - first_entry;
+	gtt_pte_t __iomem *gtt_entries = dev_priv->gtt.gtt->gtt + first_entry;
 #ifdef __linux__
 	int unused, i = 0;
 	unsigned int len, m = 0;
@@ -627,22 +627,22 @@ void i915_gem_init_global_gtt(struct drm_device *dev,
 	if (!HAS_LLC(dev))
 		dev_priv->mm.gtt_space.color_adjust = i915_gtt_color_adjust;
 
-	dev_priv->mm.gtt_start = start;
-	dev_priv->mm.gtt_mappable_end = mappable_end;
-	dev_priv->mm.gtt_end = end;
-	dev_priv->mm.gtt_total = end - start;
-	dev_priv->mm.mappable_gtt_total = min(end, mappable_end) - start;
+	dev_priv->gtt.gtt_start = start;
+	dev_priv->gtt.gtt_mappable_end = mappable_end;
+	dev_priv->gtt.gtt_end = end;
+	dev_priv->gtt.gtt_total = end - start;
+	dev_priv->gtt.mappable_gtt_total = min(end, mappable_end) - start;
 
 	/* ... but ensure that we clear the entire range. */
 	i915_ggtt_clear_range(dev, start / PAGE_SIZE, (end-start) / PAGE_SIZE);
 
 	device_printf(dev->dev,
 	    "taking over the fictitious range 0x%jx-0x%jx\n",
-	    (uintmax_t)(dev_priv->mm.gtt_base_addr + start),
-	    (uintmax_t)(dev_priv->mm.gtt_base_addr + start +
-		dev_priv->mm.mappable_gtt_total));
-	vm_phys_fictitious_reg_range(dev_priv->mm.gtt_base_addr + start,
-	    dev_priv->mm.gtt_base_addr + start + dev_priv->mm.mappable_gtt_total,
+	    (uintmax_t)(dev_priv->gtt.gtt_base_addr + start),
+	    (uintmax_t)(dev_priv->gtt.gtt_base_addr + start +
+		dev_priv->gtt.mappable_gtt_total));
+	vm_phys_fictitious_reg_range(dev_priv->gtt.gtt_base_addr + start,
+	    dev_priv->gtt.gtt_base_addr + start + dev_priv->gtt.mappable_gtt_total,
 	    VM_MEMATTR_WRITE_COMBINING);
 }
 
@@ -687,8 +687,8 @@ retry:
 #else
 	dma_addr = page_to_phys(page);
 #endif
-	dev_priv->mm.gtt->scratch_page = page;
-	dev_priv->mm.gtt->scratch_page_dma = dma_addr;
+	dev_priv->gtt.gtt->scratch_page = page;
+	dev_priv->gtt.gtt->scratch_page_dma = dma_addr;
 
 	return 0;
 }
@@ -697,11 +697,11 @@ static void teardown_scratch_page(struct drm_device *dev)
 {
 #ifdef CONFIG_INTEL_IOMMU /* <- Added as a marker on FreeBSD. */
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	set_pages_wb(dev_priv->mm.gtt->scratch_page, 1);
-	pci_unmap_page(dev->pdev, dev_priv->mm.gtt->scratch_page_dma,
+	set_pages_wb(dev_priv->gtt.gtt->scratch_page, 1);
+	pci_unmap_page(dev->pdev, dev_priv->gtt.gtt->scratch_page_dma,
 		       PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
-	put_page(dev_priv->mm.gtt->scratch_page);
-	__free_page(dev_priv->mm.gtt->scratch_page);
+	put_page(dev_priv->gtt.gtt->scratch_page);
+	__free_page(dev_priv->gtt.gtt->scratch_page);
 #endif
 }
 
@@ -747,8 +747,8 @@ int i915_gem_gtt_init(struct drm_device *dev)
 		}
 #endif /* FREEBSD_WIP */
 
-		dev_priv->mm.gtt = intel_gtt_get();
-		if (!dev_priv->mm.gtt) {
+		dev_priv->gtt.gtt = intel_gtt_get();
+		if (!dev_priv->gtt.gtt) {
 			DRM_ERROR("Failed to initialize GTT\n");
 #ifdef FREEBSD_WIP
 			intel_gmch_remove();
@@ -758,8 +758,8 @@ int i915_gem_gtt_init(struct drm_device *dev)
 		return 0;
 	}
 
-	dev_priv->mm.gtt = kzalloc(sizeof(*dev_priv->mm.gtt), GFP_KERNEL);
-	if (!dev_priv->mm.gtt)
+	dev_priv->gtt.gtt = kzalloc(sizeof(*dev_priv->gtt.gtt), GFP_KERNEL);
+	if (!dev_priv->gtt.gtt)
 		return -ENOMEM;
 
 #ifdef FREEBSD_WIP
@@ -768,16 +768,16 @@ int i915_gem_gtt_init(struct drm_device *dev)
 #endif /* FREEBSD_WIP */
 
 #ifdef CONFIG_INTEL_IOMMU
-	dev_priv->mm.gtt->needs_dmar = 1;
+	dev_priv->gtt.gtt->needs_dmar = 1;
 #endif
 
 	/* For GEN6+ the PTEs for the ggtt live at 2MB + BAR0 */
 #ifdef __linux__
 	gtt_bus_addr = pci_resource_start(dev->pdev, 0) + (2<<20);
-	dev_priv->mm.gtt->gma_bus_addr = pci_resource_start(dev->pdev, 2);
+	dev_priv->gtt.gtt->gma_bus_addr = pci_resource_start(dev->pdev, 2);
 #elif __FreeBSD__
 	gtt_bus_addr = drm_get_resource_start(dev, 0) + (2<<20);
-	dev_priv->mm.gtt->gma_bus_addr = drm_get_resource_start(dev, 2);
+	dev_priv->gtt.gtt->gma_bus_addr = drm_get_resource_start(dev, 2);
 #endif
 
 	/* i9xx_setup */
@@ -786,25 +786,25 @@ int i915_gem_gtt_init(struct drm_device *dev)
 #elif __FreeBSD__
 	pci_read_config_word(dev->dev, SNB_GMCH_CTRL, &snb_gmch_ctl);
 #endif
-	dev_priv->mm.gtt->gtt_total_entries =
+	dev_priv->gtt.gtt->gtt_total_entries =
 		gen6_get_total_gtt_size(snb_gmch_ctl) / sizeof(gtt_pte_t);
 	if (INTEL_INFO(dev)->gen < 7)
-		dev_priv->mm.gtt->stolen_size = gen6_get_stolen_size(snb_gmch_ctl);
+		dev_priv->gtt.gtt->stolen_size = gen6_get_stolen_size(snb_gmch_ctl);
 	else
-		dev_priv->mm.gtt->stolen_size = gen7_get_stolen_size(snb_gmch_ctl);
+		dev_priv->gtt.gtt->stolen_size = gen7_get_stolen_size(snb_gmch_ctl);
 
 #ifdef __linux__
-	dev_priv->mm.gtt->gtt_mappable_entries = pci_resource_len(dev->pdev, 2) >> PAGE_SHIFT;
+	dev_priv->gtt.gtt->gtt_mappable_entries = pci_resource_len(dev->pdev, 2) >> PAGE_SHIFT;
 #elif __FreeBSD__
-	dev_priv->mm.gtt->gtt_mappable_entries = drm_get_resource_len(dev, 2) >> PAGE_SHIFT;
+	dev_priv->gtt.gtt->gtt_mappable_entries = drm_get_resource_len(dev, 2) >> PAGE_SHIFT;
 #endif
 	/* 64/512MB is the current min/max we actually know of, but this is just a
 	 * coarse sanity check.
 	 */
-	if ((dev_priv->mm.gtt->gtt_mappable_entries >> 8) < 64 ||
-	    dev_priv->mm.gtt->gtt_mappable_entries > dev_priv->mm.gtt->gtt_total_entries) {
+	if ((dev_priv->gtt.gtt->gtt_mappable_entries >> 8) < 64 ||
+	    dev_priv->gtt.gtt->gtt_mappable_entries > dev_priv->gtt.gtt->gtt_total_entries) {
 		DRM_ERROR("Unknown GMADR entries (%d)\n",
-			  dev_priv->mm.gtt->gtt_mappable_entries);
+			  dev_priv->gtt.gtt->gtt_mappable_entries);
 		ret = -ENXIO;
 		goto err_out;
 	}
@@ -815,9 +815,9 @@ int i915_gem_gtt_init(struct drm_device *dev)
 		goto err_out;
 	}
 
-	dev_priv->mm.gtt->gtt = ioremap_wc(gtt_bus_addr,
-					   dev_priv->mm.gtt->gtt_total_entries * sizeof(gtt_pte_t));
-	if (!dev_priv->mm.gtt->gtt) {
+	dev_priv->gtt.gtt->gtt = ioremap_wc(gtt_bus_addr,
+					   dev_priv->gtt.gtt->gtt_total_entries * sizeof(gtt_pte_t));
+	if (!dev_priv->gtt.gtt->gtt) {
 		DRM_ERROR("Failed to map the gtt page table\n");
 		teardown_scratch_page(dev);
 		ret = -ENOMEM;
@@ -825,14 +825,14 @@ int i915_gem_gtt_init(struct drm_device *dev)
 	}
 
 	/* GMADR is the PCI aperture used by SW to access tiled GFX surfaces in a linear fashion. */
-	DRM_INFO("Memory usable by graphics device = %dM\n", dev_priv->mm.gtt->gtt_total_entries >> 8);
-	DRM_DEBUG_DRIVER("GMADR size = %dM\n", dev_priv->mm.gtt->gtt_mappable_entries >> 8);
-	DRM_DEBUG_DRIVER("GTT stolen size = %dM\n", dev_priv->mm.gtt->stolen_size >> 20);
+	DRM_INFO("Memory usable by graphics device = %dM\n", dev_priv->gtt.gtt->gtt_total_entries >> 8);
+	DRM_DEBUG_DRIVER("GMADR size = %dM\n", dev_priv->gtt.gtt->gtt_mappable_entries >> 8);
+	DRM_DEBUG_DRIVER("GTT stolen size = %dM\n", dev_priv->gtt.gtt->stolen_size >> 20);
 
 	return 0;
 
 err_out:
-	kfree(dev_priv->mm.gtt);
+	kfree(dev_priv->gtt.gtt);
 #ifdef FREEBSD_WIP
 	if (INTEL_INFO(dev)->gen < 6)
 		intel_gmch_remove();
@@ -843,11 +843,11 @@ err_out:
 void i915_gem_gtt_fini(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	iounmap(dev_priv->mm.gtt->gtt);
+	iounmap(dev_priv->gtt.gtt->gtt);
 	teardown_scratch_page(dev);
 #ifdef FREEBSD_WIP
 	if (INTEL_INFO(dev)->gen < 6)
 		intel_gmch_remove();
 #endif /* FREEBSD_WIP */
-	kfree(dev_priv->mm.gtt);
+	kfree(dev_priv->gtt.gtt);
 }

@@ -88,7 +88,7 @@ static unsigned long i915_stolen_to_physical(struct drm_device *dev)
 		/* Stolen is immediately below Top of Low Usable DRAM */
 		pci_read_config_byte(pdev, 0x9c, &val);
 		base = val >> 3 << 27;
-		base -= dev_priv->mm.gtt->stolen_size;
+		base -= dev_priv->gtt.gtt->stolen_size;
 	} else {
 		/* Stolen is immediately above Top of Memory */
 		base = max_low_pfn_mapped << PAGE_SHIFT;
@@ -182,14 +182,14 @@ void i915_gem_cleanup_stolen(struct drm_device *dev)
 int i915_gem_init_stolen(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	unsigned long prealloc_size = dev_priv->mm.gtt->stolen_size;
+	unsigned long prealloc_size = dev_priv->gtt.gtt->stolen_size;
 
 	dev_priv->mm.stolen_base = i915_stolen_to_physical(dev);
 	if (dev_priv->mm.stolen_base == 0)
 		return 0;
 
 	DRM_DEBUG_KMS("found %d bytes of stolen memory at %08lx\n",
-		      dev_priv->mm.gtt->stolen_size, dev_priv->mm.stolen_base);
+		      dev_priv->gtt.gtt->stolen_size, dev_priv->mm.stolen_base);
 
 	/* Basic memrange allocator for stolen space */
 	drm_mm_init(&dev_priv->mm.stolen, 0, prealloc_size);
