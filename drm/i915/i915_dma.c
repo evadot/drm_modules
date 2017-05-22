@@ -1669,7 +1669,7 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 #endif
 
 	spin_lock_init(&dev_priv->irq_lock);
-	spin_lock_init(&dev_priv->error_lock);
+	spin_lock_init(&dev_priv->gpu_error.lock);
 	spin_lock_init(&dev_priv->rps.lock);
 	mutex_init(&dev_priv->dpio_lock);
 
@@ -1712,9 +1712,6 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 	acpi_video_register();
 #endif
 
-	setup_timer(&dev_priv->hangcheck_timer, i915_hangcheck_elapsed,
-		    (unsigned long) dev);
-
 	if (IS_GEN5(dev))
 		intel_gpu_ips_init(dev_priv);
 
@@ -1731,7 +1728,7 @@ out_gem_unload:
 	EVENTHANDLER_DEREGISTER(vm_lowmem, dev_priv->mm.inactive_shrinker);
 
 	spin_lock_destroy(&dev_priv->irq_lock);
-	spin_lock_destroy(&dev_priv->error_lock);
+	spin_lock_destroy(&dev_priv->gpu_error.lock);
 	spin_lock_destroy(&dev_priv->rps.lock);
 	mutex_destroy(&dev_priv->dpio_lock);
 
@@ -1829,8 +1826,8 @@ int i915_driver_unload(struct drm_device *dev)
 	}
 
 	/* Free error state after interrupts are fully disabled. */
-	del_timer_sync(&dev_priv->hangcheck_timer);
-	cancel_work_sync(&dev_priv->error_work);
+	del_timer_sync(&dev_priv->gpu_error.hangcheck_timer);
+	cancel_work_sync(&dev_priv->gpu_error.work);
 	i915_destroy_error_state(dev);
 
 #ifdef __linux__
@@ -1888,7 +1885,7 @@ int i915_driver_unload(struct drm_device *dev)
 	i915_gem_gtt_fini(dev);
 
 	spin_lock_destroy(&dev_priv->irq_lock);
-	spin_lock_destroy(&dev_priv->error_lock);
+	spin_lock_destroy(&dev_priv->gpu_error.lock);
 	spin_lock_destroy(&dev_priv->rps.lock);
 	mutex_destroy(&dev_priv->dpio_lock);
 

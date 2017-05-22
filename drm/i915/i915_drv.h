@@ -812,16 +812,6 @@ struct i915_gem_mm {
 	/* accounting, useful for userland debugging */
 	size_t object_memory;
 	u32 object_count;
-
-	/* Not used anymore */
-	/**
-	 * Flag if the hardware appears to be wedged.
-	 *
-	 * This is set when attempts to idle the device timeout.
-	 * It prevents command submission from occurring and makes
-	 * every pending request fail
-	 */
-	atomic_t wedged;
 };
 
 struct i915_gpu_error {
@@ -963,16 +953,6 @@ typedef struct drm_i915_private {
 	int num_pipe;
 	int num_pch_pll;
 
-	/* For hangcheck timer */
-#define DRM_I915_HANGCHECK_PERIOD 1500 /* in ms */
-#define DRM_I915_HANGCHECK_JIFFIES msecs_to_jiffies(DRM_I915_HANGCHECK_PERIOD)
-	struct timer_list hangcheck_timer;
-	int hangcheck_count;
-	uint32_t last_acthd[I915_NUM_RINGS];
-	uint32_t prev_instdone[I915_NUM_INSTDONE_REG];
-
-	unsigned int stop_rings;
-
 	unsigned long cfb_size;
 	unsigned int cfb_fb;
 	enum plane cfb_plane;
@@ -1022,11 +1002,6 @@ typedef struct drm_i915_private {
 
 	unsigned int fsb_freq, mem_freq, is_ddr3;
 
-	spinlock_t error_lock;
-	/* Protected by dev->error_lock. */
-	struct drm_i915_error_state *first_error;
-	struct work_struct error_work;
-	struct completion error_completion;
 	struct workqueue_struct *wq;
 
 	/* Display functions */
@@ -1086,7 +1061,6 @@ typedef struct drm_i915_private {
 	struct drm_mm_node *compressed_llb;
 
 	struct i915_gpu_error gpu_error;
-	unsigned long last_gpu_reset;
 
 	/* list of fbdev register on this device */
 	struct intel_fbdev *fbdev;
@@ -1691,7 +1665,7 @@ i915_gem_object_unpin_fence(struct drm_i915_gem_object *obj)
 
 void i915_gem_retire_requests(struct drm_device *dev);
 void i915_gem_retire_requests_ring(struct intel_ring_buffer *ring);
-int __must_check i915_gem_check_wedge(struct drm_i915_private *dev_priv,
+int __must_check i915_gem_check_wedge(struct i915_gpu_error *error,
 				      bool interruptible);
 static inline bool i915_reset_in_progress(struct i915_gpu_error *error)
 {

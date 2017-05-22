@@ -135,14 +135,13 @@ static void i915_gem_info_remove_obj(struct drm_i915_private *dev_priv,
 }
 
 static int
-i915_gem_wait_for_error(struct drm_device *dev)
+i915_gem_wait_for_error(struct i915_gpu_error *error)
 {
-	struct drm_i915_private *dev_priv = dev->dev_private;
-	struct completion *x = &dev_priv->error_completion;
-	/* unsigned long flags; */
 	int ret;
 
-	if (!atomic_read(&dev_priv->mm.wedged))
+#define EXIT_COND (!i915_reset_in_progress(error) || \
+		   i915_terminally_wedged(error))
+	if (EXIT_COND)
 		return 0;
 
 	/*
@@ -150,32 +149,26 @@ i915_gem_wait_for_error(struct drm_device *dev)
 	 * userspace. If it takes that long something really bad is going on and
 	 * we should simply try to bail out and fail as gracefully as possible.
 	 */
-	ret = wait_for_completion_interruptible_timeout(x, 10*HZ);
+	ret = wait_event_interruptible_timeout(error->reset_queue,
+					       EXIT_COND,
+					       10*HZ);
 	if (ret == 0) {
 		DRM_ERROR("Timed out waiting for the gpu reset to complete\n");
 		return -EIO;
 	} else if (ret < 0) {
 		return ret;
 	}
+#undef EXIT_COND
 
-	if (atomic_read(&dev_priv->mm.wedged)) {
-		/* GPU is hung, bump the completion count to account for
-		 * the token we just consumed so that we never hit zero and
-		 * end up waiting upon a subsequent completion event that
-		 * will never happen.
-		 */
-		/* spin_lock_irqsave(&x->wait.lock, flags); */
-		x->done++;
-		/* spin_unlock_irqrestore(&x->wait.lock, flags); */
-	}
 	return 0;
 }
 
 int i915_mutex_lock_interruptible(struct drm_device *dev)
 {
+	struct drm_i915_private *dev_priv = dev->dev_private;
 	int ret;
 
-	ret = i915_gem_wait_for_error(dev);
+	ret = i915_gem_wait_for_error(&dev_priv->gpu_error);
 	if (ret)
 		return ret;
 
@@ -210,10 +203,6 @@ i915_gem_init_ioctl(struct drm_device *dev, void *data,
 	if (INTEL_INFO(dev)->gen >= 5)
 		return -ENODEV;
 
-	/*
-	 * XXXKIB. The second-time initialization should be guarded
-	 * against.
-	 */
 	mutex_lock(&dev->struct_mutex);
 	i915_gem_init_global_gtt(dev, args->gtt_start,
 				 args->gtt_end, args->gtt_end);
@@ -1040,26 +1029,17 @@ unlock:
 }
 
 int
-i915_gem_check_wedge(struct drm_i915_private *dev_priv,
+i915_gem_check_wedge(struct i915_gpu_error *error,
 		     bool interruptible)
 {
-	if (atomic_read(&dev_priv->mm.wedged)) {
-		struct completion *x = &dev_priv->error_completion;
-		bool recovery_complete;
-		/* unsigned long flags; */
-
-		/* Give the error handler a chance to run. */
-		/* spin_lock_irqsave(&x->wait.lock, flags); */
-		recovery_complete = x->done > 0;
-		/* spin_unlock_irqrestore(&x->wait.lock, flags); */
-
+	if (i915_reset_in_progress(error)) {
 		/* Non-interruptible callers can't handle -EAGAIN, hence return
 		 * -EIO unconditionally for these. */
 		if (!interruptible)
 			return -EIO;
 
-		/* Recovery complete, but still wedged means reset failure. */
-		if (recovery_complete)
+		/* Recovery complete, but the reset failed ... */
+		if (i915_terminally_wedged(error))
 			return -EIO;
 
 		return -EAGAIN;
@@ -1105,6 +1085,7 @@ i915_gem_check_olr(struct intel_ring_buffer *ring, u32 seqno)
  * errno with remaining time filled in timeout argument.
  */
 static int __wait_seqno(struct intel_ring_buffer *ring, u32 seqno,
+			unsigned reset_counter,
 			bool interruptible, struct timespec *timeout)
 {
 	drm_i915_private_t *dev_priv = ring->dev->dev_private;
@@ -1140,7 +1121,8 @@ static int __wait_seqno(struct intel_ring_buffer *ring, u32 seqno,
 
 #define EXIT_COND \
 	(i915_seqno_passed(ring->get_seqno(ring, false), seqno) || \
-	atomic_read(&dev_priv->mm.wedged))
+	 i915_reset_in_progress(&dev_priv->gpu_error) || \
+	 reset_counter != atomic_read(&dev_priv->gpu_error.reset_counter))
 #ifdef __FreeBSD__
 	flags = interruptible ? PCATCH : 0;
 	spin_lock(&dev_priv->irq_lock);
@@ -1184,8 +1166,14 @@ static int __wait_seqno(struct intel_ring_buffer *ring, u32 seqno,
 				end = 0;
 		}
 #endif
+		/* We need to check whether any gpu reset happened in between
+		 * the caller grabbing the seqno and now ... */
+		if (reset_counter != atomic_read(&dev_priv->gpu_error.reset_counter))
+			end = -EAGAIN;
 
-		ret = i915_gem_check_wedge(dev_priv, interruptible);
+		/* ... but upgrade the -EGAIN to an -EIO if the gpu is truely
+		 * gone. */
+		ret = i915_gem_check_wedge(&dev_priv->gpu_error, interruptible);
 		if (ret)
 			end = ret;
 	} while (end == 0 && wait_forever);
@@ -1239,7 +1227,7 @@ i915_wait_seqno(struct intel_ring_buffer *ring, uint32_t seqno)
 	BUG_ON(!mutex_is_locked(&dev->struct_mutex));
 	BUG_ON(seqno == 0);
 
-	ret = i915_gem_check_wedge(dev_priv, interruptible);
+	ret = i915_gem_check_wedge(&dev_priv->gpu_error, interruptible);
 	if (ret)
 		return ret;
 
@@ -1247,7 +1235,9 @@ i915_wait_seqno(struct intel_ring_buffer *ring, uint32_t seqno)
 	if (ret)
 		return ret;
 
-	return __wait_seqno(ring, seqno, interruptible, NULL);
+	return __wait_seqno(ring, seqno,
+			    atomic_read(&dev_priv->gpu_error.reset_counter),
+			    interruptible, NULL);
 }
 
 /**
@@ -1294,6 +1284,7 @@ i915_gem_object_wait_rendering__nonblocking(struct drm_i915_gem_object *obj,
 	struct drm_device *dev = obj->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct intel_ring_buffer *ring = obj->ring;
+	unsigned reset_counter;
 	u32 seqno;
 	int ret;
 
@@ -1304,7 +1295,7 @@ i915_gem_object_wait_rendering__nonblocking(struct drm_i915_gem_object *obj,
 	if (seqno == 0)
 		return 0;
 
-	ret = i915_gem_check_wedge(dev_priv, true);
+	ret = i915_gem_check_wedge(&dev_priv->gpu_error, true);
 	if (ret)
 		return ret;
 
@@ -1312,8 +1303,9 @@ i915_gem_object_wait_rendering__nonblocking(struct drm_i915_gem_object *obj,
 	if (ret)
 		return ret;
 
+	reset_counter = atomic_read(&dev_priv->gpu_error.reset_counter);
 	mutex_unlock(&dev->struct_mutex);
-	ret = __wait_seqno(ring, seqno, true, NULL);
+	ret = __wait_seqno(ring, seqno, reset_counter, true, NULL);
 	mutex_lock(&dev->struct_mutex);
 
 	i915_gem_retire_requests_ring(ring);
@@ -1321,8 +1313,7 @@ i915_gem_object_wait_rendering__nonblocking(struct drm_i915_gem_object *obj,
 	/* Manually manage the write flush as we may have not yet
 	 * retired the buffer.
 	 */
-	if (ret == 0 &&
-	    obj->last_write_seqno &&
+	if (obj->last_write_seqno &&
 	    i915_seqno_passed(seqno, obj->last_write_seqno)) {
 		obj->last_write_seqno = 0;
 		obj->base.write_domain &= ~I915_GEM_GPU_DOMAINS;
@@ -1574,7 +1565,7 @@ out:
 		/* If this -EIO is due to a gpu hang, give the reset code a
 		 * chance to clean up the mess. Otherwise return the proper
 		 * SIGBUS. */
-		if (!atomic_read(&dev_priv->mm.wedged))
+		if (i915_terminally_wedged(&dev_priv->gpu_error))
 			return VM_FAULT_SIGBUS;
 	case -EAGAIN:
 		/* Give the error handler a chance to run and move the
@@ -2628,7 +2619,7 @@ i915_add_request(struct intel_ring_buffer *ring,
 
 	if (!dev_priv->mm.suspended) {
 		if (i915_enable_hangcheck) {
-			mod_timer(&dev_priv->hangcheck_timer,
+			mod_timer(&dev_priv->gpu_error.hangcheck_timer,
 				  round_jiffies_up(jiffies + DRM_I915_HANGCHECK_JIFFIES));
 		}
 		if (was_empty) {
@@ -2896,10 +2887,12 @@ i915_gem_object_flush_active(struct drm_i915_gem_object *obj)
 int
 i915_gem_wait_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
 {
+	drm_i915_private_t *dev_priv = dev->dev_private;
 	struct drm_i915_gem_wait *args = data;
 	struct drm_i915_gem_object *obj;
 	struct intel_ring_buffer *ring = NULL;
 	struct timespec timeout_stack, *timeout = NULL;
+	unsigned reset_counter;
 	u32 seqno = 0;
 	int ret = 0;
 
@@ -2940,9 +2933,10 @@ i915_gem_wait_ioctl(struct drm_device *dev, void *data, struct drm_file *file)
 	}
 
 	drm_gem_object_unreference(&obj->base);
+	reset_counter = atomic_read(&dev_priv->gpu_error.reset_counter);
 	mutex_unlock(&dev->struct_mutex);
 
-	ret = __wait_seqno(ring, seqno, true, timeout);
+	ret = __wait_seqno(ring, seqno, reset_counter, true, timeout);
 	if (timeout) {
 		WARN_ON(!timespec_valid(timeout));
 		args->timeout_ns = timespec_to_ns(timeout);
@@ -4019,11 +4013,17 @@ i915_gem_ring_throttle(struct drm_device *dev, struct drm_file *file)
 	unsigned long recent_enough = jiffies - msecs_to_jiffies(20);
 	struct drm_i915_gem_request *request;
 	struct intel_ring_buffer *ring = NULL;
+	unsigned reset_counter;
 	u32 seqno = 0;
 	int ret;
 
-	if (atomic_read(&dev_priv->mm.wedged))
-		return -EIO;
+	ret = i915_gem_wait_for_error(&dev_priv->gpu_error);
+	if (ret)
+		return ret;
+
+	ret = i915_gem_check_wedge(&dev_priv->gpu_error, false);
+	if (ret)
+		return ret;
 
 	spin_lock(&file_priv->mm.lock);
 	list_for_each_entry(request, &file_priv->mm.request_list, client_list) {
@@ -4033,12 +4033,13 @@ i915_gem_ring_throttle(struct drm_device *dev, struct drm_file *file)
 		ring = request->ring;
 		seqno = request->seqno;
 	}
+	reset_counter = atomic_read(&dev_priv->gpu_error.reset_counter);
 	spin_unlock(&file_priv->mm.lock);
 
 	if (seqno == 0)
 		return 0;
 
-	ret = __wait_seqno(ring, seqno, true, NULL);
+	ret = __wait_seqno(ring, seqno, reset_counter, true, NULL);
 	if (ret == 0)
 		queue_delayed_work(dev_priv->wq, &dev_priv->mm.retire_work, 0);
 
@@ -4437,7 +4438,7 @@ i915_gem_idle(struct drm_device *dev)
 	 * And not confound mm.suspended!
 	 */
 	dev_priv->mm.suspended = 1;
-	del_timer_sync(&dev_priv->hangcheck_timer);
+	del_timer_sync(&dev_priv->gpu_error.hangcheck_timer);
 
 	i915_kernel_lost_context(dev);
 	i915_gem_cleanup_ringbuffer(dev);
@@ -4657,9 +4658,9 @@ i915_gem_entervt_ioctl(struct drm_device *dev, void *data,
 	if (drm_core_check_feature(dev, DRIVER_MODESET))
 		return 0;
 
-	if (atomic_read(&dev_priv->mm.wedged)) {
+	if (i915_reset_in_progress(&dev_priv->gpu_error)) {
 		DRM_ERROR("Reenabling wedged hardware, good luck\n");
-		atomic_set(&dev_priv->mm.wedged, 0);
+		atomic_set(&dev_priv->gpu_error.reset_counter, 0);
 	}
 
 	mutex_lock(&dev->struct_mutex);
@@ -4737,7 +4738,7 @@ i915_gem_load(struct drm_device *dev)
 		INIT_LIST_HEAD(&dev_priv->fence_regs[i].lru_list);
 	INIT_DELAYED_WORK(&dev_priv->mm.retire_work,
 			  i915_gem_retire_work_handler);
-	init_completion(&dev_priv->error_completion);
+	init_waitqueue_head(&dev_priv->gpu_error.reset_queue);
 
 	/* On GEN3 we really need to make sure the ARB C3 LP bit is set */
 	if (IS_GEN3(dev)) {

@@ -2244,10 +2244,6 @@ intel_finish_fb(struct drm_framebuffer *old_fb)
 	bool was_interruptible = dev_priv->mm.interruptible;
 	int ret;
 
-	wait_event(dev_priv->pending_flip_queue,
-		   atomic_read(&dev_priv->mm.wedged) ||
-		   atomic_read(&obj->pending_flip) == 0);
-
 	/* Big Hammer, we also need to ensure that any pending
 	 * MI_WAIT_FOR_EVENT inside a user batch buffer on the
 	 * current scanout is retired before unpinning the old
@@ -2931,10 +2927,12 @@ static bool intel_crtc_has_pending_flip(struct drm_crtc *crtc)
 {
 	struct drm_device *dev = crtc->dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
+	struct intel_crtc *intel_crtc = to_intel_crtc(crtc);
 	unsigned long flags;
 	bool pending;
 
-	if (atomic_read(&dev_priv->mm.wedged))
+	if (i915_reset_in_progress(&dev_priv->gpu_error) ||
+	    intel_crtc->reset_counter != atomic_read(&dev_priv->gpu_error.reset_counter))
 		return false;
 
 	spin_lock_irqsave(&dev->event_lock, flags);
@@ -2997,6 +2995,8 @@ static void lpt_program_iclkip(struct drm_crtc *crtc)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 divsel, phaseinc, auxdiv, phasedir = 0;
 	u32 temp;
+
+	mutex_lock(&dev_priv->dpio_lock);
 
 	/* It is necessary to ungate the pixclk gate prior to programming
 	 * the divisors, and gate it back when it is done.
@@ -3072,6 +3072,8 @@ static void lpt_program_iclkip(struct drm_crtc *crtc)
 	udelay(24);
 
 	I915_WRITE(PIXCLK_GATE, PIXCLK_GATE_UNGATE);
+
+	mutex_unlock(&dev_priv->dpio_lock);
 }
 
 /*
@@ -4367,6 +4369,8 @@ static void vlv_update_pll(struct drm_crtc *crtc,
 	bool is_sdvo;
 	u32 temp;
 
+	mutex_lock(&dev_priv->dpio_lock);
+
 	is_sdvo = intel_pipe_has_type(crtc, INTEL_OUTPUT_SDVO) ||
 		intel_pipe_has_type(crtc, INTEL_OUTPUT_HDMI);
 
@@ -4450,6 +4454,8 @@ static void vlv_update_pll(struct drm_crtc *crtc,
 			temp |= (1 << 21);
 		intel_dpio_write(dev_priv, DPIO_DATA_CHANNEL2, temp);
 	}
+
+	mutex_unlock(&dev_priv->dpio_lock);
 }
 
 static void i9xx_update_pll(struct drm_crtc *crtc,
@@ -4999,6 +5005,8 @@ static void lpt_init_pch_refclk(struct drm_device *dev)
 	if (!has_vga)
 		return;
 
+	mutex_lock(&dev_priv->dpio_lock);
+
 	/* XXX: Rip out SDV support once Haswell ships for real. */
 	if (IS_HASWELL(dev) && (dev->pci_device & 0xFF00) == 0x0C00)
 		is_sdv = true;
@@ -5141,6 +5149,8 @@ static void lpt_init_pch_refclk(struct drm_device *dev)
 	tmp = intel_sbi_read(dev_priv, SBI_DBUFF0, SBI_ICLK);
 	tmp |= SBI_DBUFF0_ENABLE;
 	intel_sbi_write(dev_priv, SBI_DBUFF0, tmp, SBI_ICLK);
+
+	mutex_unlock(&dev_priv->dpio_lock);
 }
 
 /*

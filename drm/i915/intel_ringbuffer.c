@@ -1389,7 +1389,8 @@ static int ring_wait_for_space(struct intel_ring_buffer *ring, int n)
 		DRM_MSLEEP(1);
 #endif
 
-		ret = i915_gem_check_wedge(dev_priv, dev_priv->mm.interruptible);
+		ret = i915_gem_check_wedge(&dev_priv->gpu_error,
+					   dev_priv->mm.interruptible);
 		if (ret) {
 			CTR1(KTR_DRM, "ring_wait_end %s wedged", ring->name);
 			return ret;
@@ -1460,7 +1461,8 @@ int intel_ring_begin(struct intel_ring_buffer *ring,
 	int n = 4*num_dwords;
 	int ret;
 
-	ret = i915_gem_check_wedge(dev_priv, dev_priv->mm.interruptible);
+	ret = i915_gem_check_wedge(&dev_priv->gpu_error,
+				   dev_priv->mm.interruptible);
 	if (ret)
 		return ret;
 
@@ -1490,7 +1492,7 @@ void intel_ring_advance(struct intel_ring_buffer *ring)
 	struct drm_i915_private *dev_priv = ring->dev->dev_private;
 
 	ring->tail &= ring->size - 1;
-	if (dev_priv->stop_rings & intel_ring_flag(ring))
+	if (dev_priv->gpu_error.stop_rings & intel_ring_flag(ring))
 		return;
 	ring->write_tail(ring, ring->tail);
 }

@@ -782,11 +782,11 @@ static int i915_error_state(struct drm_device *dev, struct sbuf *m,
 
 	/* FIXME Only in FreeBSD ??? */
 #ifdef __FreeBSD__
-	spin_lock(&dev_priv->error_lock);
-	error = dev_priv->first_error;
+	spin_lock(&dev_priv->gpu_error.lock);
+	error = dev_priv->gpu_error.first_error;
 	if (error != NULL)
 		kref_get(&error->ref);
-	spin_unlock(&dev_priv->error_lock);
+	spin_unlock(&dev_priv->gpu_error.lock);
 #endif
 
 	if (!error) {
@@ -938,11 +938,11 @@ static int i915_error_state_open(struct inode *inode, struct file *file)
 
 	error_priv->dev = dev;
 
-	spin_lock_irqsave(&dev_priv->error_lock, flags);
-	error_priv->error = dev_priv->first_error;
+	spin_lock_irqsave(&dev_priv->gpu_error.lock, flags);
+	error_priv->error = dev_priv->gpu_error.first_error;
 	if (error_priv->error)
 		kref_get(&error_priv->error->ref);
-	spin_unlock_irqrestore(&dev_priv->error_lock, flags);
+	spin_unlock_irqrestore(&dev_priv->gpu_error.lock, flags);
 
 	return single_open(file, i915_error_state, error_priv);
 }
@@ -1841,7 +1841,7 @@ i915_wedged_read(struct file *filp,
 
 	len = snprintf(buf, sizeof(buf),
 		       "wedged :  %d\n",
-		       atomic_read(&dev_priv->mm.wedged));
+		       atomic_read(&dev_priv->gpu_error.reset_counter));
 
 	if (len > sizeof(buf))
 		len = sizeof(buf);
@@ -1894,7 +1894,7 @@ i915_wedged(SYSCTL_HANDLER_ARGS)
 	if (dev_priv == NULL)
 		return (EBUSY);
 
-	val = atomic_read(&dev_priv->mm.wedged);
+	val = atomic_read(&dev_priv->gpu_error.reset_counter);
 	ret = sysctl_handle_int(oidp, &val, 0, req);
 	if (ret != 0 || !req->newptr)
 		return (ret);
@@ -1919,7 +1919,7 @@ i915_ring_stop_read(struct file *filp,
 	int len;
 
 	len = snprintf(buf, sizeof(buf),
-		       "0x%08x\n", dev_priv->stop_rings);
+		       "0x%08x\n", dev_priv->gpu_error.stop_rings);
 
 	if (len > sizeof(buf))
 		len = sizeof(buf);
@@ -1955,7 +1955,7 @@ i915_ring_stop_write(struct file *filp,
 	if (ret)
 		return ret;
 
-	dev_priv->stop_rings = val;
+	dev_priv->gpu_error.stop_rings = val;
 	mutex_unlock(&dev->struct_mutex);
 
 	return cnt;
@@ -1979,7 +1979,7 @@ i915_ring_stop(SYSCTL_HANDLER_ARGS)
 	if (dev_priv == NULL)
 		return (EBUSY);
 
-	val = dev_priv->stop_rings;
+	val = dev_priv->gpu_error.stop_rings;
 	ret = sysctl_handle_int(oidp, &val, 0, req);
 	if (ret != 0 || !req->newptr)
 		return (ret);
@@ -1987,7 +1987,7 @@ i915_ring_stop(SYSCTL_HANDLER_ARGS)
 	DRM_DEBUG_DRIVER("Stopping rings 0x%08x\n", val);
 
 	mutex_lock(&dev_priv->rps.hw_lock);
-	dev_priv->stop_rings = val;
+	dev_priv->gpu_error.stop_rings = val;
 	mutex_unlock(&dev_priv->rps.hw_lock);
 
 	return (0);
