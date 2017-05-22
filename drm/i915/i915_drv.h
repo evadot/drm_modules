@@ -46,6 +46,7 @@
 #include <linux/intel-iommu.h>
 #include <linux/kref.h>
 #endif
+#include <linux/pm_qos.h>
 
 /* General customization:
  */
@@ -942,6 +943,9 @@ typedef struct drm_i915_private {
 
 	/* protects the irq masks */
 	spinlock_t irq_lock;
+
+	/* To control wakeup latency, e.g. for irq-driven dp aux transfers. */
+	struct pm_qos_request pm_qos;
 
 	/* DPIO indirect register protection */
 	struct mutex dpio_lock;

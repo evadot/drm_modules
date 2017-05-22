@@ -343,11 +343,16 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	uint32_t ch_ctl = output_reg + 0x10;
 	uint32_t ch_data = ch_ctl + 4;
-	int i;
-	int recv_bytes;
+	int i, ret, recv_bytes;
 	uint32_t status;
 	uint32_t aux_clock_divider;
 	int try, precharge;
+
+	/* dp aux is extremely sensitive to irq latency, hence request the
+	 * lowest possible wakeup latency and so prevent the cpu from going into
+	 * deep sleep states.
+	 */
+	pm_qos_update_request(&dev_priv->pm_qos, 0);
 
 	if (IS_HASWELL(dev)) {
 		switch (intel_dig_port->port) {
@@ -414,7 +419,8 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 	if (try == 3) {
 		WARN(1, "dp_aux_ch not started status 0x%08x\n",
 		     I915_READ(ch_ctl));
-		return -EBUSY;
+		ret = -EBUSY;
+		goto out;
 	}
 
 	/* Must try at least 3 times according to DP spec */
@@ -457,7 +463,8 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 
 	if ((status & DP_AUX_CH_CTL_DONE) == 0) {
 		DRM_ERROR("dp_aux_ch not done status 0x%08x\n", status);
-		return -EBUSY;
+		ret = -EBUSY;
+		goto out;
 	}
 
 	/* Check for timeout or receive error.
@@ -465,14 +472,16 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 	 */
 	if (status & DP_AUX_CH_CTL_RECEIVE_ERROR) {
 		DRM_ERROR("dp_aux_ch receive error status 0x%08x\n", status);
-		return -EIO;
+		ret = -EIO;
+		goto out;
 	}
 
 	/* Timeouts occur when the device isn't connected, so they're
 	 * "normal" -- don't fill the kernel log with these */
 	if (status & DP_AUX_CH_CTL_TIME_OUT_ERROR) {
 		DRM_DEBUG_KMS("dp_aux_ch timeout status 0x%08x\n", status);
-		return -ETIMEDOUT;
+		ret = -ETIMEDOUT;
+		goto out;
 	}
 
 	/* Unload any bytes sent back from the other side */
@@ -485,7 +494,11 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 		unpack_aux(I915_READ(ch_data + i),
 			   recv + i, recv_bytes - i);
 
-	return recv_bytes;
+	ret = recv_bytes;
+out:
+	pm_qos_update_request(&dev_priv->pm_qos, PM_QOS_DEFAULT_VALUE);
+
+	return ret;
 }
 
 /* Write data to the aux channel in native mode */
