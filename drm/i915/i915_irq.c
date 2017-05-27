@@ -2948,3 +2948,11 @@ void intel_irq_init(struct drm_device *dev)
 		dev->driver->disable_vblank = i915_disable_vblank;
 	}
 }
+
+void intel_hpd_init(struct drm_device *dev)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+
+	if (dev_priv->display.hpd_irq_setup)
+		dev_priv->display.hpd_irq_setup(dev);
+}
