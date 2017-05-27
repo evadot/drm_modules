@@ -58,6 +58,8 @@ struct intel_lvds_encoder {
 	u32 pfit_control;
 	u32 pfit_pgm_ratios;
 	bool pfit_dirty;
+	bool is_dual_link;
+	u32 reg;
 
 	struct intel_lvds_connector *attached_connector;
 };
@@ -70,6 +72,7 @@ static struct intel_lvds_encoder *to_lvds_encoder(struct drm_encoder *encoder)
 static struct intel_lvds_connector *to_lvds_connector(struct drm_connector *connector)
 {
 	return container_of(connector, struct intel_lvds_connector, base.base);
+
 }
 
 static bool intel_lvds_get_hw_state(struct intel_encoder *encoder,
@@ -620,7 +623,6 @@ static int intel_lvds_set_property(struct drm_connector *connector,
 static const struct drm_encoder_helper_funcs intel_lvds_helper_funcs = {
 	.mode_fixup = intel_lvds_mode_fixup,
 	.mode_set = intel_lvds_mode_set,
-	.disable = intel_encoder_noop,
 };
 
 static const struct drm_connector_helper_funcs intel_lvds_connector_helper_funcs = {
@@ -919,6 +921,66 @@ static bool lvds_is_present_in_vbt(struct drm_device *dev,
 	}
 
 	return false;
+}
+
+static int intel_dual_link_lvds_callback(const struct dmi_system_id *id)
+{
+	DRM_INFO("Forcing lvds to dual link mode on %s\n", id->ident);
+	return 1;
+}
+
+static const struct dmi_system_id intel_dual_link_lvds[] = {
+	{
+		.callback = intel_dual_link_lvds_callback,
+		.ident = "Apple MacBook Pro (Core i5/i7 Series)",
+		.matches = {
+			DMI_MATCH(DMI_SYS_VENDOR, "Apple Inc."),
+			DMI_MATCH(DMI_PRODUCT_NAME, "MacBookPro8,2"),
+		},
+	},
+	{ }	/* terminating entry */
+};
+
+bool intel_is_dual_link_lvds(struct drm_device *dev)
+{
+	struct intel_encoder *encoder;
+	struct intel_lvds_encoder *lvds_encoder;
+
+	list_for_each_entry(encoder, &dev->mode_config.encoder_list,
+			    base.head) {
+		if (encoder->type == INTEL_OUTPUT_LVDS) {
+			lvds_encoder = to_lvds_encoder(&encoder->base);
+
+			return lvds_encoder->is_dual_link;
+		}
+	}
+
+	return false;
+}
+
+static bool compute_is_dual_link_lvds(struct intel_lvds_encoder *lvds_encoder)
+{
+	struct drm_device *dev = lvds_encoder->base.base.dev;
+	unsigned int val;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+
+	/* use the module option value if specified */
+	if (i915_lvds_channel_mode > 0)
+		return i915_lvds_channel_mode == 2;
+
+	if (dmi_check_system(intel_dual_link_lvds))
+		return true;
+
+	/* BIOS should set the proper LVDS register value at boot, but
+	 * in reality, it doesn't set the value when the lid is closed;
+	 * we need to check "the value to be set" in VBT when LVDS
+	 * register is uninitialized.
+	 */
+	val = I915_READ(lvds_encoder->reg);
+	if (!(val & ~(LVDS_PIPE_MASK | LVDS_DETECTED)))
+		val = dev_priv->bios_lvds_val;
+
+	return (val & LVDS_CLKB_POWER_MASK) == LVDS_CLKB_POWER_UP;
 }
 
 static bool intel_lvds_supported(struct drm_device *dev)

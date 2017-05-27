@@ -2679,11 +2679,12 @@
 #define   PIPECONF_INTERLACED_DBL_ILK		(4 << 21) /* ilk/snb only */
 #define   PIPECONF_PFIT_PF_INTERLACED_DBL_ILK	(5 << 21) /* ilk/snb only */
 #define   PIPECONF_CXSR_DOWNCLOCK	(1<<16)
-#define   PIPECONF_BPP_MASK	(0x000000e0)
-#define   PIPECONF_BPP_8	(0<<5)
-#define   PIPECONF_BPP_10	(1<<5)
-#define   PIPECONF_BPP_6	(2<<5)
-#define   PIPECONF_BPP_12	(3<<5)
+#define   PIPECONF_COLOR_RANGE_SELECT	(1 << 13)
+#define   PIPECONF_BPC_MASK	(0x7 << 5)
+#define   PIPECONF_8BPC		(0<<5)
+#define   PIPECONF_10BPC	(1<<5)
+#define   PIPECONF_6BPC		(2<<5)
+#define   PIPECONF_12BPC	(3<<5)
 #define   PIPECONF_DITHER_EN	(1<<4)
 #define   PIPECONF_DITHER_TYPE_MASK (0x0000000c)
 #define   PIPECONF_DITHER_TYPE_SP (0<<2)
@@ -4453,10 +4454,10 @@
 #define   AUDIO_CP_READY_C		(1<<9)
 
 /* HSW Power Wells */
-#define HSW_PWR_WELL_CTL1			0x45400 /* BIOS */
-#define HSW_PWR_WELL_CTL2			0x45404 /* Driver */
-#define HSW_PWR_WELL_CTL3			0x45408 /* KVMR */
-#define HSW_PWR_WELL_CTL4			0x4540C /* Debug */
+#define HSW_PWR_WELL_BIOS			0x45400 /* CTL1 */
+#define HSW_PWR_WELL_DRIVER			0x45404 /* CTL2 */
+#define HSW_PWR_WELL_KVMR			0x45408 /* CTL3 */
+#define HSW_PWR_WELL_DEBUG			0x4540C /* CTL4 */
 #define   HSW_PWR_WELL_ENABLE			(1<<31)
 #define   HSW_PWR_WELL_STATE			(1<<30)
 #define HSW_PWR_WELL_CTL5			0x45410
