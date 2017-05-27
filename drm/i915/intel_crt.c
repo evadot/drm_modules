@@ -262,27 +262,27 @@ static bool intel_ironlake_crt_detect_hotplug(struct drm_connector *connector)
 
 		crt->force_hotplug_required = 0;
 
-		save_adpa = adpa = I915_READ(PCH_ADPA);
+		save_adpa = adpa = I915_READ(crt->adpa_reg);
 		DRM_DEBUG_KMS("trigger hotplug detect cycle: adpa=0x%x\n", adpa);
 
 		adpa |= ADPA_CRT_HOTPLUG_FORCE_TRIGGER;
 		if (turn_off_dac)
 			adpa &= ~ADPA_DAC_ENABLE;
 
-		I915_WRITE(PCH_ADPA, adpa);
+		I915_WRITE(crt->adpa_reg, adpa);
 
-		if (wait_for((I915_READ(PCH_ADPA) & ADPA_CRT_HOTPLUG_FORCE_TRIGGER) == 0,
+		if (wait_for((I915_READ(crt->adpa_reg) & ADPA_CRT_HOTPLUG_FORCE_TRIGGER) == 0,
 			     1000))
 			DRM_DEBUG_KMS("timed out waiting for FORCE_TRIGGER");
 
 		if (turn_off_dac) {
-			I915_WRITE(PCH_ADPA, save_adpa);
-			POSTING_READ(PCH_ADPA);
+			I915_WRITE(crt->adpa_reg, save_adpa);
+			POSTING_READ(crt->adpa_reg);
 		}
 	}
 
 	/* Check the status to see if both blue and green are on now */
-	adpa = I915_READ(PCH_ADPA);
+	adpa = I915_READ(crt->adpa_reg);
 	if ((adpa & ADPA_CRT_HOTPLUG_MONITOR_MASK) != 0)
 		ret = true;
 	else
@@ -295,26 +295,27 @@ static bool intel_ironlake_crt_detect_hotplug(struct drm_connector *connector)
 static bool valleyview_crt_detect_hotplug(struct drm_connector *connector)
 {
 	struct drm_device *dev = connector->dev;
+	struct intel_crt *crt = intel_attached_crt(connector);
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 adpa;
 	bool ret;
 	u32 save_adpa;
 
-	save_adpa = adpa = I915_READ(ADPA);
+	save_adpa = adpa = I915_READ(crt->adpa_reg);
 	DRM_DEBUG_KMS("trigger hotplug detect cycle: adpa=0x%x\n", adpa);
 
 	adpa |= ADPA_CRT_HOTPLUG_FORCE_TRIGGER;
 
-	I915_WRITE(ADPA, adpa);
+	I915_WRITE(crt->adpa_reg, adpa);
 
-	if (wait_for((I915_READ(ADPA) & ADPA_CRT_HOTPLUG_FORCE_TRIGGER) == 0,
+	if (wait_for((I915_READ(crt->adpa_reg) & ADPA_CRT_HOTPLUG_FORCE_TRIGGER) == 0,
 		     1000)) {
 		DRM_DEBUG_KMS("timed out waiting for FORCE_TRIGGER");
-		I915_WRITE(ADPA, save_adpa);
+		I915_WRITE(crt->adpa_reg, save_adpa);
 	}
 
 	/* Check the status to see if both blue and green are on now */
-	adpa = I915_READ(ADPA);
+	adpa = I915_READ(crt->adpa_reg);
 	if ((adpa & ADPA_CRT_HOTPLUG_MONITOR_MASK) != 0)
 		ret = true;
 	else
@@ -425,7 +426,6 @@ static bool intel_crt_detect_ddc(struct drm_connector *connector)
 	struct drm_i915_private *dev_priv = crt->base.base.dev->dev_private;
 	struct edid *edid;
 	device_t i2c;
-	bool res = false;
 
 	BUG_ON(crt->base.type != INTEL_OUTPUT_ANALOG);
 
@@ -442,8 +442,7 @@ static bool intel_crt_detect_ddc(struct drm_connector *connector)
 		 */
 		if (!is_digital) {
 			DRM_DEBUG_KMS("CRT detected via DDC:0x50 [EDID]\n");
-			res = true;
-			goto out;
+			return true;
 		}
 
 		DRM_DEBUG_KMS("CRT not detected via DDC:0x50 [EDID reports a digital panel]\n");
@@ -451,10 +450,9 @@ static bool intel_crt_detect_ddc(struct drm_connector *connector)
 		DRM_DEBUG_KMS("CRT not detected via DDC:0x50 [no valid EDID found]\n");
 	}
 
-out:
 	kfree(edid);
 
-	return res;
+	return false;
 }
 
 static enum drm_connector_status
@@ -684,7 +682,6 @@ static void intel_crt_reset(struct drm_connector *connector)
 static const struct drm_encoder_helper_funcs crt_encoder_funcs = {
 	.mode_fixup = intel_crt_mode_fixup,
 	.mode_set = intel_crt_mode_set,
-	.disable = intel_encoder_noop,
 };
 
 static const struct drm_connector_funcs intel_crt_connector_funcs = {
