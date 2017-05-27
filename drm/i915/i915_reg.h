@@ -301,6 +301,7 @@
 #define   DISPLAY_PLANE_A           (0<<20)
 #define   DISPLAY_PLANE_B           (1<<20)
 #define GFX_OP_PIPE_CONTROL(len)	((0x3<<29)|(0x3<<27)|(0x2<<24)|(len-2))
+#define   PIPE_CONTROL_GLOBAL_GTT_IVB			(1<<24) /* gen7+ */
 #define   PIPE_CONTROL_CS_STALL				(1<<20)
 #define   PIPE_CONTROL_TLB_INVALIDATE			(1<<18)
 #define   PIPE_CONTROL_QW_WRITE				(1<<14)
@@ -335,6 +336,8 @@
  *  0x801c/3c: core clock bits
  *  0x8048/68: low pass filter coefficients
  *  0x8100: fast clock controls
+ *
+ * DPIO is VLV only.
  */
 #define DPIO_PKT			0x2100
 #define  DPIO_RID			(0<<24)
@@ -735,6 +738,7 @@
 #define   GEN7_FF_TS_SCHED_HS0		(0x3<<16)
 #define   GEN7_FF_TS_SCHED_LOAD_BALANCE	(0x1<<16)
 #define   GEN7_FF_TS_SCHED_HW		(0x0<<16) /* Default */
+#define   GEN7_FF_VS_REF_CNT_FFME	(1 << 15)
 #define   GEN7_FF_VS_SCHED_HS1		(0x5<<12)
 #define   GEN7_FF_VS_SCHED_HS0		(0x3<<12)
 #define   GEN7_FF_VS_SCHED_LOAD_BALANCE	(0x1<<12) /* Default */
@@ -1242,6 +1246,10 @@
 #define   MAD_DIMM_A_SIZE_SHIFT		0
 #define   MAD_DIMM_A_SIZE_MASK		(0xff << MAD_DIMM_A_SIZE_SHIFT)
 
+/** snb MCH registers for priority tuning */
+#define MCH_SSKPD			(MCHBAR_MIRROR_BASE_SNB + 0x5d10)
+#define   MCH_SSKPD_WM0_MASK		0x3f
+#define   MCH_SSKPD_WM0_VAL		0xc
 
 /* Clocking configuration register */
 #define CLKCFG			0x10c00
@@ -2967,6 +2975,7 @@
 #define   CURSOR_ENABLE		0x80000000
 #define   CURSOR_GAMMA_ENABLE	0x40000000
 #define   CURSOR_STRIDE_MASK	0x30000000
+#define   CURSOR_PIPE_CSC_ENABLE (1<<24)
 #define   CURSOR_FORMAT_SHIFT	24
 #define   CURSOR_FORMAT_MASK	(0x07 << CURSOR_FORMAT_SHIFT)
 #define   CURSOR_FORMAT_2C	(0x00 << CURSOR_FORMAT_SHIFT)
@@ -3028,6 +3037,7 @@
 #define   DISPPLANE_RGBA888			(0xf<<26)
 #define   DISPPLANE_STEREO_ENABLE		(1<<25)
 #define   DISPPLANE_STEREO_DISABLE		0
+#define   DISPPLANE_PIPE_CSC_ENABLE		(1<<24)
 #define   DISPPLANE_SEL_PIPE_SHIFT		24
 #define   DISPPLANE_SEL_PIPE_MASK		(3<<DISPPLANE_SEL_PIPE_SHIFT)
 #define   DISPPLANE_SEL_PIPE_A			0
@@ -3116,6 +3126,7 @@
 #define   DVS_FORMAT_RGBX101010	(1<<25)
 #define   DVS_FORMAT_RGBX888	(2<<25)
 #define   DVS_FORMAT_RGBX161616	(3<<25)
+#define   DVS_PIPE_CSC_ENABLE   (1<<24)
 #define   DVS_SOURCE_KEY	(1<<22)
 #define   DVS_RGB_ORDER_XBGR	(1<<20)
 #define   DVS_YUV_BYTE_ORDER_MASK (3<<16)
@@ -3253,6 +3264,8 @@
 # define VGA_DISP_DISABLE			(1 << 31)
 # define VGA_2X_MODE				(1 << 30)
 # define VGA_PIPE_B_SELECT			(1 << 29)
+
+#define VLV_VGACNTRL		(VLV_DISPLAY_BASE + 0x71400)
 
 /* Ironlake */
 
@@ -4659,5 +4672,52 @@
 #define  WM_DBG_DISALLOW_MULTIPLE_LP	(1<<0)
 #define  WM_DBG_DISALLOW_MAXFIFO	(1<<1)
 #define  WM_DBG_DISALLOW_SPRITE		(1<<2)
+
+/* pipe CSC */
+#define _PIPE_A_CSC_COEFF_RY_GY	0x49010
+#define _PIPE_A_CSC_COEFF_BY	0x49014
+#define _PIPE_A_CSC_COEFF_RU_GU	0x49018
+#define _PIPE_A_CSC_COEFF_BU	0x4901c
+#define _PIPE_A_CSC_COEFF_RV_GV	0x49020
+#define _PIPE_A_CSC_COEFF_BV	0x49024
+#define _PIPE_A_CSC_MODE	0x49028
+#define _PIPE_A_CSC_PREOFF_HI	0x49030
+#define _PIPE_A_CSC_PREOFF_ME	0x49034
+#define _PIPE_A_CSC_PREOFF_LO	0x49038
+#define _PIPE_A_CSC_POSTOFF_HI	0x49040
+#define _PIPE_A_CSC_POSTOFF_ME	0x49044
+#define _PIPE_A_CSC_POSTOFF_LO	0x49048
+
+#define _PIPE_B_CSC_COEFF_RY_GY	0x49110
+#define _PIPE_B_CSC_COEFF_BY	0x49114
+#define _PIPE_B_CSC_COEFF_RU_GU	0x49118
+#define _PIPE_B_CSC_COEFF_BU	0x4911c
+#define _PIPE_B_CSC_COEFF_RV_GV	0x49120
+#define _PIPE_B_CSC_COEFF_BV	0x49124
+#define _PIPE_B_CSC_MODE	0x49128
+#define _PIPE_B_CSC_PREOFF_HI	0x49130
+#define _PIPE_B_CSC_PREOFF_ME	0x49134
+#define _PIPE_B_CSC_PREOFF_LO	0x49138
+#define _PIPE_B_CSC_POSTOFF_HI	0x49140
+#define _PIPE_B_CSC_POSTOFF_ME	0x49144
+#define _PIPE_B_CSC_POSTOFF_LO	0x49148
+
+#define CSC_BLACK_SCREEN_OFFSET (1 << 2)
+#define CSC_POSITION_BEFORE_GAMMA (1 << 1)
+#define CSC_MODE_YUV_TO_RGB (1 << 0)
+
+#define PIPE_CSC_COEFF_RY_GY(pipe) _PIPE(pipe, _PIPE_A_CSC_COEFF_RY_GY, _PIPE_B_CSC_COEFF_RY_GY)
+#define PIPE_CSC_COEFF_BY(pipe) _PIPE(pipe, _PIPE_A_CSC_COEFF_BY, _PIPE_B_CSC_COEFF_BY)
+#define PIPE_CSC_COEFF_RU_GU(pipe) _PIPE(pipe, _PIPE_A_CSC_COEFF_RU_GU, _PIPE_B_CSC_COEFF_RU_GU)
+#define PIPE_CSC_COEFF_BU(pipe) _PIPE(pipe, _PIPE_A_CSC_COEFF_BU, _PIPE_B_CSC_COEFF_BU)
+#define PIPE_CSC_COEFF_RV_GV(pipe) _PIPE(pipe, _PIPE_A_CSC_COEFF_RV_GV, _PIPE_B_CSC_COEFF_RV_GV)
+#define PIPE_CSC_COEFF_BV(pipe) _PIPE(pipe, _PIPE_A_CSC_COEFF_BV, _PIPE_B_CSC_COEFF_BV)
+#define PIPE_CSC_MODE(pipe) _PIPE(pipe, _PIPE_A_CSC_MODE, _PIPE_B_CSC_MODE)
+#define PIPE_CSC_PREOFF_HI(pipe) _PIPE(pipe, _PIPE_A_CSC_PREOFF_HI, _PIPE_B_CSC_PREOFF_HI)
+#define PIPE_CSC_PREOFF_ME(pipe) _PIPE(pipe, _PIPE_A_CSC_PREOFF_ME, _PIPE_B_CSC_PREOFF_ME)
+#define PIPE_CSC_PREOFF_LO(pipe) _PIPE(pipe, _PIPE_A_CSC_PREOFF_LO, _PIPE_B_CSC_PREOFF_LO)
+#define PIPE_CSC_POSTOFF_HI(pipe) _PIPE(pipe, _PIPE_A_CSC_POSTOFF_HI, _PIPE_B_CSC_POSTOFF_HI)
+#define PIPE_CSC_POSTOFF_ME(pipe) _PIPE(pipe, _PIPE_A_CSC_POSTOFF_ME, _PIPE_B_CSC_POSTOFF_ME)
+#define PIPE_CSC_POSTOFF_LO(pipe) _PIPE(pipe, _PIPE_A_CSC_POSTOFF_LO, _PIPE_B_CSC_POSTOFF_LO)
 
 #endif /* _I915_REG_H_ */

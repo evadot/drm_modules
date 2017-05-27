@@ -22,6 +22,7 @@
  *
  * Authors:
  *    Eric Anholt <eric@anholt.net>
+ *
  */
 
 #ifndef _I830_BIOS_H_
