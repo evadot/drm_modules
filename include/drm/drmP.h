@@ -519,6 +519,7 @@ struct drm_file {
 	struct drm_master *master; /* master this node is currently associated with
 				      N.B. not always minor->master */
 	struct list_head fbs;
+	struct mutex fbs_lock;
 
 	wait_queue_head_t event_wait;
 #ifdef __FreeBSD__

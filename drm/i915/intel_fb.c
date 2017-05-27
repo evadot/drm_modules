@@ -320,7 +320,7 @@ void intel_fb_restore_mode(struct drm_device *dev)
 	struct drm_mode_config *config = &dev->mode_config;
 	struct drm_plane *plane;
 
-	mutex_lock(&dev->mode_config.mutex);
+	drm_modeset_lock_all(dev);
 
 	ret = drm_fb_helper_restore_fbdev_mode(&dev_priv->fbdev->helper);
 	if (ret)
@@ -328,7 +328,8 @@ void intel_fb_restore_mode(struct drm_device *dev)
 
 	/* Be sure to shut off any planes that may be active */
 	list_for_each_entry(plane, &config->plane_list, head)
-		plane->funcs->disable_plane(plane);
+		if (plane->enabled)
+			plane->funcs->disable_plane(plane);
 
-	mutex_unlock(&dev->mode_config.mutex);
+	drm_modeset_unlock_all(dev);
 }

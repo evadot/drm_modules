@@ -249,7 +249,6 @@ int drm_lastclose(struct drm_device * dev)
 		drm_dma_takedown(dev);
 
 	dev->dev_mapping = NULL;
-
 	mutex_unlock(&dev->struct_mutex);
 
 	DRM_DEBUG("lastclose completed\n");

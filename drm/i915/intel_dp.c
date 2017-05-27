@@ -1092,6 +1092,8 @@ static void ironlake_panel_vdd_off_sync(struct intel_dp *intel_dp)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	u32 pp;
 
+	WARN_ON(!mutex_is_locked(&dev->mode_config.mutex));
+
 	if (!intel_dp->want_panel_vdd && ironlake_edp_have_panel_vdd(intel_dp)) {
 		pp = ironlake_get_pp_control(dev_priv);
 		pp &= ~EDP_FORCE_VDD;
@@ -2560,7 +2562,9 @@ void intel_dp_encoder_destroy(struct drm_encoder *encoder)
 	drm_encoder_cleanup(encoder);
 	if (is_edp(intel_dp)) {
 		cancel_delayed_work_sync(&intel_dp->panel_vdd_work);
+		mutex_lock(&dev->mode_config.mutex);
 		ironlake_panel_vdd_off_sync(intel_dp);
+		mutex_unlock(&dev->mode_config.mutex);
 	}
 	kfree(intel_dig_port);
 }
