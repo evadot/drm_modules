@@ -31,7 +31,6 @@
 #include <linux/device.h>
 #endif
 #include <drm/drmP.h>
-#include <drm/drm_pciids.h>
 #include <drm/i915_drm.h>
 #include "i915_drv.h"
 #include "i915_trace.h"
@@ -175,6 +174,7 @@ extern int intel_agp_enabled;
 int intel_agp_enabled = 1; /* On FreeBSD, agp is a required dependency. */
 
 #define INTEL_VGA_DEVICE(id, info_) {		\
+	.vendor = 0x8086,			\
 	.device = id,				\
 	.info = info_,				\
 }
@@ -350,15 +350,11 @@ static const struct intel_device_info intel_haswell_m_info = {
 	.has_force_wake = 1,
 };
 
-/* drv_PCI_IDs comes from drm_pciids.h, generated from drm_pciids.txt. */
+#ifdef __linux__
+static const struct pci_device_id pciidlist[] = {		/* aka */
+#elif __FreeBSD__
 static const drm_pci_id_list_t pciidlist[] = {
-	i915_PCI_IDS
-};
-
-static const struct intel_gfx_device_id {
-	int device;
-	const struct intel_device_info *info;
-} i915_infolist[] = {		/* aka */
+#endif
 	INTEL_VGA_DEVICE(0x3577, &intel_i830_info),		/* I830_M */
 	INTEL_VGA_DEVICE(0x2562, &intel_845g_info),		/* 845_G */
 	INTEL_VGA_DEVICE(0x3582, &intel_i85x_info),		/* I855_GM */
@@ -466,7 +462,7 @@ static const struct intel_gfx_device_id {
 	INTEL_VGA_DEVICE(0x0f30, &intel_valleyview_m_info),
 	INTEL_VGA_DEVICE(0x0157, &intel_valleyview_m_info),
 	INTEL_VGA_DEVICE(0x0155, &intel_valleyview_d_info),
-	{0, 0}
+	{0, 0, 0}
 };
 
 #if defined(CONFIG_DRM_I915_KMS)
@@ -1054,9 +1050,9 @@ int i915_reset(struct drm_device *dev)
 const struct intel_device_info *
 i915_get_device_id(int device)
 {
-	const struct intel_gfx_device_id *did;
+	const drm_pci_id_list_t *did;
 
-	for (did = &i915_infolist[0]; did->device != 0; did++) {
+	for (did = &pciidlist[0]; did->device != 0; did++) {
 		if (did->device != device)
 			continue;
 		return (did->info);

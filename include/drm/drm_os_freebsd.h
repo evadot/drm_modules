@@ -266,6 +266,7 @@ typedef struct drm_pci_id_list
 	int device;
 	long driver_private;
 	char *name;
+	const struct intel_device_info *info;
 } drm_pci_id_list_t;
 
 #ifdef __i386__
