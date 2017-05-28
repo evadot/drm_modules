@@ -379,7 +379,7 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 	 * clock divider.
 	 */
 	if (is_cpu_edp(intel_dp)) {
-		if (IS_HASWELL(dev))
+		if (HAS_DDI(dev))
 			aux_clock_divider = intel_ddi_get_cdclk_freq(dev_priv) >> 1;
 		else if (IS_VALLEYVIEW(dev))
 			aux_clock_divider = 100;
@@ -399,7 +399,7 @@ intel_dp_aux_ch(struct intel_dp *intel_dp,
 
 	/* Try to wait for any previous AUX channel activity */
 	for (try = 0; try < 3; try++) {
-		status = I915_READ(ch_ctl);
+		status = I915_READ_NOTRACE(ch_ctl);
 		if ((status & DP_AUX_CH_CTL_SEND_BUSY) == 0)
 			break;
 #ifdef FREEBSD_NOTYET
