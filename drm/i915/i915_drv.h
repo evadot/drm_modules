@@ -30,9 +30,6 @@
 #ifndef _I915_DRV_H_
 #define _I915_DRV_H_
 
-#ifdef __FreeBSD__
-#include <dev/agp/agp_i810.h>
-#endif
 #include <drm/i915_drm.h>
 #include "i915_reg.h"
 #include "intel_bios.h"
@@ -44,8 +41,9 @@
 #include <drm/intel-gtt.h>
 #include <linux/backlight.h>
 #include <linux/intel-iommu.h>
-#include <linux/kref.h>
 #endif
+#include <drm/intel-gtt.h>
+#include <linux/kref.h>
 #include <linux/pm_qos.h>
 
 /* General customization:
