@@ -1584,6 +1584,7 @@ int __must_check i915_gem_object_pin(struct drm_i915_gem_object *obj,
 				     bool nonblocking);
 void i915_gem_object_unpin(struct drm_i915_gem_object *obj);
 int __must_check i915_gem_object_unbind(struct drm_i915_gem_object *obj);
+int i915_gem_object_put_pages(struct drm_i915_gem_object *obj);
 void i915_gem_release_mmap(struct drm_i915_gem_object *obj);
 void i915_gem_lastclose(struct drm_device *dev);
 
@@ -1717,9 +1718,10 @@ void i915_gem_free_all_phys_object(struct drm_device *dev);
 void i915_gem_release(struct drm_device *dev, struct drm_file *file);
 
 uint32_t
-i915_gem_get_unfenced_gtt_alignment(struct drm_device *dev,
-				    uint32_t size,
-				    int tiling_mode);
+i915_gem_get_gtt_size(struct drm_device *dev, uint32_t size, int tiling_mode);
+uint32_t
+i915_gem_get_gtt_alignment(struct drm_device *dev, uint32_t size,
+			    int tiling_mode, bool fenced);
 
 int i915_gem_object_set_cache_level(struct drm_i915_gem_object *obj,
 				    enum i915_cache_level cache_level);
