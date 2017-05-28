@@ -944,7 +944,6 @@ typedef struct drm_i915_private {
 	u32 pipestat[2];
 	u32 irq_mask;
 	u32 gt_irq_mask;
-	u32 pch_irq_mask;
 
 	u32 hotplug_supported_mask;
 	struct work_struct hotplug_work;
@@ -1257,13 +1256,6 @@ struct drm_i915_gem_object {
 
 	/** for phy allocated objects */
 	struct drm_i915_gem_phys_object *phys_obj;
-
-	/**
-	 * Number of crtcs where this object is currently the fb, but
-	 * will be page flipped away on the next vblank.  When it
-	 * reaches 0, dev_priv->pending_flip_queue will be woken up.
-	 */
-	atomic_t pending_flip;
 };
 #define to_gem_object(obj) (&((struct drm_i915_gem_object *)(obj))->base)
 
@@ -1949,8 +1941,6 @@ __i915_write(64, 64)
 
 #define POSTING_READ(reg)	(void)I915_READ_NOTRACE(reg)
 #define POSTING_READ16(reg)	(void)I915_READ16_NOTRACE(reg)
-
-u32 i915_gem_next_request_seqno(struct intel_ring_buffer *ring);
 
 /* "Broadcast RGB" property */
 #define INTEL_BROADCAST_RGB_AUTO 0
