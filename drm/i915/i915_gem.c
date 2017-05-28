@@ -270,7 +270,7 @@ i915_gem_create(struct drm_file *file,
 	if (ret) {
 		drm_gem_object_release(&obj->base);
 		i915_gem_info_remove_obj(dev->dev_private, obj->base.size);
-		kfree(obj);
+		i915_gem_object_free(obj);
 		return ret;
 	}
 
@@ -4305,12 +4305,12 @@ struct drm_i915_gem_object *i915_gem_alloc_object(struct drm_device *dev,
 {
 	struct drm_i915_gem_object *obj;
 
-	obj = kzalloc(sizeof(*obj), GFP_KERNEL);
+	obj = i915_gem_object_alloc(dev);
 	if (obj == NULL)
 		return NULL;
 
 	if (drm_gem_object_init(dev, &obj->base, size) != 0) {
-		kfree(obj);
+		i915_gem_object_free(obj);
 		return NULL;
 	}
 
@@ -4396,7 +4396,7 @@ void i915_gem_free_object(struct drm_gem_object *gem_obj)
 	i915_gem_info_remove_obj(dev_priv, obj->base.size);
 
 	kfree(obj->bit_17);
-	kfree(obj);
+	i915_gem_object_free(obj);
 }
 
 int
@@ -4810,8 +4810,12 @@ static int i915_gem_init_phys_object(struct drm_device *dev,
 		goto kfree_obj;
 	}
 #ifdef CONFIG_X86
+#ifdef __linux__
+	set_memory_wc((unsigned long)phys_obj->handle->vaddr, phys_obj->handle->size / PAGE_SIZE);
+#elif __FreeBSD__
 	pmap_change_attr((vm_offset_t)phys_obj->handle->vaddr,
 	    size / PAGE_SIZE, PAT_WRITE_COMBINING);
+#endif
 #endif
 
 	dev_priv->mm.phys_objs[id - 1] = phys_obj;
