@@ -536,6 +536,9 @@ void intel_detect_pch(struct drm_device *dev)
 			}
 			BUG_ON(dev_priv->num_pch_pll > I915_NUM_PLLS);
 		}
+#ifdef __linux__
+		pci_dev_put(pch);
+#endif
 	}
 }
 
