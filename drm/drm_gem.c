@@ -622,10 +622,10 @@ drm_gem_release(struct drm_device *dev, struct drm_file *file_private)
 void
 drm_gem_object_release(struct drm_gem_object *obj)
 {
-#ifdef FREEBSD_NOTYET
+#ifdef __linux__
 	if (obj->filp)
 	    fput(obj->filp);
-#else
+#elif __FreeBSD__
 	/*
 	 * obj->vm_obj can be NULL for private gem objects.
 	 */
@@ -689,7 +689,6 @@ void drm_gem_object_handle_free(struct drm_gem_object *obj)
 EXPORT_SYMBOL(drm_gem_object_handle_free);
 
 #ifdef __linux__
-
 void drm_gem_vm_open(struct vm_area_struct *vma)
 {
 	struct drm_gem_object *obj = vma->vm_private_data;
@@ -791,6 +790,7 @@ out_unlock:
 EXPORT_SYMBOL(drm_gem_mmap);
 #endif /* __linux __ */
 
+#ifdef __FreeBSD__
 static struct drm_gem_object *
 drm_gem_object_from_offset(struct drm_device *dev, vm_ooffset_t offset)
 {
@@ -853,3 +853,4 @@ drm_gem_pager_dtr(void *handle)
 	drm_gem_object_unreference(obj);
 	mutex_unlock(&dev->struct_mutex);
 }
+#endif /* __FreeBSD__ */

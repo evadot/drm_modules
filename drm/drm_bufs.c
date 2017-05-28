@@ -1636,8 +1636,8 @@ int drm_mapbufs(struct drm_device *dev, void *data,
 #elif __FreeBSD__
 	vm_offset_t virtual;
 	vm_offset_t address;
-#endif
 	struct vmspace *vms;
+#endif
 	struct drm_buf_map *request = data;
 	int i;
 
@@ -1655,7 +1655,9 @@ int drm_mapbufs(struct drm_device *dev, void *data,
 	dev->buf_use++;		/* Can't allocate more after this call */
 	spin_unlock(&dev->count_lock);
 
+#ifdef __FreeBSD__
 	vms = DRM_CURPROC->td_proc->p_vmspace;
+#endif
 
 	if (request->count >= dma->buf_count) {
 		if ((drm_core_has_AGP(dev) && (dma->flags & _DRM_DMA_USE_AGP))

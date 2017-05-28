@@ -210,9 +210,10 @@ void drm_vblank_cleanup(struct drm_device *dev)
 	kfree(dev->vblank_inmodeset);
 	kfree(dev->_vblank_time);
 
+#ifdef __FreeBSD__
 	spin_lock_destroy(&dev->vbl_lock);
 	spin_lock_destroy(&dev->vblank_time_lock);
-
+#endif
 	dev->num_crtcs = 0;
 }
 EXPORT_SYMBOL(drm_vblank_cleanup);
@@ -897,11 +898,11 @@ static void send_vblank_event(struct drm_device *dev,
 
 	list_add_tail(&e->base.link,
 		      &e->base.file_priv->event_list);
-#ifdef __linux__
+#ifdef FREEBSD_NOTYET
 	wake_up_interruptible(&e->base.file_priv->event_wait);
 	trace_drm_vblank_event_delivered(e->base.pid, e->pipe,
 					 e->event.sequence);
-#elif __FreeBSD__
+#else
 	drm_event_wakeup(&e->base);
 	CTR3(KTR_DRM, "vblank_event_delivered %d %d %d",
 	    e->base.pid, e->pipe, e->event.sequence);
@@ -1084,9 +1085,9 @@ void drm_vblank_off(struct drm_device *dev, int crtc)
 
 	spin_lock_irqsave(&dev->vbl_lock, irqflags);
 	vblank_disable_and_save(dev, crtc);
-#ifdef __linux__
+#ifdef FREEBSD_NOTYE
 	DRM_WAKEUP(&dev->vbl_queue[crtc]);
-#elif __FreeBSD__
+#else
 	DRM_WAKEUP(&dev->_vblank_count[crtc]);
 #endif
 
@@ -1246,10 +1247,10 @@ static int drm_queue_vblank_event(struct drm_device *dev, int pipe,
 	DRM_DEBUG("event on vblank count %d, current %d, crtc %d\n",
 		  vblwait->request.sequence, seq, pipe);
 
-#ifdef __linux__
+#ifdef FREEBSD_NOTYET
 	trace_drm_vblank_event_queued(current->pid, pipe,
 				      vblwait->request.sequence);
-#elif __FreeBSD__
+#else
 	CTR4(KTR_DRM, "vblank_event_queued %d %d rt %x %d", curproc->p_pid, pipe,
 	    vblwait->request.type, vblwait->request.sequence);
 #endif
@@ -1511,9 +1512,9 @@ bool drm_handle_vblank(struct drm_device *dev, int crtc)
 			  crtc, (int) diff_ns);
 	}
 
-#ifdef __linux__
+#ifdef FREEBSD_NOTYET
 	DRM_WAKEUP(&dev->vbl_queue[crtc]);
-#elif __FreeBSD__
+#else
 	DRM_WAKEUP(&dev->_vblank_count[crtc]);
 #endif
 	drm_handle_vblank_events(dev, crtc);

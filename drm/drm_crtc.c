@@ -767,13 +767,13 @@ EXPORT_SYMBOL(drm_connector_cleanup);
 
 void drm_connector_unplug_all(struct drm_device *dev)
 {
-#ifdef FREEBSD_NOTYET
+#ifdef __linux__
 	struct drm_connector *connector;
 
 	/* taking the mode config mutex ends up in a clash with sysfs */
 	list_for_each_entry(connector, &dev->mode_config.connector_list, head)
 		drm_sysfs_connector_remove(connector);
-#endif /* FREEBSD_NOTYET */
+#endif
 
 }
 EXPORT_SYMBOL(drm_connector_unplug_all);
@@ -1187,11 +1187,13 @@ int drm_mode_group_init(struct drm_device *dev, struct drm_mode_group *group)
 	return 0;
 }
 
+#ifdef __FreeBSD__
 void drm_mode_group_free(struct drm_mode_group *group)
 {
 	kfree(group->id_list);
 	group->id_list = NULL;
 }
+#endif
 
 int drm_mode_group_init_legacy_group(struct drm_device *dev,
 				     struct drm_mode_group *group)
