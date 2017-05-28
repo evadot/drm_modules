@@ -3589,6 +3589,15 @@ i915_gem_clflush_object(struct drm_i915_gem_object *obj)
 	if (obj->pages == NULL)
 		return;
 
+	/*
+	 * Stolen memory is always coherent with the GPU as it is explicitly
+	 * marked as wc by the system, or the system is cache-coherent.
+	 */
+#ifdef FREEBSD_NOTYET
+	if (obj->stolen)
+		return;
+#endif
+
 	/* If the GPU is snooping the contents of the CPU cache,
 	 * we do not need to manually clear the CPU cache lines.  However,
 	 * the caches are only snooped when the render cache is
@@ -4494,7 +4503,11 @@ intel_enable_blt(struct drm_device *dev)
 		return false;
 
 	/* The blitter was dysfunctional on early prototypes */
+#ifdef __linux__
+	if (IS_GEN6(dev) && dev->pdev->revision < 8) {
+#elif __FreeBSD__
 	if (IS_GEN6(dev) && pci_get_revid(dev->dev) < 8) {
+#endif
 		DRM_INFO("BLT not supported on this pre-production hardware;"
 			 " graphics performance will be degraded.\n");
 		return false;
@@ -4759,8 +4772,14 @@ i915_gem_load(struct drm_device *dev)
 
 	dev_priv->mm.interruptible = true;
 
+#ifdef __linux__
+	dev_priv->mm.inactive_shrinker.shrink = i915_gem_inactive_shrink;
+	dev_priv->mm.inactive_shrinker.seeks = DEFAULT_SEEKS;
+	register_shrinker(&dev_priv->mm.inactive_shrinker);
+#elif __FreeBSD__
 	dev_priv->mm.inactive_shrinker = EVENTHANDLER_REGISTER(vm_lowmem,
 	    i915_gem_inactive_shrink, dev, EVENTHANDLER_PRI_ANY);
+#endif
 }
 
 /*
