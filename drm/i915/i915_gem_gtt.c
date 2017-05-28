@@ -50,9 +50,9 @@ typedef uint32_t gtt_pte_t;
 #define GEN6_PTE_CACHE_LLC_MLC		(3 << 1)
 #define GEN6_PTE_ADDR_ENCODE(addr)	GEN6_GTT_ADDR_ENCODE(addr)
 
-static inline gtt_pte_t pte_encode(struct drm_device *dev,
-				   dma_addr_t addr,
-				   enum i915_cache_level level)
+static inline gtt_pte_t gen6_pte_encode(struct drm_device *dev,
+					dma_addr_t addr,
+					enum i915_cache_level level)
 {
 	gtt_pte_t pte = GEN6_PTE_VALID;
 	pte |= GEN6_PTE_ADDR_ENCODE(addr);
@@ -93,8 +93,9 @@ static void i915_ppgtt_clear_range(struct i915_hw_ppgtt *ppgtt,
 	unsigned first_pte = first_entry % I915_PPGTT_PT_ENTRIES;
 	unsigned last_pte, i;
 
-	scratch_pte = pte_encode(ppgtt->dev, ppgtt->scratch_page_dma_addr,
-				 I915_CACHE_LLC);
+	scratch_pte = gen6_pte_encode(ppgtt->dev,
+				      ppgtt->scratch_page_dma_addr,
+				      I915_CACHE_LLC);
 
 	while (num_entries) {
 		last_pte = first_pte + num_entries;
@@ -170,7 +171,7 @@ int i915_gem_init_aliasing_ppgtt(struct drm_device *dev)
 #endif
 	}
 
-	ppgtt->scratch_page_dma_addr = dev_priv->gtt.gtt->scratch_page_dma;
+	ppgtt->scratch_page_dma_addr = dev_priv->gtt.scratch_page_dma;
 
 	i915_ppgtt_clear_range(ppgtt, 0,
 			       ppgtt->num_pd_entries*I915_PPGTT_PT_ENTRIES);
@@ -269,7 +270,7 @@ static void i915_ppgtt_insert_pages(struct i915_hw_ppgtt *ppgtt,
 
 		for (j = first_pte; j < I915_PPGTT_PT_ENTRIES; j++) {
 			page_addr = sg_dma_address(sg) + (m << PAGE_SHIFT);
-			pt_vaddr[j] = pte_encode(ppgtt->dev, page_addr,
+			pt_vaddr[j] = gen6_pte_encode(ppgtt->dev, page_addr,
 						 cache_level);
 
 			/* grab the next page */
@@ -300,7 +301,7 @@ static void i915_ppgtt_insert_pages(struct i915_hw_ppgtt *ppgtt,
 
 		for (j = first_pte; j < last_pte; j++) {
 			page_addr = VM_PAGE_TO_PHYS(*pages);
-			pt_vaddr[j] = pte_encode(ppgtt->dev, page_addr,
+			pt_vaddr[j] = gen6_pte_encode(ppgtt->dev, page_addr,
 						 cache_level);
 
 			pages++;
@@ -404,11 +405,27 @@ void i915_gem_init_ppgtt(struct drm_device *dev)
 	}
 }
 
+extern int intel_iommu_gfx_mapped;
+/* Certain Gen5 chipsets require require idling the GPU before
+ * unmapping anything from the GTT when VT-d is enabled.
+ */
+static inline bool needs_idle_maps(struct drm_device *dev)
+{
+#ifdef CONFIG_INTEL_IOMMU
+	/* Query intel_iommu to see if we need the workaround. Presumably that
+	 * was loaded first.
+	 */
+	if (IS_GEN5(dev) && IS_MOBILE(dev) && intel_iommu_gfx_mapped)
+		return true;
+#endif
+	return false;
+}
+
 static bool do_idling(struct drm_i915_private *dev_priv)
 {
 	bool ret = dev_priv->mm.interruptible;
 
-	if (unlikely(dev_priv->gtt.gtt->do_idle_maps)) {
+	if (unlikely(dev_priv->gtt.do_idle_maps)) {
 		dev_priv->mm.interruptible = false;
 		if (i915_gpu_idle(dev_priv->dev)) {
 			DRM_ERROR("Couldn't idle GPU\n");
@@ -422,7 +439,7 @@ static bool do_idling(struct drm_i915_private *dev_priv)
 
 static void undo_idling(struct drm_i915_private *dev_priv, bool interruptible)
 {
-	if (unlikely(dev_priv->gtt.gtt->do_idle_maps))
+	if (unlikely(dev_priv->gtt.do_idle_maps))
 		dev_priv->mm.interruptible = interruptible;
 }
 
@@ -447,7 +464,7 @@ static void i915_ggtt_clear_range(struct drm_device *dev,
 		 first_entry, num_entries, max_entries))
 		num_entries = max_entries;
 
-	scratch_pte = pte_encode(dev, dev_priv->gtt.gtt->scratch_page_dma, I915_CACHE_LLC);
+	scratch_pte = gen6_pte_encode(dev, dev_priv->gtt.scratch_page_dma, I915_CACHE_LLC);
 	for (i = 0; i < num_entries; i++)
 		iowrite32(scratch_pte, &gtt_base[i]);
 	readl(gtt_base);
@@ -497,7 +514,6 @@ static void gen6_ggtt_bind_object(struct drm_i915_gem_object *obj,
 	struct drm_device *dev = obj->base.dev;
 	struct drm_i915_private *dev_priv = dev->dev_private;
 #ifdef __linux__
-	struct sg_table *st = obj->pages;
 	struct scatterlist *sg = st->sgl;
 #endif
 	const int first_entry = obj->gtt_space->start >> PAGE_SHIFT;
@@ -516,14 +532,15 @@ static void gen6_ggtt_bind_object(struct drm_i915_gem_object *obj,
 		len = sg_dma_len(sg) >> PAGE_SHIFT;
 		for (m = 0; m < len; m++) {
 			addr = sg_dma_address(sg) + (m << PAGE_SHIFT);
-			iowrite32(pte_encode(dev, addr, level), &gtt_entries[i]);
+			iowrite32(gen6_pte_encode(dev, addr, level),
+				  &gtt_entries[i]);
 			i++;
 		}
 	}
 #elif __FreeBSD__
 	for (i = 0; i < obj->base.size >> PAGE_SHIFT; ++i) {
 		addr = VM_PAGE_TO_PHYS(obj->pages[i]);
-		iowrite32(pte_encode(dev, addr, level), &gtt_entries[i]);
+		iowrite32(gen6_pte_encode(dev, addr, level), &gtt_entries[i]);
 	}
 #endif
 
@@ -537,7 +554,8 @@ static void gen6_ggtt_bind_object(struct drm_i915_gem_object *obj,
 	 * hardware should work, we must keep this posting read for paranoia.
 	 */
 	if (i != 0)
-		WARN_ON(readl(&gtt_entries[i-1]) != pte_encode(dev, addr, level));
+		WARN_ON(readl(&gtt_entries[i-1])
+			!= gen6_pte_encode(dev, addr, level));
 
 	/* This next bit makes the above posting read even more important. We
 	 * want to flush the TLBs only after we're certain all the PTE updates
@@ -687,8 +705,8 @@ retry:
 #else
 	dma_addr = page_to_phys(page);
 #endif
-	dev_priv->gtt.gtt->scratch_page = page;
-	dev_priv->gtt.gtt->scratch_page_dma = dma_addr;
+	dev_priv->gtt.scratch_page = page;
+	dev_priv->gtt.scratch_page_dma = dma_addr;
 
 	return 0;
 }
@@ -697,11 +715,11 @@ static void teardown_scratch_page(struct drm_device *dev)
 {
 #ifdef CONFIG_INTEL_IOMMU /* <- Added as a marker on FreeBSD. */
 	struct drm_i915_private *dev_priv = dev->dev_private;
-	set_pages_wb(dev_priv->gtt.gtt->scratch_page, 1);
-	pci_unmap_page(dev->pdev, dev_priv->gtt.gtt->scratch_page_dma,
+	set_pages_wb(dev_priv->gtt.scratch_page, 1);
+	pci_unmap_page(dev->pdev, dev_priv->gtt.scratch_page_dma,
 		       PAGE_SIZE, PCI_DMA_BIDIRECTIONAL);
-	put_page(dev_priv->gtt.gtt->scratch_page);
-	__free_page(dev_priv->gtt.gtt->scratch_page);
+	put_page(dev_priv->gtt.scratch_page);
+	__free_page(dev_priv->gtt.scratch_page);
 #endif
 }
 
