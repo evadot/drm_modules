@@ -223,7 +223,6 @@ struct intel_connector {
 
 	/* Cached EDID for eDP and LVDS. May hold ERR_PTR for invalid EDID. */
 	struct edid *edid;
-	int edid_err;
 };
 
 struct intel_crtc {
