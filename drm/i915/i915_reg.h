@@ -339,16 +339,16 @@
  *
  * DPIO is VLV only.
  */
-#define DPIO_PKT			0x2100
+#define DPIO_PKT			(VLV_DISPLAY_BASE + 0x2100)
 #define  DPIO_RID			(0<<24)
 #define  DPIO_OP_WRITE			(1<<16)
 #define  DPIO_OP_READ			(0<<16)
 #define  DPIO_PORTID			(0x12<<8)
 #define  DPIO_BYTE			(0xf<<4)
 #define  DPIO_BUSY			(1<<0) /* status only */
-#define DPIO_DATA			0x2104
-#define DPIO_REG			0x2108
-#define DPIO_CTL			0x2110
+#define DPIO_DATA			(VLV_DISPLAY_BASE + 0x2104)
+#define DPIO_REG			(VLV_DISPLAY_BASE + 0x2108)
+#define DPIO_CTL			(VLV_DISPLAY_BASE + 0x2110)
 #define  DPIO_MODSEL1			(1<<3) /* if ref clk b == 27 */
 #define  DPIO_MODSEL0			(1<<2) /* if ref clk a == 27 */
 #define  DPIO_SFR_BYPASS		(1<<1)
@@ -559,13 +559,13 @@
 #define IIR		0x020a4
 #define IMR		0x020a8
 #define ISR		0x020ac
-#define VLV_GUNIT_CLOCK_GATE	0x182060
+#define VLV_GUNIT_CLOCK_GATE	(VLV_DISPLAY_BASE + 0x2060)
 #define   GCFG_DIS		(1<<8)
-#define VLV_IIR_RW	0x182084
-#define VLV_IER		0x1820a0
-#define VLV_IIR		0x1820a4
-#define VLV_IMR		0x1820a8
-#define VLV_ISR		0x1820ac
+#define VLV_IIR_RW	(VLV_DISPLAY_BASE + 0x2084)
+#define VLV_IER		(VLV_DISPLAY_BASE + 0x20a0)
+#define VLV_IIR		(VLV_DISPLAY_BASE + 0x20a4)
+#define VLV_IMR		(VLV_DISPLAY_BASE + 0x20a8)
+#define VLV_ISR		(VLV_DISPLAY_BASE + 0x20ac)
 #define   I915_PIPE_CONTROL_NOTIFY_INTERRUPT		(1<<18)
 #define   I915_DISPLAY_PORT_INTERRUPT			(1<<17)
 #define   I915_RENDER_COMMAND_PARSER_ERROR_INTERRUPT	(1<<15)
@@ -947,23 +947,8 @@
 #define   DPLL_LOCK_VLV			(1<<15)
 #define   DPLL_INTEGRATED_CLOCK_VLV	(1<<13)
 
-#define SRX_INDEX		0x3c4
-#define SRX_DATA		0x3c5
-#define SR01			1
-#define SR01_SCREEN_OFF		(1<<5)
+#define   SR01	1
 
-#define PPCR			0x61204
-#define PPCR_ON			(1<<0)
-
-#define DVOB			0x61140
-#define DVOB_ON			(1<<31)
-#define DVOC			0x61160
-#define DVOC_ON			(1<<31)
-#define LVDS			0x61180
-#define LVDS_ON			(1<<31)
-
-/* Scratch pad debug 0 reg:
- */
 #define   DPLL_FPA01_P1_POST_DIV_MASK_I830	0x001f0000
 /*
  * The i830 generation, in LVDS mode, defines P1 as the bit number set within
@@ -1182,7 +1167,7 @@
 #define RAMCLK_GATE_D		0x6210		/* CRL only */
 #define DEUC			0x6214          /* CRL only */
 
-#define FW_BLC_SELF_VLV		0x6500
+#define FW_BLC_SELF_VLV		(VLV_DISPLAY_BASE + 0x6500)
 #define  FW_CSPWRDWNEN		(1<<15)
 
 /*
@@ -1623,9 +1608,9 @@
 #define   ADPA_CRT_HOTPLUG_FORCE_TRIGGER (1<<16)
 #define   ADPA_USE_VGA_HVPOLARITY (1<<15)
 #define   ADPA_SETS_HVPOLARITY	0
-#define   ADPA_VSYNC_CNTL_DISABLE (1<<11)
+#define   ADPA_VSYNC_CNTL_DISABLE (1<<10)
 #define   ADPA_VSYNC_CNTL_ENABLE 0
-#define   ADPA_HSYNC_CNTL_DISABLE (1<<10)
+#define   ADPA_HSYNC_CNTL_DISABLE (1<<11)
 #define   ADPA_HSYNC_CNTL_ENABLE 0
 #define   ADPA_VSYNC_ACTIVE_HIGH (1<<4)
 #define   ADPA_VSYNC_ACTIVE_LOW	0
@@ -1894,8 +1879,6 @@
 #define   PFIT_SCALING_PILLAR	(2 << 26)
 #define   PFIT_SCALING_LETTER	(3 << 26)
 #define PFIT_PGM_RATIOS	0x61234
-#define   PFIT_VERT_SCALE_MASK			0xfff00000
-#define   PFIT_HORIZ_SCALE_MASK			0x0000fff0
 /* Pre-965 */
 #define		PFIT_VERT_SCALE_SHIFT		20
 #define		PFIT_VERT_SCALE_MASK		0xfff00000
@@ -2718,11 +2701,6 @@
 #define   PIPE_START_VBLANK_INTERRUPT_STATUS	(1UL<<2) /* 965 or later */
 #define   PIPE_VBLANK_INTERRUPT_STATUS		(1UL<<1)
 #define   PIPE_OVERLAY_UPDATED_STATUS		(1UL<<0)
-#define   PIPE_BPC_MASK				(7 << 5) /* Ironlake */
-#define   PIPE_8BPC				(0 << 5)
-#define   PIPE_10BPC				(1 << 5)
-#define   PIPE_6BPC				(2 << 5)
-#define   PIPE_12BPC				(3 << 5)
 
 #define PIPESRC(pipe) _PIPE(pipe, _PIPEASRC, _PIPEBSRC)
 #define PIPECONF(tran) _TRANSCODER(tran, _PIPEACONF, _PIPEBCONF)
@@ -2731,7 +2709,7 @@
 #define PIPEFRAMEPIXEL(pipe)  _PIPE(pipe, _PIPEAFRAMEPIXEL, _PIPEBFRAMEPIXEL)
 #define PIPESTAT(pipe) _PIPE(pipe, _PIPEASTAT, _PIPEBSTAT)
 
-#define VLV_DPFLIPSTAT				0x70028
+#define VLV_DPFLIPSTAT				(VLV_DISPLAY_BASE + 0x70028)
 #define   PIPEB_LINE_COMPARE_INT_EN		(1<<29)
 #define   PIPEB_HLINE_INT_EN			(1<<28)
 #define   PIPEB_VBLANK_INT_EN			(1<<27)
@@ -2745,7 +2723,7 @@
 #define   SPRITEA_FLIPDONE_INT_EN		(1<<17)
 #define   PLANEA_FLIPDONE_INT_EN		(1<<16)
 
-#define DPINVGTT				0x7002c /* VLV only */
+#define DPINVGTT				(VLV_DISPLAY_BASE + 0x7002c) /* VLV only */
 #define   CURSORB_INVALID_GTT_INT_EN		(1<<23)
 #define   CURSORA_INVALID_GTT_INT_EN		(1<<22)
 #define   SPRITED_INVALID_GTT_INT_EN		(1<<21)
@@ -2797,13 +2775,13 @@
 /* drain latency register values*/
 #define DRAIN_LATENCY_PRECISION_32	32
 #define DRAIN_LATENCY_PRECISION_16	16
-#define VLV_DDL1			0x70050
+#define VLV_DDL1			(VLV_DISPLAY_BASE + 0x70050)
 #define DDL_CURSORA_PRECISION_32	(1<<31)
 #define DDL_CURSORA_PRECISION_16	(0<<31)
 #define DDL_CURSORA_SHIFT		24
 #define DDL_PLANEA_PRECISION_32		(1<<7)
 #define DDL_PLANEA_PRECISION_16		(0<<7)
-#define VLV_DDL2			0x70054
+#define VLV_DDL2			(VLV_DISPLAY_BASE + 0x70054)
 #define DDL_CURSORB_PRECISION_32	(1<<31)
 #define DDL_CURSORB_PRECISION_16	(0<<31)
 #define DDL_CURSORB_SHIFT		24
@@ -3585,27 +3563,30 @@
 #define PORTD_PULSE_DURATION_6ms        (2 << 18)
 #define PORTD_PULSE_DURATION_100ms      (3 << 18)
 #define PORTD_PULSE_DURATION_MASK	(3 << 18)
-#define PORTD_HOTPLUG_NO_DETECT         (0)
-#define PORTD_HOTPLUG_SHORT_DETECT      (1 << 16)
-#define PORTD_HOTPLUG_LONG_DETECT       (1 << 17)
+#define PORTD_HOTPLUG_STATUS_MASK	(0x3 << 16)
+#define  PORTD_HOTPLUG_NO_DETECT	(0 << 16)
+#define  PORTD_HOTPLUG_SHORT_DETECT	(1 << 16)
+#define  PORTD_HOTPLUG_LONG_DETECT	(2 << 16)
 #define PORTC_HOTPLUG_ENABLE            (1 << 12)
 #define PORTC_PULSE_DURATION_2ms        (0)
 #define PORTC_PULSE_DURATION_4_5ms      (1 << 10)
 #define PORTC_PULSE_DURATION_6ms        (2 << 10)
 #define PORTC_PULSE_DURATION_100ms      (3 << 10)
 #define PORTC_PULSE_DURATION_MASK	(3 << 10)
-#define PORTC_HOTPLUG_NO_DETECT         (0)
-#define PORTC_HOTPLUG_SHORT_DETECT      (1 << 8)
-#define PORTC_HOTPLUG_LONG_DETECT       (1 << 9)
+#define PORTC_HOTPLUG_STATUS_MASK	(0x3 << 8)
+#define  PORTC_HOTPLUG_NO_DETECT	(0 << 8)
+#define  PORTC_HOTPLUG_SHORT_DETECT	(1 << 8)
+#define  PORTC_HOTPLUG_LONG_DETECT	(2 << 8)
 #define PORTB_HOTPLUG_ENABLE            (1 << 4)
 #define PORTB_PULSE_DURATION_2ms        (0)
 #define PORTB_PULSE_DURATION_4_5ms      (1 << 2)
 #define PORTB_PULSE_DURATION_6ms        (2 << 2)
 #define PORTB_PULSE_DURATION_100ms      (3 << 2)
 #define PORTB_PULSE_DURATION_MASK	(3 << 2)
-#define PORTB_HOTPLUG_NO_DETECT         (0)
-#define PORTB_HOTPLUG_SHORT_DETECT      (1 << 0)
-#define PORTB_HOTPLUG_LONG_DETECT       (1 << 1)
+#define PORTB_HOTPLUG_STATUS_MASK	(0x3 << 0)
+#define  PORTB_HOTPLUG_NO_DETECT	(0 << 0)
+#define  PORTB_HOTPLUG_SHORT_DETECT	(1 << 0)
+#define  PORTB_HOTPLUG_LONG_DETECT	(2 << 0)
 
 #define PCH_GPIOA               0xc5010
 #define PCH_GPIOB               0xc5014
@@ -3726,13 +3707,13 @@
 #define TVIDEO_DIP_DATA(pipe) _PIPE(pipe, _VIDEO_DIP_DATA_A, _VIDEO_DIP_DATA_B)
 #define TVIDEO_DIP_GCP(pipe) _PIPE(pipe, _VIDEO_DIP_GCP_A, _VIDEO_DIP_GCP_B)
 
-#define VLV_VIDEO_DIP_CTL_A		0x60200
-#define VLV_VIDEO_DIP_DATA_A		0x60208
-#define VLV_VIDEO_DIP_GDCP_PAYLOAD_A	0x60210
+#define VLV_VIDEO_DIP_CTL_A		(VLV_DISPLAY_BASE + 0x60200)
+#define VLV_VIDEO_DIP_DATA_A		(VLV_DISPLAY_BASE + 0x60208)
+#define VLV_VIDEO_DIP_GDCP_PAYLOAD_A	(VLV_DISPLAY_BASE + 0x60210)
 
-#define VLV_VIDEO_DIP_CTL_B		0x61170
-#define VLV_VIDEO_DIP_DATA_B		0x61174
-#define VLV_VIDEO_DIP_GDCP_PAYLOAD_B	0x61178
+#define VLV_VIDEO_DIP_CTL_B		(VLV_DISPLAY_BASE + 0x61170)
+#define VLV_VIDEO_DIP_DATA_B		(VLV_DISPLAY_BASE + 0x61174)
+#define VLV_VIDEO_DIP_GDCP_PAYLOAD_B	(VLV_DISPLAY_BASE + 0x61178)
 
 #define VLV_TVIDEO_DIP_CTL(pipe) \
 	 _PIPE(pipe, VLV_VIDEO_DIP_CTL_A, VLV_VIDEO_DIP_CTL_B)
@@ -3824,8 +3805,6 @@
 #define  TRANS_FSYNC_DELAY_HB2  (1<<27)
 #define  TRANS_FSYNC_DELAY_HB3  (2<<27)
 #define  TRANS_FSYNC_DELAY_HB4  (3<<27)
-#define  TRANS_DP_AUDIO_ONLY    (1<<26)
-#define  TRANS_DP_VIDEO_AUDIO   (0<<26)
 #define  TRANS_INTERLACE_MASK   (7<<21)
 #define  TRANS_PROGRESSIVE      (0<<21)
 #define  TRANS_INTERLACED       (3<<21)
@@ -4024,17 +4003,17 @@
 #define  LVDS_DETECTED	(1 << 1)
 
 /* vlv has 2 sets of panel control regs. */
-#define PIPEA_PP_STATUS         0x61200
-#define PIPEA_PP_CONTROL        0x61204
-#define PIPEA_PP_ON_DELAYS      0x61208
-#define PIPEA_PP_OFF_DELAYS     0x6120c
-#define PIPEA_PP_DIVISOR        0x61210
+#define PIPEA_PP_STATUS         (VLV_DISPLAY_BASE + 0x61200)
+#define PIPEA_PP_CONTROL        (VLV_DISPLAY_BASE + 0x61204)
+#define PIPEA_PP_ON_DELAYS      (VLV_DISPLAY_BASE + 0x61208)
+#define PIPEA_PP_OFF_DELAYS     (VLV_DISPLAY_BASE + 0x6120c)
+#define PIPEA_PP_DIVISOR        (VLV_DISPLAY_BASE + 0x61210)
 
-#define PIPEB_PP_STATUS         0x61300
-#define PIPEB_PP_CONTROL        0x61304
-#define PIPEB_PP_ON_DELAYS      0x61308
-#define PIPEB_PP_OFF_DELAYS     0x6130c
-#define PIPEB_PP_DIVISOR        0x61310
+#define PIPEB_PP_STATUS         (VLV_DISPLAY_BASE + 0x61300)
+#define PIPEB_PP_CONTROL        (VLV_DISPLAY_BASE + 0x61304)
+#define PIPEB_PP_ON_DELAYS      (VLV_DISPLAY_BASE + 0x61308)
+#define PIPEB_PP_OFF_DELAYS     (VLV_DISPLAY_BASE + 0x6130c)
+#define PIPEB_PP_DIVISOR        (VLV_DISPLAY_BASE + 0x61310)
 
 #define PCH_PP_STATUS		0xc7200
 #define PCH_PP_CONTROL		0xc7204

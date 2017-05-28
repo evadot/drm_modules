@@ -981,7 +981,6 @@ typedef struct drm_i915_private {
 	unsigned int fdi_rx_polarity_inverted:1;
 	int lvds_ssc_freq;
 	unsigned int bios_lvds_val; /* initial [PCH_]LVDS reg val in VBIOS */
-	unsigned int lvds_val; /* used for checking LVDS channel mode */
 	struct {
 		int rate;
 		int lanes;
