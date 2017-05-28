@@ -254,7 +254,7 @@ i915_gem_execbuffer_relocate_entry(struct drm_i915_gem_object *obj,
 	}
 
 	/* We can't wait for rendering with pagefaults disabled */
-	if (obj->active && (curthread->td_pflags & TDP_NOFAULTING) != 0)
+	if (obj->active && in_atomic())
 		return -EFAULT;
 
 	reloc->delta += target_offset;

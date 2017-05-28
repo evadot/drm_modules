@@ -240,6 +240,7 @@ capable(enum __drm_capabilities cap)
 #define preempt_disable	critical_enter
 #define preempt_enable	critical_exit
 
+#define in_atomic()	((curthread->td_pflags & TDP_NOFAULTING) != 0)
 #define	to_user_ptr(x)		((void *)(uintptr_t)(x))
 #define	sigemptyset(set)	SIGEMPTYSET(set)
 #define	sigaddset(set, sig)	SIGADDSET(set, sig)
