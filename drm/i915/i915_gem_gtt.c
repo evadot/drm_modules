@@ -83,7 +83,7 @@ static inline gtt_pte_t gen6_pte_encode(struct drm_device *dev,
 }
 
 /* PPGTT support for Sandybdrige/Gen6 and later */
-static void i915_ppgtt_clear_range(struct i915_hw_ppgtt *ppgtt,
+static void gen6_ppgtt_clear_range(struct i915_hw_ppgtt *ppgtt,
 				   unsigned first_entry,
 				   unsigned num_entries)
 {
@@ -173,8 +173,13 @@ int i915_gem_init_aliasing_ppgtt(struct drm_device *dev)
 
 	ppgtt->scratch_page_dma_addr = dev_priv->gtt.scratch_page_dma;
 
-	i915_ppgtt_clear_range(ppgtt, 0,
+#ifdef FREEBSD_NOTYET
+	ppgtt->clear_range(ppgtt, 0,
+			   ppgtt->num_pd_entries*I915_PPGTT_PT_ENTRIES);
+#else
+	gen6_ppgtt_clear_range(ppgtt, 0,
 			       ppgtt->num_pd_entries*I915_PPGTT_PT_ENTRIES);
+#endif
 
 	ppgtt->pd_offset = (first_pd_entry_in_global_pt)*sizeof(gtt_pte_t);
 
@@ -321,12 +326,11 @@ void i915_ppgtt_bind_object(struct i915_hw_ppgtt *ppgtt,
 			    struct drm_i915_gem_object *obj,
 			    enum i915_cache_level cache_level)
 {
-#ifdef __linux__
-	i915_ppgtt_insert_sg_entries(ppgtt,
-				     obj->pages,
-				     obj->gtt_space->start >> PAGE_SHIFT,
-				     cache_level);
-#elif __FreeBSD__
+#ifdef FREEBSD_NOTYET
+	ppgtt->insert_entries(ppgtt, obj->pages,
+			      obj->gtt_space->start >> PAGE_SHIFT,
+			      cache_level);
+#else
 	i915_ppgtt_insert_pages(ppgtt,
 				     obj->pages,
 				     obj->gtt_space->start >> PAGE_SHIFT,
@@ -338,9 +342,15 @@ void i915_ppgtt_bind_object(struct i915_hw_ppgtt *ppgtt,
 void i915_ppgtt_unbind_object(struct i915_hw_ppgtt *ppgtt,
 			      struct drm_i915_gem_object *obj)
 {
-	i915_ppgtt_clear_range(ppgtt,
+#ifdef FREEBSD_NOTYET
+	ppgtt->clear_range(ppgtt,
+			   obj->gtt_space->start >> PAGE_SHIFT,
+			   obj->base.size >> PAGE_SHIFT);
+#else
+	gen6_ppgtt_clear_range(ppgtt,
 			       obj->gtt_space->start >> PAGE_SHIFT,
 			       obj->base.size >> PAGE_SHIFT);
+#endif
 }
 
 void i915_gem_init_ppgtt(struct drm_device *dev)
@@ -349,7 +359,7 @@ void i915_gem_init_ppgtt(struct drm_device *dev)
 	uint32_t pd_offset;
 	struct intel_ring_buffer *ring;
 	struct i915_hw_ppgtt *ppgtt = dev_priv->mm.aliasing_ppgtt;
-	uint32_t __iomem *pd_addr;
+	gtt_pte_t __iomem *pd_addr;
 	uint32_t pd_entry;
 	int i;
 
@@ -357,7 +367,7 @@ void i915_gem_init_ppgtt(struct drm_device *dev)
 		return;
 
 
-	pd_addr = dev_priv->gtt.gtt->gtt + ppgtt->pd_offset/sizeof(uint32_t);
+	pd_addr = dev_priv->gtt.gtt->gtt + ppgtt->pd_offset/sizeof(gtt_pte_t);
 	for (i = 0; i < ppgtt->num_pd_entries; i++) {
 		dma_addr_t pt_addr;
 
@@ -476,8 +486,13 @@ void i915_gem_restore_gtt_mappings(struct drm_device *dev)
 	struct drm_i915_gem_object *obj;
 
 	/* First fill our portion of the GTT with scratch pages */
+#ifdef FREEBSD_NOTYET
+	dev_priv->gtt.gtt_clear_range(dev, dev_priv->gtt.start / PAGE_SIZE,
+				      dev_priv->gtt.total / PAGE_SIZE);
+#else
 	i915_ggtt_clear_range(dev, dev_priv->gtt.start / PAGE_SIZE,
 			      (dev_priv->gtt.gtt_end - dev_priv->gtt.start) / PAGE_SIZE);
+#endif
 
 	list_for_each_entry(obj, &dev_priv->mm.bound_list, gtt_list) {
 		i915_gem_clflush_object(obj);
@@ -565,6 +580,7 @@ static void gen6_ggtt_bind_object(struct drm_i915_gem_object *obj,
 	POSTING_READ(GFX_FLSH_CNTL_GEN6);
 }
 
+
 void i915_gem_gtt_bind_object(struct drm_i915_gem_object *obj,
 			      enum i915_cache_level cache_level)
 {
@@ -586,14 +602,29 @@ void i915_gem_gtt_bind_object(struct drm_i915_gem_object *obj,
 		gen6_ggtt_bind_object(obj, cache_level);
 	}
 
+#ifdef FREEBSD_NOTYET
+	dev_priv->gtt.gtt_insert_entries(dev, obj->pages,
+					 obj->gtt_space->start >> PAGE_SHIFT,
+					 cache_level);
+#endif
+
 	obj->has_global_gtt_mapping = 1;
 }
 
 void i915_gem_gtt_unbind_object(struct drm_i915_gem_object *obj)
 {
+#ifdef FREEBSD_NOTYET
+	struct drm_device *dev = obj->base.dev;
+	struct drm_i915_private *dev_priv = dev->dev_private;
+
+	dev_priv->gtt.gtt_clear_range(obj->base.dev,
+				      obj->gtt_space->start >> PAGE_SHIFT,
+				      obj->base.size >> PAGE_SHIFT);
+#else
 	i915_ggtt_clear_range(obj->base.dev,
 			      obj->gtt_space->start >> PAGE_SHIFT,
 			      obj->base.size >> PAGE_SHIFT);
+#endif
 
 	obj->has_global_gtt_mapping = 0;
 }
@@ -632,11 +663,10 @@ static void i915_gtt_color_adjust(struct drm_mm_node *node,
 			*end -= 4096;
 	}
 }
-
-void i915_gem_init_global_gtt(struct drm_device *dev,
-			      unsigned long start,
-			      unsigned long mappable_end,
-			      unsigned long end)
+void i915_gem_setup_global_gtt(struct drm_device *dev,
+			       unsigned long start,
+			       unsigned long mappable_end,
+			       unsigned long end)
 {
 	drm_i915_private_t *dev_priv = dev->dev_private;
 
@@ -662,6 +692,48 @@ void i915_gem_init_global_gtt(struct drm_device *dev,
 	vm_phys_fictitious_reg_range(dev_priv->gtt.mappable_base + start,
 	    dev_priv->gtt.mappable_base + start + dev_priv->gtt.mappable_gtt_total,
 	    VM_MEMATTR_WRITE_COMBINING);
+}
+
+static bool
+intel_enable_ppgtt(struct drm_device *dev)
+{
+	if (i915_enable_ppgtt >= 0)
+		return i915_enable_ppgtt;
+
+#ifdef CONFIG_INTEL_IOMMU
+	/* Disable ppgtt on SNB if VT-d is on. */
+	if (INTEL_INFO(dev)->gen == 6 && intel_iommu_gfx_mapped)
+		return false;
+#endif
+
+	return true;
+}
+
+void i915_gem_init_global_gtt(struct drm_device *dev)
+{
+	struct drm_i915_private *dev_priv = dev->dev_private;
+	unsigned long gtt_size, mappable_size;
+
+	gtt_size = dev_priv->gtt.total;
+	mappable_size = dev_priv->gtt.mappable_end;
+
+	if (intel_enable_ppgtt(dev) && HAS_ALIASING_PPGTT(dev)) {
+		int ret;
+		/* PPGTT pdes are stolen from global gtt ptes, so shrink the
+		 * aperture accordingly when using aliasing ppgtt. */
+		gtt_size -= I915_PPGTT_PD_ENTRIES*PAGE_SIZE;
+
+		i915_gem_setup_global_gtt(dev, 0, mappable_size, gtt_size);
+
+		ret = i915_gem_init_aliasing_ppgtt(dev);
+		if (!ret)
+			return;
+
+		DRM_ERROR("Aliased PPGTT setup failed %d\n", ret);
+		drm_mm_takedown(&dev_priv->mm.gtt_space);
+		gtt_size += I915_PPGTT_PD_ENTRIES*PAGE_SIZE;
+	}
+	i915_gem_setup_global_gtt(dev, 0, mappable_size, gtt_size);
 }
 
 static int setup_scratch_page(struct drm_device *dev)
@@ -730,14 +802,14 @@ static inline unsigned int gen6_get_total_gtt_size(u16 snb_gmch_ctl)
 	return snb_gmch_ctl << 20;
 }
 
-static inline unsigned int gen6_get_stolen_size(u16 snb_gmch_ctl)
+static inline size_t gen6_get_stolen_size(u16 snb_gmch_ctl)
 {
 	snb_gmch_ctl >>= SNB_GMCH_GMS_SHIFT;
 	snb_gmch_ctl &= SNB_GMCH_GMS_MASK;
 	return snb_gmch_ctl << 25; /* 32 MB units */
 }
 
-static inline unsigned int gen7_get_stolen_size(u16 snb_gmch_ctl)
+static inline size_t gen7_get_stolen_size(u16 snb_gmch_ctl)
 {
 	static const int stolen_decoder[] = {
 		0, 0, 0, 0, 0, 32, 48, 64, 128, 256, 96, 160, 224, 352};

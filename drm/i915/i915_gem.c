@@ -190,6 +190,7 @@ int
 i915_gem_init_ioctl(struct drm_device *dev, void *data,
 		    struct drm_file *file)
 {
+	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct drm_i915_gem_init *args = data;
 
 	if (drm_core_check_feature(dev, DRIVER_MODESET))
@@ -204,8 +205,9 @@ i915_gem_init_ioctl(struct drm_device *dev, void *data,
 		return -ENODEV;
 
 	mutex_lock(&dev->struct_mutex);
-	i915_gem_init_global_gtt(dev, args->gtt_start,
-				 args->gtt_end, args->gtt_end);
+	i915_gem_setup_global_gtt(dev, args->gtt_start, args->gtt_end,
+				  args->gtt_end);
+	dev_priv->gtt.mappable_end = args->gtt_end;
 	mutex_unlock(&dev->struct_mutex);
 
 	return 0;
@@ -4603,7 +4605,7 @@ int i915_gem_init(struct drm_device *dev)
 		 * aperture accordingly when using aliasing ppgtt. */
 		gtt_size -= I915_PPGTT_PD_ENTRIES*PAGE_SIZE;
 
-		i915_gem_init_global_gtt(dev, 0, mappable_size, gtt_size);
+		i915_gem_setup_global_gtt(dev, 0, mappable_size, gtt_size);
 
 		ret = i915_gem_init_aliasing_ppgtt(dev);
 		if (ret) {
@@ -4621,7 +4623,7 @@ int i915_gem_init(struct drm_device *dev)
 		 * should be enough to keep any prefetching inside of the
 		 * aperture.
 		 */
-		i915_gem_init_global_gtt(dev, 0, mappable_size,
+		i915_gem_setup_global_gtt(dev, 0, mappable_size,
 					 gtt_size);
 	}
 
