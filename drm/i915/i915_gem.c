@@ -2118,7 +2118,6 @@ i915_gem_object_put_pages_gtt(struct drm_i915_gem_object *obj)
 	if (obj->madv == I915_MADV_DONTNEED)
 		obj->dirty = 0;
 
-
 #ifdef __FreeBSD__
 	VM_OBJECT_WLOCK(obj->base.vm_obj);
 #if GEM_PARANOID_CHECK_GTT
@@ -2133,22 +2132,18 @@ i915_gem_object_put_pages_gtt(struct drm_i915_gem_object *obj)
 	for (i = 0; i < page_count; i++) {
 		vm_page_t page = obj->pages[i];
 #endif
+
 		if (obj->dirty)
 			set_page_dirty(page);
 
 		if (obj->madv == I915_MADV_WILLNEED)
 			mark_page_accessed(page);
 
-#ifdef FREEBSD_NOTYET
 		page_cache_release(page);
-#else
-		vm_page_lock(page);
-		vm_page_unwire(obj->pages[i], PQ_ACTIVE);
-		vm_page_unlock(page);
+#ifdef __FreeBSD__
 		atomic_add_long(&i915_gem_wired_pages_cnt, -1);
 #endif
 	}
-
 #ifdef __FreeBSD__
 	VM_OBJECT_WUNLOCK(obj->base.vm_obj);
 #endif
