@@ -4880,9 +4880,6 @@ i915_gem_attach_phys_object(struct drm_device *dev,
 {
 #ifdef __linux__
 	struct address_space *mapping = obj->base.filp->f_path.dentry->d_inode->i_mapping;
-#elif __FreeBSD__
-	struct sf_buf *sf;
-	char *dst, *src;
 #endif
 	drm_i915_private_t *dev_priv = dev->dev_private;
 	int ret = 0;
@@ -4936,16 +4933,17 @@ i915_gem_attach_phys_object(struct drm_device *dev,
 		page_cache_release(page);
 #elif __FreeBSD__
 		vm_page_t page = i915_gem_wire_page(obj->base.vm_obj, i, NULL);
+		char *dst, *src;
+
 		if (page == NULL) {
 			ret = -EIO;
 			break;
 		}
 		VM_OBJECT_WUNLOCK(obj->base.vm_obj);
-		sf = sf_buf_alloc(page, 0);
-		src = (char *)sf_buf_kva(sf);
+		src = kmap_atomic(page);
 		dst = (char *)obj->phys_obj->handle->vaddr + IDX_TO_OFF(i);
 		memcpy(dst, src, PAGE_SIZE);
-		sf_buf_free(sf);
+		kunmap_atomic(src);
 
 		VM_OBJECT_WLOCK(obj->base.vm_obj);
 
