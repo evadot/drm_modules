@@ -35,7 +35,6 @@
 #include <linux/dma_remapping.h>
 #elif __FreeBSD__
 #include <sys/limits.h>
-#include <sys/sf_buf.h>
 #endif
 
 struct eb_objects {
@@ -201,9 +200,6 @@ i915_gem_execbuffer_relocate_entry(struct drm_i915_gem_object *obj,
 	if (use_cpu_reloc(obj)) {
 		uint32_t page_offset = reloc->offset & ~PAGE_MASK;
 		char *vaddr;
-#ifdef __FreeBSD__
-		struct sf_buf *sf;
-#endif
 
 		ret = i915_gem_object_set_to_cpu_domain(obj, 1);
 		if (ret)
@@ -212,17 +208,11 @@ i915_gem_execbuffer_relocate_entry(struct drm_i915_gem_object *obj,
 #ifdef __linux__
 		vaddr = kmap_atomic(i915_gem_object_get_page(obj,
 							     reloc->offset >> PAGE_SHIFT));
+#elif __FreeBSD__
+		vaddr = kmap_atomic(obj->pages[OFF_TO_IDX(reloc->offset)]);
+#endif
 		*(uint32_t *)(vaddr + page_offset) = reloc->delta;
 		kunmap_atomic(vaddr);
-#elif __FreeBSD__
-		sf = sf_buf_alloc(obj->pages[OFF_TO_IDX(reloc->offset)],
-		    SFB_NOWAIT);
-		if (sf == NULL)
-			return -ENOMEM;
-		vaddr = (void *)sf_buf_kva(sf);
-		*(uint32_t *)(vaddr + page_offset) = reloc->delta;
-		sf_buf_free(sf);
-#endif
 	} else {
 		struct drm_i915_private *dev_priv = dev->dev_private;
 		uint32_t __iomem *reloc_entry;
