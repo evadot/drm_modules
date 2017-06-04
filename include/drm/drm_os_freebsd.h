@@ -17,8 +17,6 @@ typedef void			irqreturn_t;
 #define	IRQ_HANDLED		/* nothing */
 #define	IRQ_NONE		/* nothing */
 
-#define	BUILD_BUG_ON_NOT_POWER_OF_2(x)
-
 #define	KHZ2PICOS(a)	(1000000000UL/(a))
 
 #define	HZ			hz
