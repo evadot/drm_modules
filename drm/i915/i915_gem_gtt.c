@@ -486,13 +486,8 @@ void i915_gem_restore_gtt_mappings(struct drm_device *dev)
 	struct drm_i915_gem_object *obj;
 
 	/* First fill our portion of the GTT with scratch pages */
-#ifdef FREEBSD_NOTYET
 	dev_priv->gtt.gtt_clear_range(dev, dev_priv->gtt.start / PAGE_SIZE,
 				      dev_priv->gtt.total / PAGE_SIZE);
-#else
-	i915_ggtt_clear_range(dev, dev_priv->gtt.start / PAGE_SIZE,
-			      (dev_priv->gtt.gtt_end - dev_priv->gtt.start) / PAGE_SIZE);
-#endif
 
 	list_for_each_entry(obj, &dev_priv->mm.bound_list, gtt_list) {
 		i915_gem_clflush_object(obj);
@@ -677,7 +672,6 @@ void i915_gem_setup_global_gtt(struct drm_device *dev,
 
 	dev_priv->gtt.start = start;
 	dev_priv->gtt.mappable_end = mappable_end;
-	dev_priv->gtt.gtt_end = end;
 	dev_priv->gtt.total = end - start;
 	dev_priv->gtt.mappable_gtt_total = min(end, mappable_end) - start;
 

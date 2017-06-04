@@ -390,7 +390,6 @@ struct i915_gtt {
 	unsigned long start;		/* Start offset of used GTT */
 	size_t total;			/* Total size GTT can map */
 	size_t stolen_size;		/* Total size of stolen memory */
-	unsigned long gtt_end;
 
 	unsigned long mappable_end;	/* End offset that we can CPU map */
 	struct io_mapping *mappable;	/* Mapping to our CPU mappable region */
