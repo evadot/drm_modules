@@ -1258,7 +1258,7 @@ static int gen6_drpc_info(struct drm_device *dev, struct sbuf *m)
 #ifdef __linux__
 	gt_core_status = readl(dev_priv->regs + GEN6_GT_CORE_STATUS);
 #elif __FreeBSD__
-	gt_core_status = DRM_READ32(dev_priv->mmio_map, GEN6_GT_CORE_STATUS);
+	gt_core_status = DRM_READ32(dev_priv->regs, GEN6_GT_CORE_STATUS);
 #endif
 	trace_i915_reg_rw(false, GEN6_GT_CORE_STATUS, gt_core_status, 4);
 

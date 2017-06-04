@@ -1617,7 +1617,7 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 #elif __FreeBSD__
 	ret = drm_addmap(dev,
 	    drm_get_resource_start(dev, mmio_bar), mmio_size,
-	    _DRM_REGISTERS, _DRM_KERNEL | _DRM_DRIVER, &dev_priv->mmio_map);
+	    _DRM_REGISTERS, _DRM_KERNEL | _DRM_DRIVER, &dev_priv->regs);
 	if (ret != 0) {
 #endif
 		DRM_ERROR("failed to map registers\n");
@@ -1777,8 +1777,8 @@ out_rmmap:
 #ifdef __linux__
 	pci_iounmap(dev->pdev, dev_priv->regs);
 #endif
-	if (dev_priv->mmio_map != NULL)
-		drm_rmmap(dev, dev_priv->mmio_map);
+	if (dev_priv->regs != NULL)
+		drm_rmmap(dev, dev_priv->regs);
 put_gmch:
 	i915_gem_gtt_fini(dev);
 put_bridge:
@@ -1899,8 +1899,8 @@ int i915_driver_unload(struct drm_device *dev)
 	 * intel_teardown_gmbus(), because, on FreeBSD,
 	 * intel_i2c_reset() is called during iicbus_detach().
 	 */
-	if (dev_priv->mmio_map != NULL)
-		drm_rmmap(dev, dev_priv->mmio_map);
+	if (dev_priv->regs != NULL)
+		drm_rmmap(dev, dev_priv->regs);
 
 	/*
 	 * NOTE Linux<->FreeBSD: Linux forgots to call
