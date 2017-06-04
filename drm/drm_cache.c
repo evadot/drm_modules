@@ -26,8 +26,8 @@ drm_clflush_virt_range(char *addr, unsigned long length)
 void
 drm_clflush_sg(struct sg_table *st)
 {
-	struct page *page;
 	struct scatterlist *sg;
+	struct page *page;
 	int i;
 
 	for_each_sg(st->sgl, sg, st->nents, i) {
