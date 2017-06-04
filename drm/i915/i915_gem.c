@@ -462,7 +462,7 @@ i915_gem_shmem_pread(struct drm_device *dev,
 	int hit_slowpath = 0;
 	int prefaulted = 0;
 	int needs_clflush = 0;
-#ifdef __linux__
+#ifdef FREEBSD_NOTYET
 	struct scatterlist *sg;
 	int i;
 #endif
@@ -494,13 +494,13 @@ i915_gem_shmem_pread(struct drm_device *dev,
 
 	offset = args->offset;
 
-#ifdef __linux__
+#ifdef FREEBSDNOTYET
 	for_each_sg(obj->pages->sgl, sg, obj->pages->nents, i) {
 		struct page *page;
 
 		if (i < offset >> PAGE_SHIFT)
 			continue;
-#elif __FreeBSD__
+#else
 	VM_OBJECT_WLOCK(obj->base.vm_obj);
 	for (vm_page_t page = vm_page_find_least(obj->base.vm_obj,
 	    OFF_TO_IDX(offset));; page = vm_page_next(page)) {
@@ -520,7 +520,7 @@ i915_gem_shmem_pread(struct drm_device *dev,
 		if ((shmem_page_offset + page_length) > PAGE_SIZE)
 			page_length = PAGE_SIZE - shmem_page_offset;
 
-#ifdef __linux__
+#ifdef FREEBSD_NOTYET
 		page = sg_page(sg);
 #endif
 		page_do_bit17_swizzling = obj_do_bit17_swizzling &&
@@ -552,11 +552,7 @@ i915_gem_shmem_pread(struct drm_device *dev,
 		mutex_lock(&dev->struct_mutex);
 
 next_page:
-#ifdef __linux__
 		mark_page_accessed(page);
-#elif __FreeBSD__
-		vm_page_reference(page);
-#endif
 
 		if (ret)
 			goto out;
@@ -564,7 +560,9 @@ next_page:
 		remain -= page_length;
 		user_data += page_length;
 		offset += page_length;
+#ifdef __FreeBSD__
 		VM_OBJECT_WLOCK(obj->base.vm_obj);
+#endif
 	}
 
 out:
@@ -812,7 +810,7 @@ i915_gem_shmem_pwrite(struct drm_device *dev,
 	int hit_slowpath = 0;
 	int needs_clflush_after = 0;
 	int needs_clflush_before = 0;
-#ifdef __linux__
+#ifdef FREEBSD_NOTYET
 	int i;
 	struct scatterlist *sg;
 #endif
@@ -850,10 +848,10 @@ i915_gem_shmem_pwrite(struct drm_device *dev,
 	offset = args->offset;
 	obj->dirty = 1;
 
-#ifdef __linux__
+#ifdef FREEBSD_NOTYET
 	for_each_sg(obj->pages->sgl, sg, obj->pages->nents, i) {
 		struct page *page;
-#elif __FreeBSD__
+#else
 	VM_OBJECT_WLOCK(obj->base.vm_obj);
 	for (vm_page_t page = vm_page_find_least(obj->base.vm_obj,
 	    OFF_TO_IDX(offset));; page = vm_page_next(page)) {
@@ -861,7 +859,7 @@ i915_gem_shmem_pwrite(struct drm_device *dev,
 #endif
 		int partial_cacheline_write;
 
-#ifdef __linux__
+#ifdef FREEBSD_NOTYET
 		if (i < offset >> PAGE_SHIFT)
 			continue;
 #endif
@@ -887,7 +885,7 @@ i915_gem_shmem_pwrite(struct drm_device *dev,
 			((shmem_page_offset | page_length)
 				& (cpu_clflush_line_size - 1));
 
-#ifdef __linux__
+#ifdef FREEBSD_NOTYET
 		page = sg_page(sg);
 #endif
 		page_do_bit17_swizzling = obj_do_bit17_swizzling &&
@@ -910,13 +908,8 @@ i915_gem_shmem_pwrite(struct drm_device *dev,
 		mutex_lock(&dev->struct_mutex);
 
 next_page:
-#ifdef __linux__
 		set_page_dirty(page);
 		mark_page_accessed(page);
-#elif __FreeBSD__
-		vm_page_dirty(page);
-		vm_page_reference(page);
-#endif
 
 		if (ret)
 			goto out;
@@ -2128,7 +2121,7 @@ static void
 i915_gem_object_put_pages_gtt(struct drm_i915_gem_object *obj)
 {
 	int page_count = obj->base.size / PAGE_SIZE;
-#ifdef __linux__
+#ifdef FREEBSD_NOTYET
 	struct scatterlist *sg;
 #endif
 	int ret, i;
@@ -2151,37 +2144,38 @@ i915_gem_object_put_pages_gtt(struct drm_i915_gem_object *obj)
 	if (obj->madv == I915_MADV_DONTNEED)
 		obj->dirty = 0;
 
-#ifdef __linux__
+
+#ifdef __FreeBSD__
+	VM_OBJECT_WLOCK(obj->base.vm_obj);
+#if GEM_PARANOID_CHECK_GTT
+	i915_gem_assert_pages_not_mapped(obj->base.dev, obj->pages, page_count);
+#endif
+#endif
+#ifdef FREEBSD_NOTYET
 	for_each_sg(obj->pages->sgl, sg, page_count, i) {
 		struct page *page = sg_page(sg);
 
+#else
+	for (i = 0; i < page_count; i++) {
+		vm_page_t page = obj->pages[i];
+#endif
 		if (obj->dirty)
 			set_page_dirty(page);
 
 		if (obj->madv == I915_MADV_WILLNEED)
 			mark_page_accessed(page);
 
+#ifdef FREEBSD_NOTYET
 		page_cache_release(page);
-	}
-#elif __FreeBSD__
-	VM_OBJECT_WLOCK(obj->base.vm_obj);
-#if GEM_PARANOID_CHECK_GTT
-	i915_gem_assert_pages_not_mapped(obj->base.dev, obj->pages, page_count);
-#endif
-	for (i = 0; i < page_count; i++) {
-		vm_page_t page = obj->pages[i];
-
-		if (obj->dirty)
-			vm_page_dirty(page);
-
-		if (obj->madv == I915_MADV_WILLNEED)
-			vm_page_reference(page);
-
+#else
 		vm_page_lock(page);
 		vm_page_unwire(obj->pages[i], PQ_ACTIVE);
 		vm_page_unlock(page);
 		atomic_add_long(&i915_gem_wired_pages_cnt, -1);
+#endif
 	}
+
+#ifdef __FreeBSD__
 	VM_OBJECT_WUNLOCK(obj->base.vm_obj);
 #endif
 	obj->dirty = 0;
@@ -2278,9 +2272,8 @@ i915_gem_object_get_pages_range(struct drm_i915_gem_object *obj,
 	vm_object_t vm_obj;
 	vm_page_t page;
 	vm_pindex_t si, ei, i;
-	bool need_swizzle, fresh;
+	bool fresh;
 
-	need_swizzle = i915_gem_object_needs_bit17_swizzle(obj) != 0;
 	vm_obj = obj->base.vm_obj;
 	si = OFF_TO_IDX(trunc_page(start));
 	ei = OFF_TO_IDX(round_page(end));
@@ -2289,8 +2282,6 @@ i915_gem_object_get_pages_range(struct drm_i915_gem_object *obj,
 		page = i915_gem_wire_page(vm_obj, i, &fresh);
 		if (page == NULL)
 			goto failed;
-		if (need_swizzle && fresh)
-			i915_gem_object_do_bit_17_swizzle_page(obj, page);
 	}
 	VM_OBJECT_WUNLOCK(vm_obj);
 	return (0);
@@ -2375,8 +2366,6 @@ i915_gem_object_get_pages_gtt(struct drm_i915_gem_object *obj)
 
 	obj->pages = st;
 
-	if (i915_gem_object_needs_bit17_swizzle(obj))
-		i915_gem_object_do_bit_17_swizzle(obj);
 #elif __FreeBSD__
 	KASSERT(obj->pages == NULL, ("Obj already has pages"));
 
@@ -2398,6 +2387,9 @@ i915_gem_object_get_pages_gtt(struct drm_i915_gem_object *obj)
 	}
 	VM_OBJECT_WUNLOCK(vm_obj);
 #endif
+
+	if (i915_gem_object_needs_bit17_swizzle(obj))
+		i915_gem_object_do_bit_17_swizzle(obj);
 
 	return 0;
 #ifdef __linux__
@@ -2650,9 +2642,6 @@ i915_gem_request_remove_from_client(struct drm_i915_gem_request *request)
 static void i915_gem_reset_ring_lists(struct drm_i915_private *dev_priv,
 				      struct intel_ring_buffer *ring)
 {
-	if (ring->dev != NULL)
-		BUG_ON(!mutex_is_locked(&ring->dev->struct_mutex));
-
 	while (!list_empty(&ring->request_list)) {
 		struct drm_i915_gem_request *request;
 
@@ -3417,7 +3406,7 @@ static bool i915_gem_valid_gtt_space(struct drm_device *dev,
 
 	/* On non-LLC machines we have to be careful when putting differing
 	 * types of snoopable memory together to avoid the prefetcher
-	 * crossing memory domains and dying.
+	 * crossing memory domains and dieing.
 	 */
 	if (HAS_LLC(dev))
 		return true;
@@ -3448,13 +3437,13 @@ static void i915_gem_verify_gtt(struct drm_device *dev)
 
 	list_for_each_entry(obj, &dev_priv->mm.gtt_list, gtt_list) {
 		if (obj->gtt_space == NULL) {
-			DRM_ERROR("object found on GTT list with no space reserved\n");
+			printk(KERN_ERR "object found on GTT list with no space reserved\n");
 			err++;
 			continue;
 		}
 
 		if (obj->cache_level != obj->gtt_space->color) {
-			DRM_ERROR("object reserved space [%08lx, %08lx] with wrong color, cache_level=%x, color=%lx\n",
+			printk(KERN_ERR "object reserved space [%08lx, %08lx] with wrong color, cache_level=%x, color=%lx\n",
 			       obj->gtt_space->start,
 			       obj->gtt_space->start + obj->gtt_space->size,
 			       obj->cache_level,
@@ -3466,7 +3455,7 @@ static void i915_gem_verify_gtt(struct drm_device *dev)
 		if (!i915_gem_valid_gtt_space(dev,
 					      obj->gtt_space,
 					      obj->cache_level)) {
-			DRM_ERROR("invalid GTT space found at [%08lx, %08lx] - color=%x\n",
+			printk(KERN_ERR "invalid GTT space found at [%08lx, %08lx] - color=%x\n",
 			       obj->gtt_space->start,
 			       obj->gtt_space->start + obj->gtt_space->size,
 			       obj->cache_level);
@@ -3619,7 +3608,11 @@ i915_gem_clflush_object(struct drm_i915_gem_object *obj)
 
 	trace_i915_gem_object_clflush(obj);
 
+#ifdef FREEBSD_NOTYET
+	drm_clflush_sg(obj->pages);
+#else
 	drm_clflush_pages(obj->pages, obj->base.size / PAGE_SIZE);
+#endif
 }
 
 /** Flushes the GTT write domain for the object if it's dirty. */
@@ -4341,7 +4334,7 @@ struct drm_i915_gem_object *i915_gem_alloc_object(struct drm_device *dev,
 
 int i915_gem_init_object(struct drm_gem_object *obj)
 {
-	printf("i915_gem_init_object called\n");
+	BUG();
 
 	return 0;
 }
