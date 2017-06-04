@@ -4818,9 +4818,6 @@ void i915_gem_detach_phys_object(struct drm_device *dev,
 {
 #ifdef __linux__
 	struct address_space *mapping = obj->base.filp->f_path.dentry->d_inode->i_mapping;
-#elif __FreeBSD__
-	struct sf_buf *sf;
-	char *dst;
 #endif
 	char *vaddr;
 	int i;
@@ -4850,25 +4847,22 @@ void i915_gem_detach_phys_object(struct drm_device *dev,
 		}
 #elif __FreeBSD__
 		vm_page_t page = i915_gem_wire_page(obj->base.vm_obj, i, NULL);
-		if (page == NULL)
-			continue; /* XXX */
-
-		VM_OBJECT_WUNLOCK(obj->base.vm_obj);
-		sf = sf_buf_alloc(page, 0);
-		if (sf != NULL) {
-			dst = (char *)sf_buf_kva(sf);
+		if (page != NULL) {
+			VM_OBJECT_WUNLOCK(obj->base.vm_obj);
+			char *dst = kmap_atomic(page);
 			memcpy(dst, vaddr + IDX_TO_OFF(i), PAGE_SIZE);
-			sf_buf_free(sf);
-		}
-		drm_clflush_pages(&page, 1);
+			kunmap_atomic(dst);
 
-		VM_OBJECT_WLOCK(obj->base.vm_obj);
-		vm_page_reference(page);
-		vm_page_lock(page);
-		vm_page_dirty(page);
-		vm_page_unwire(page, PQ_INACTIVE);
-		vm_page_unlock(page);
-		atomic_add_long(&i915_gem_wired_pages_cnt, -1);
+			drm_clflush_pages(&page, 1);
+
+			VM_OBJECT_WLOCK(obj->base.vm_obj);
+			vm_page_reference(page);
+			vm_page_lock(page);
+			vm_page_dirty(page);
+			vm_page_unwire(page, PQ_INACTIVE);
+			vm_page_unlock(page);
+			atomic_add_long(&i915_gem_wired_pages_cnt, -1);
+		}
 #endif
 	}
 	VM_OBJECT_WUNLOCK(obj->base.vm_obj);
