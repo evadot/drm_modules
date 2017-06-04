@@ -323,7 +323,6 @@ static void __exit drm_core_exit(void)
 
 	unregister_chrdev(DRM_MAJOR, "drm");
 
-	idr_remove_all(&drm_minors_idr);
 	idr_destroy(&drm_minors_idr);
 #elif __FreeBSD__
 	drm_global_release();
@@ -415,7 +414,7 @@ long drm_ioctl(struct file *filp,
 {
 	struct drm_file *file_priv = filp->private_data;
 #elif __FreeBSD__
-int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
+int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t kdata, int flags,
     DRM_STRUCTPROC *p)
 {
 	struct drm_file *file_priv;
@@ -473,11 +472,11 @@ int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
 
 	case FIOSETOWN:
 		atomic_dec(&dev->ioctl_count);
-		return fsetown(*(int *)data, &file_priv->minor->buf_sigio);
+		return fsetown(*(int *)kdata, &file_priv->minor->buf_sigio);
 
 	case FIOGETOWN:
 		atomic_dec(&dev->ioctl_count);
-		*(int *) data = fgetown(&file_priv->minor->buf_sigio);
+		*(int *) kdata = fgetown(&file_priv->minor->buf_sigio);
 		return 0;
 	}
 #endif
@@ -585,18 +584,10 @@ int drm_ioctl(struct cdev *kdev, u_long cmd, caddr_t data, int flags,
 #endif
 
 		if (ioctl->flags & DRM_UNLOCKED)
-#ifdef __linux__
 			retcode = func(dev, kdata, file_priv);
-#elif __FreeBSD__
-			retcode = func(dev, data, file_priv);
-#endif
 		else {
 			mutex_lock(&drm_global_mutex);
-#ifdef __linux__
 			retcode = func(dev, kdata, file_priv);
-#elif __FreeBSD__
-			retcode = func(dev, data, file_priv);
-#endif
 			mutex_unlock(&drm_global_mutex);
 		}
 
