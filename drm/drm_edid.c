@@ -31,6 +31,7 @@
 #include <linux/kernel.h>
 #include <linux/slab.h>
 #ifdef __linux__
+#include <linux/hdmi.h>
 #include <linux/i2c.h>
 #endif
 #include <linux/module.h>
