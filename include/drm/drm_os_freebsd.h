@@ -116,6 +116,12 @@ typedef void			irqreturn_t;
 
 #define	page_to_phys(x) VM_PAGE_TO_PHYS(x)
 
+#define	page_cache_release(page)	do {	\
+	vm_page_lock(page);			\
+	vm_page_unwire(page, PQ_ACTIVE);	\
+	vm_page_unlock(page);			\
+} while (0);
+
 #define	drm_get_device_from_kdev(_kdev)	(((struct drm_minor *)(_kdev)->si_drv1)->dev)
 
 #define DRM_IOC_VOID		IOC_VOID
