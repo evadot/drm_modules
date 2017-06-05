@@ -285,9 +285,6 @@ static int i915_gem_object_info(struct drm_device *dev, struct sbuf *m, void *da
 	seq_printf(m, "%u fault mappable objects, %zu bytes\n",
 		   count, size);
 
-	seq_printf(m, "%zu [%zu] gtt total\n",
-		   dev_priv->gtt.total, dev_priv->gtt.mappable_gtt_total);
-
 	mutex_unlock(&dev->struct_mutex);
 
 	return 0;

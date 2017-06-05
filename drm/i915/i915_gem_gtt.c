@@ -664,6 +664,7 @@ void i915_gem_setup_global_gtt(struct drm_device *dev,
 			       unsigned long end)
 {
 	drm_i915_private_t *dev_priv = dev->dev_private;
+	unsigned long mappable;
 
 	/* Substract the guard page ... */
 	drm_mm_init(&dev_priv->mm.gtt_space, start, end - start - PAGE_SIZE);
@@ -673,7 +674,7 @@ void i915_gem_setup_global_gtt(struct drm_device *dev,
 	dev_priv->gtt.start = start;
 	dev_priv->gtt.mappable_end = mappable_end;
 	dev_priv->gtt.total = end - start;
-	dev_priv->gtt.mappable_gtt_total = min(end, mappable_end) - start;
+	mappable = min(end, mappable_end) - start;
 
 	/* ... but ensure that we clear the entire range. */
 	i915_ggtt_clear_range(dev, start / PAGE_SIZE, (end-start) / PAGE_SIZE);
@@ -682,9 +683,9 @@ void i915_gem_setup_global_gtt(struct drm_device *dev,
 	    "taking over the fictitious range 0x%jx-0x%jx\n",
 	    (uintmax_t)(dev_priv->gtt.mappable_base + start),
 	    (uintmax_t)(dev_priv->gtt.mappable_base + start +
-		dev_priv->gtt.mappable_gtt_total));
+		mappable));
 	vm_phys_fictitious_reg_range(dev_priv->gtt.mappable_base + start,
-	    dev_priv->gtt.mappable_base + start + dev_priv->gtt.mappable_gtt_total,
+	    dev_priv->gtt.mappable_base + start + mappable,
 	    VM_MEMATTR_WRITE_COMBINING);
 }
 

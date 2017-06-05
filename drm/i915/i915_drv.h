@@ -395,9 +395,6 @@ struct i915_gtt {
 	struct io_mapping *mappable;	/* Mapping to our CPU mappable region */
 	phys_addr_t mappable_base;	/* PA of our GMADR */
 
-	/* accounting, useful for userland debugging */
-	size_t mappable_gtt_total;
-
 	/** "Graphics Stolen Memory" holds the global PTEs */
 	void __iomem *gsm;
 
